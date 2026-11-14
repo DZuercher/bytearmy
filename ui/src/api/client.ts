@@ -6,16 +6,30 @@ type Schemas = components['schemas']
 export type AppState = Schemas['AppState']
 export type Project = Schemas['Project']
 export type ProjectMeta = Schemas['ProjectMeta']
+export type Task = Schemas['Task']
+export type TaskCreate = Schemas['TaskCreate']
 export type UiChange = Schemas['UiChange']
+export type Bar = Schemas['TaskOrder']['bar']
 
 const routes = {
   state: '/api/state',
-  projects: '/api/projects',
-  project: '/api/projects/{slug}',
-  order: '/api/projects/order',
-  focus: '/api/focus',
   ui: '/api/ui',
+  focus: '/api/focus',
+  projects: '/api/projects',
+  projectOrder: '/api/projects/order',
+  project: '/api/projects/{project}',
+  tasks: '/api/projects/{project}/tasks',
+  taskOrder: '/api/projects/{project}/tasks/order',
+  taskFocus: '/api/projects/{project}/tasks/focus',
+  taskStart: '/api/projects/{project}/tasks/{task}/start',
+  task: '/api/projects/{project}/tasks/{task}',
 } as const satisfies Record<string, keyof paths>
+
+function fill(route: string, parts: { project: string; task?: string }): string {
+  return route
+    .replace('{project}', encodeURIComponent(parts.project))
+    .replace('{task}', encodeURIComponent(parts.task ?? ''))
+}
 
 // The core serves this page and passes the token in the page's URL.
 const token = new URLSearchParams(location.search).get('token') ?? ''
@@ -48,12 +62,23 @@ async function send(method: string, path: string, body?: unknown): Promise<AppSt
 
 export const api = {
   state: () => request('GET', routes.state),
+  updateUi: (change: UiChange) => request('PATCH', routes.ui, change),
+
   createProject: (meta: ProjectMeta) => request('POST', routes.projects, meta),
-  deleteProject: (slug: string) =>
-    request('DELETE', routes.project.replace('{slug}', encodeURIComponent(slug))),
+  deleteProject: (project: string) => request('DELETE', fill(routes.project, { project })),
   reorderProjects: (order: string[]) =>
-    request('PUT', routes.order, { order } satisfies Schemas['ProjectOrder']),
+    request('PUT', routes.projectOrder, { order } satisfies Schemas['ProjectOrder']),
   focusProject: (slug: string | null) =>
     request('PUT', routes.focus, { slug } satisfies Schemas['Focus']),
-  updateUi: (change: UiChange) => request('PATCH', routes.ui, change),
+
+  createTask: (project: string, task: TaskCreate) =>
+    request('POST', fill(routes.tasks, { project }), task),
+  startTask: (project: string, task: string) =>
+    request('POST', fill(routes.taskStart, { project, task })),
+  deleteTask: (project: string, task: string) =>
+    request('DELETE', fill(routes.task, { project, task })),
+  reorderTasks: (project: string, bar: Bar, order: string[]) =>
+    request('PUT', fill(routes.taskOrder, { project }), { bar, order } satisfies Schemas['TaskOrder']),
+  focusTask: (project: string, slug: string | null) =>
+    request('PUT', fill(routes.taskFocus, { project }), { slug } satisfies Schemas['Focus']),
 }

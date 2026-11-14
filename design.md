@@ -26,11 +26,14 @@ It should be possible to drag and drop projects to change their order, the order
 ### Backlog tasks
 The user should be able to create new backlog tasks.
 When creating a task a name must be provided.
+Two tasks of the same project cannot have the same name.
 Optionally a description of the task can be provided and a branch name (only show this option if a github url was provided for the project). 
 Optionally, dependencies on other already existing tasks and a reminder date can be provided.
-The task is created at `<bytearmy_root>/<project_slug>/<task_name>` where the project is the currently focused project in the project bar.
-If a Github URL is provided for the current project `git clone <github url>` in `<bytearmy_root>/<project_slug>/<task_name>`.
-The clone lands in `<bytearmy_root>/<project_slug>/<task_name>/<repo_name>`, so the tasks `.bytearmy` directory stays outside of the repository.
+From its reminder date on a task shows a reminder marker in its bar and in its data.
+The task is created at `<bytearmy_root>/<project_slug>/<task_slug>` where the project is the currently focused project in the project bar. The slug is derived from the name like for projects (`Fix login` becomes `fix-login`).
+If a Github URL is provided for the current project `git clone <github url>` in `<bytearmy_root>/<project_slug>/<task_slug>`.
+The clone lands in `<bytearmy_root>/<project_slug>/<task_slug>/<repo_name>`, so the tasks `.bytearmy` directory stays outside of the repository.
+If a branch name was provided the branch is checked out after the clone if it exists on the remote, otherwise it is created from the default branch.
 The task then becomes visible in the backlog task bar. The status of the task should be set to `Backlog`.
 The status, name, description, branch, reminder date, dependencies of a task is tracked in its metadata (.bytearmy directory).
 
@@ -38,6 +41,7 @@ The status, name, description, branch, reminder date, dependencies of a task is 
 
 The backlog task bar contains a `+` button which allows to add new backlog tasks, opening a creation dialogue.
 Left clicking on a task moves it from the backlog task bar into the task bar. It should be the last task in the task bar then. Its status should be set to `New`.
+A task cannot be moved into the task bar while a task it depends on is still in the backlog. It shows which tasks it waits for.
 When right-clicking on a task the tasks data should be shown as well as a button allowing to delete the task.
 When deleting a task show a warning informing the user that all the data associated with the task will be deleted and ask for confirmation.
 It should be possible to drag and drop tasks to change their order, the order should be persistet when restarting the program.
@@ -99,20 +103,20 @@ bytearmy_root
 |-- project-1
     |- .bytearmy [contains bytearmy project level metadata, like name and Github URL]
     |- .claude [contains project specific claude configurations like CLAUDE.md etc. Claude loads this CLAUDE.md by itself in every task of the project]
-    |- Task 1
+    |- task-1
         |- .bytearmy [contains bytearmy metadata, like current state of the UI]
         |- <repo_name> [clone of the projects Github URL, if there is one]
-    |- Task 2
+    |- task-2
         |- .bytearmy [contains bytearmy metadata, like current state of the UI]
-    |- Task 3
+    |- task-3
         |- .bytearmy [contains bytearmy metadata, like current state of the UI]
 |-- project-2
     |- .bytearmy [contains bytearmy project level metadata, like name and Github URL]
-    |- Task 1
+    |- task-1
         |- .bytearmy [contains bytearmy metadata, like current state of the UI]
 |-- project-3
     |- .bytearmy [contains bytearmy project level metadata, like name and Github URL]
-    |- Task 1
+    |- task-1
         |- .bytearmy [contains bytearmy metadata, like current state of the UI]
-    |- Task 2
+    |- task-2
         |- .bytearmy [contains bytearmy metadata, like current state of the UI]

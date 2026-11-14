@@ -57,6 +57,9 @@ def test_create_writes_metadata_into_a_slug_directory(store):
         "name": "Project 1",
         "description": "first",
         "github_url": "git@github.com:me/p1.git",
+        "backlog_order": [],
+        "task_order": [],
+        "focused_task": None,
     }
 
 

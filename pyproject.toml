@@ -17,3 +17,6 @@ packages = ["src/bytearmy"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff]
+extend-exclude = ["spikes"]  # throwaway prototypes
