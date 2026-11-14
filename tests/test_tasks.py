@@ -254,7 +254,12 @@ def test_each_bar_keeps_its_own_order(store, project):
 
 @pytest.mark.parametrize(
     ("bar", "order"),
-    [("backlog", ["a"]), ("backlog", ["a", "b", "c"]), ("backlog", ["a", "a", "b"]), ("tasks", ["a", "b"])],
+    [
+        ("backlog", ["a"]),
+        ("backlog", ["a", "b", "c"]),
+        ("backlog", ["a", "a", "b"]),
+        ("tasks", ["a", "b"]),
+    ],
 )
 def test_reorder_rejects_anything_but_a_permutation_of_the_bar(store, project, bar, order):
     for name in ("a", "b", "c"):

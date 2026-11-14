@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Literal
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 BACKLOG = "Backlog"
 NEW = "New"
@@ -69,12 +69,62 @@ class TaskFile(TaskCreate):
     clone_error: str = ""
 
 
+class Split(BaseModel):
+    """A node of a workspace's layout tree, in the form react-mosaic draws."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    type: Literal["split"] = "split"
+    direction: Literal["row", "column"]
+    children: list[Split | str]  # a string is a leaf: the id of a pane
+    split_percentages: list[float] | None = Field(default=None, alias="splitPercentages")
+
+
+class Pane(BaseModel):
+    id: str
+    tool: str
+    title: str
+    values: dict[str, str] = {}  # the tool's parameters, e.g. the file for Vim
+    session: str = ""  # stays the same across restarts; lets a tool such as Claude resume
+    rows: int = 24
+    cols: int = 80
+    exit_code: int | None = None  # set when the program ended with an error
+
+
+class Workspace(BaseModel):
+    """Contents of `<task>/.bytearmy/layout.json`."""
+
+    tree: Split | str | None = None
+    panes: dict[str, Pane] = {}
+    maximized: str | None = None
+    next_pane: int = 1
+
+
 class Task(TaskFile):
     slug: str  # directory name below the project; the task's id within it
     path: str
     clone: Literal["none", "cloning", "ready", "failed"]
     reminder_due: bool
     blocked_by: list[str]  # names of the dependencies that are still in the backlog
+    workspace: Workspace
+
+
+class Parameter(BaseModel):
+    name: str
+    label: str = ""
+    path: bool = False  # the value is a file below the task directory
+
+
+class Tool(BaseModel):
+    """A tool the palette offers; one file in `<root>/.tools`."""
+
+    id: str
+    name: str
+    kind: Literal["terminal"] = "terminal"
+    command: str = ""  # run by the user's shell; empty means the shell itself
+    resume: str = ""  # run instead of `command` when a pane is restored after a restart
+    directory: Literal["task", "repo"] = "task"  # repo: the clone, if the task has one
+    parameters: list[Parameter] = []
 
 
 class Project(ProjectMeta):
@@ -114,6 +164,7 @@ class AppState(BaseModel):
     projects: list[Project]
     focused_project: str | None
     ui: UiState
+    tools: list[Tool] = []
 
 
 class ProjectOrder(BaseModel):
@@ -127,3 +178,13 @@ class TaskOrder(BaseModel):
 
 class Focus(BaseModel):
     slug: str | None
+
+
+class PaneOpen(BaseModel):
+    tool: str
+    values: dict[str, str] = {}
+    beside: str | None = None  # the pane to split; the last pane if not given
+
+
+class Layout(BaseModel):
+    tree: Split | str | None

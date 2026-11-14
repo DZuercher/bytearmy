@@ -12,7 +12,7 @@ from pathlib import Path
 
 import uvicorn
 
-from bytearmy.api import create_app
+from bytearmy.api import create_app, schema
 from bytearmy.store import Store
 
 UI_DIR = Path(__file__).resolve().parents[2] / "ui"
@@ -73,7 +73,6 @@ def main() -> None:
     )
     args = parser.parse_args()
     if args.openapi:
-        # The schema does not depend on any data, so no root is touched.
-        print(json.dumps(create_app(store=None, token="").openapi(), indent=2))  # type: ignore[arg-type]
+        print(json.dumps(schema(), indent=2))
         return
     asyncio.run(run(args.root.expanduser().resolve()))

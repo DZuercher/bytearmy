@@ -191,6 +191,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{project}/tasks/{task}/panes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Open Pane */
+        post: operations["open_pane_api_projects__project__tasks__task__panes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project}/tasks/{task}/panes/{pane}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Close Pane */
+        delete: operations["close_pane_api_projects__project__tasks__task__panes__pane__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project}/tasks/{task}/layout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set Layout */
+        put: operations["set_layout_api_projects__project__tasks__task__layout_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project}/tasks/{task}/maximized": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Maximize Pane */
+        put: operations["maximize_pane_api_projects__project__tasks__task__maximized_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -207,6 +275,11 @@ export interface components {
             /** Focused Project */
             focused_project: string | null;
             ui: components["schemas"]["UiState"];
+            /**
+             * Tools
+             * @default []
+             */
+            tools: components["schemas"]["Tool"][];
         };
         /** Focus */
         Focus: {
@@ -217,6 +290,73 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** Layout */
+        Layout: {
+            /** Tree */
+            tree: components["schemas"]["Split-Input"] | string | null;
+        };
+        /** Pane */
+        Pane: {
+            /** Id */
+            id: string;
+            /** Tool */
+            tool: string;
+            /** Title */
+            title: string;
+            /**
+             * Values
+             * @default {}
+             */
+            values: {
+                [key: string]: string;
+            };
+            /**
+             * Session
+             * @default
+             */
+            session: string;
+            /**
+             * Rows
+             * @default 24
+             */
+            rows: number;
+            /**
+             * Cols
+             * @default 80
+             */
+            cols: number;
+            /** Exit Code */
+            exit_code?: number | null;
+        };
+        /** PaneOpen */
+        PaneOpen: {
+            /** Tool */
+            tool: string;
+            /**
+             * Values
+             * @default {}
+             */
+            values: {
+                [key: string]: string;
+            };
+            /** Beside */
+            beside?: string | null;
+        };
+        /** Parameter */
+        Parameter: {
+            /** Name */
+            name: string;
+            /**
+             * Label
+             * @default
+             */
+            label: string;
+            /**
+             * Path
+             * @default false
+             */
+            path: boolean;
         };
         /** Project */
         Project: {
@@ -265,6 +405,48 @@ export interface components {
         ProjectOrder: {
             /** Order */
             order: string[];
+        };
+        /**
+         * Split
+         * @description A node of a workspace's layout tree, in the form react-mosaic draws.
+         */
+        "Split-Input": {
+            /**
+             * Type
+             * @default split
+             * @constant
+             */
+            type: "split";
+            /**
+             * Direction
+             * @enum {string}
+             */
+            direction: "row" | "column";
+            /** Children */
+            children: (components["schemas"]["Split-Input"] | string)[];
+            /** Splitpercentages */
+            splitPercentages?: number[] | null;
+        };
+        /**
+         * Split
+         * @description A node of a workspace's layout tree, in the form react-mosaic draws.
+         */
+        "Split-Output": {
+            /**
+             * Type
+             * @default split
+             * @constant
+             */
+            type: "split";
+            /**
+             * Direction
+             * @enum {string}
+             */
+            direction: "row" | "column";
+            /** Children */
+            children: (components["schemas"]["Split-Output"] | string)[];
+            /** Splitpercentages */
+            splitPercentages?: number[] | null;
         };
         /** Task */
         Task: {
@@ -315,6 +497,7 @@ export interface components {
             reminder_due: boolean;
             /** Blocked By */
             blocked_by: string[];
+            workspace: components["schemas"]["Workspace"];
         };
         /**
          * TaskCreate
@@ -350,6 +533,43 @@ export interface components {
             bar: "backlog" | "tasks";
             /** Order */
             order: string[];
+        };
+        /**
+         * Tool
+         * @description A tool the palette offers; one file in `<root>/.tools`.
+         */
+        Tool: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Kind
+             * @default terminal
+             * @constant
+             */
+            kind: "terminal";
+            /**
+             * Command
+             * @default
+             */
+            command: string;
+            /**
+             * Resume
+             * @default
+             */
+            resume: string;
+            /**
+             * Directory
+             * @default task
+             * @enum {string}
+             */
+            directory: "task" | "repo";
+            /**
+             * Parameters
+             * @default []
+             */
+            parameters: components["schemas"]["Parameter"][];
         };
         /**
          * UiChange
@@ -393,6 +613,28 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /**
+         * Workspace
+         * @description Contents of `<task>/.bytearmy/layout.json`.
+         */
+        Workspace: {
+            /** Tree */
+            tree?: components["schemas"]["Split-Output"] | string | null;
+            /**
+             * Panes
+             * @default {}
+             */
+            panes: {
+                [key: string]: components["schemas"]["Pane"];
+            };
+            /** Maximized */
+            maximized?: string | null;
+            /**
+             * Next Pane
+             * @default 1
+             */
+            next_pane: number;
         };
     };
     responses: never;
@@ -734,6 +976,147 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    open_pane_api_projects__project__tasks__task__panes_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project: string;
+                task: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PaneOpen"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    close_pane_api_projects__project__tasks__task__panes__pane__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project: string;
+                task: string;
+                pane: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_layout_api_projects__project__tasks__task__layout_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project: string;
+                task: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Layout"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    maximize_pane_api_projects__project__tasks__task__maximized_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project: string;
+                task: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Focus"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

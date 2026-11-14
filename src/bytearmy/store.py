@@ -37,6 +37,7 @@ from bytearmy.models import (
     TaskCreate,
     TaskFile,
     UiChange,
+    Workspace,
 )
 
 log = logging.getLogger(__name__)
@@ -103,7 +104,7 @@ def _ordered(order: list[str], existing: Collection[str]) -> list[str]:
 def _write_json(path: Path, model: BaseModel) -> None:
     # Write beside the target and rename: a crash never leaves a half-written file.
     temporary = path.with_name(path.name + ".tmp")
-    temporary.write_text(model.model_dump_json(indent=2) + "\n")
+    temporary.write_text(model.model_dump_json(indent=2, by_alias=True) + "\n")
     os.replace(temporary, path)
 
 
@@ -211,9 +212,7 @@ class Store:
             slug = unique_slug(slugify(meta.name), taken)
             directory = self.root / slug
             (directory / METADATA_DIR).mkdir(parents=True)
-            _write_json(
-                directory / METADATA_DIR / "project.json", ProjectFile(**meta.model_dump())
-            )
+            _write_json(directory / METADATA_DIR / "project.json", ProjectFile(**meta.model_dump()))
 
             state = self._load_state()
             state.project_order = [*_ordered(state.project_order, projects), slug]
@@ -296,7 +295,10 @@ class Store:
                 clone=clone,
                 clone_error=clone_error,
                 reminder_due=file.reminder is not None and file.reminder <= today,
-                blocked_by=[files[other].name for other in file.dependencies if other in in_backlog],
+                blocked_by=[
+                    files[other].name for other in file.dependencies if other in in_backlog
+                ],
+                workspace=self._load_workspace(directory),
             )
 
         backlog = [task(slug) for slug in _ordered(project.backlog_order, in_backlog)]
@@ -381,7 +383,9 @@ class Store:
                     file.dependencies.remove(slug)
                     self._save_task(project_dir, other, file)
 
-    def reorder_tasks(self, project: str, bar: Literal["backlog", "tasks"], order: list[str]) -> None:
+    def reorder_tasks(
+        self, project: str, bar: Literal["backlog", "tasks"], order: list[str]
+    ) -> None:
         with self._lock:
             project_dir = self._project_dir(project)
             project_file = self._project_file(project_dir)
@@ -403,6 +407,29 @@ class Store:
             project_file = self._project_file(project_dir)
             project_file.focused_task = slug
             self._save_project(project_dir, project_file)
+
+    # -- workspaces --------------------------------------------------------
+
+    def _load_workspace(self, task_dir: Path) -> Workspace:
+        file = task_dir / METADATA_DIR / "layout.json"
+        if not file.exists():
+            return Workspace()
+        try:
+            return Workspace.model_validate_json(file.read_text())
+        except (OSError, ValidationError) as error:
+            log.warning("Ignoring the layout of %s: unreadable (%s)", task_dir.name, error)
+            return Workspace()
+
+    def change_workspace(
+        self, project: str, slug: str, change: Callable[[Workspace], None]
+    ) -> Workspace:
+        """Apply `change` to the task's workspace and store the result."""
+        with self._lock:
+            task_dir = self._task_dir(self._project_dir(project), slug)
+            workspace = self._load_workspace(task_dir)
+            change(workspace)
+            _write_json(task_dir / METADATA_DIR / "layout.json", workspace)
+            return workspace
 
     # -- clones ------------------------------------------------------------
 

@@ -64,6 +64,8 @@ The workspace is a tiling window manager.
 The user can double tap the shift button to open a command dialogue (like dmenu on linux) from which a tool can be selected.
 When choosing a tool a new pane is opened in the workspace showing the tool specific pane.
 The current layout of a workspace is stored in the tasks metadata.
+A pane closes when its program ends without an error. If the program fails the pane stays and shows the exit code.
+When bytearmy quits, the programs in all panes are stopped. When it starts again the panes of all tasks are restored with their layout and their programs are started again. A Claude pane continues its earlier conversation.
 Each task has one master agent, which is the agent that was created first in the task. This agent can also create new panes by calling tools.
 It can also destruct, highlight, maximize, rearrange them.
 It does this with the `bytearmy` command line tool, which is available in every pane (e.g. `bytearmy pane open webpage <url>`, `bytearmy pane maximize <id>`, `bytearmy task set-status <status>`).
@@ -75,6 +77,7 @@ The names are visible to every Claude session of the user on the machine, so the
 ## Tools
 Calling a tool opens a new pane on the workspace.
 The tools are found in .tools. Ideally these just open already existing programs but within the panes in bytearmy.
+Every tool is one file `<bytearmy_root>/.tools/<tool>.toml` holding its name, its command and its parameters. bytearmy writes the files of the premade tools if they are missing and never overwrites them, so the user can change them.
 A program can run inside a pane if it is a terminal program or if it serves a web UI. Windows of native programs (Finder, Ghostty, the VS Code desktop app) cannot be placed inside a pane.
 Every tool therefore has one of three kinds:
 - terminal: the program runs in a terminal emulator inside the pane (xterm.js connected to a pseudo-terminal).
@@ -84,7 +87,7 @@ Every tool therefore has one of three kinds:
 The user calls a tool from the command dialogue, an agent calls it with the `bytearmy` command line tool.
 Tools can be added by the user or agents but the following tools should come premade with bytearmy.
 - Terminal [terminal. Opens the users default shell in the embedded terminal emulator. The systems terminal application itself cannot be embedded.]
-- Claude [terminal. Same as Terminal but directly executes `claude` to spawn a claude agent. if this is currently the only agent running in the task it becomes the master agent. The command runs through the users interactive shell, so a shell function or alias named `claude` works.]
+- Claude [terminal. Same as Terminal but directly executes `claude` to spawn a claude agent. if this is currently the only agent running in the task it becomes the master agent. The command runs through the users interactive shell, so a shell function or alias named `claude` works. It starts in the clone of the repository if the task has one, otherwise in the tasks working directory.]
 - Vim [terminal. Opens the vim editor. Needs to be pointed to a specific file in the workspace.]
 - HTML [web. Renders a static html file in the workspace. Can only be invoked by the agent.]
 - Webpage [web. Shows a specific webpage. Eg github page associaated with the projects github url.]

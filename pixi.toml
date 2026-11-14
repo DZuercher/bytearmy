@@ -22,7 +22,7 @@ ui-types = { cmd = "python -m bytearmy --openapi > ui/openapi.json && cd ui && n
 ui-build = { cmd = "npm run build", cwd = "ui", depends-on = ["ui-types"] }
 bytearmy = { cmd = "python -m bytearmy", depends-on = ["ui-build"] }
 test = "pytest -q"
-lint = "ruff check"
+lint = "ruff check && ruff format --check"
 # The core's tests on Linux: a copy of the sources in a container, so .pixi/ of this machine stays untouched.
 test-linux = "docker run --rm -v \"$PIXI_PROJECT_ROOT\":/src:ro buildpack-deps:bookworm-scm bash -c 'curl -fsSL https://pixi.sh/install.sh | PIXI_NO_PATH_UPDATE=1 bash >/dev/null 2>&1 && mkdir /work && cd /src && cp -r pixi.toml pixi.lock pyproject.toml src tests /work/ && cd /work && uname -sm && ~/.pixi/bin/pixi run --locked test'"
 

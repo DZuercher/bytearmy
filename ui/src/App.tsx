@@ -1,17 +1,30 @@
-import { useCallback, useEffect, useState } from 'react'
-import { type AppState, type Bar, type UiChange, api } from '@/api/client'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { type AppState, type Bar, type Tree, type UiChange, api } from '@/api/client'
 import { BacklogBar } from '@/components/BacklogBar'
 import { DeleteDialog, type Doomed } from '@/components/DeleteDialog'
+import { Palette } from '@/components/Palette'
 import { ProjectBar } from '@/components/ProjectBar'
 import { TaskBar } from '@/components/TaskBar'
+import { Workspace } from '@/components/Workspace'
 
 const REFRESH_MS = 60_000 // a reminder becomes due without anyone clicking
 const REFRESH_WHILE_CLONING_MS = 1_000
+
+declare global {
+  interface Window {
+    // Provided by the Electron shell; absent when the page runs in a plain browser.
+    shell?: { onPaletteToggle: (callback: () => void) => () => void }
+  }
+}
 
 export function App() {
   const [state, setState] = useState<AppState | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [doomed, setDoomed] = useState<Doomed | null>(null)
+  const [paletteOpen, setPaletteOpen] = useState(false)
+  // Workspaces stay mounted once opened, so their terminals keep their content.
+  const [opened, setOpened] = useState<string[]>([])
+  const activePanes = useRef<Record<string, string>>({})
 
   // Every call answers with the complete state: show it, or show why the call failed.
   const run = useCallback((call: Promise<AppState>) => {
@@ -21,6 +34,7 @@ export function App() {
   }, [])
 
   useEffect(() => run(api.state()), [run])
+  useEffect(() => window.shell?.onPaletteToggle(() => setPaletteOpen((open) => !open)), [])
 
   const cloning =
     state?.projects.some((project) =>
@@ -34,11 +48,16 @@ export function App() {
     return () => clearInterval(timer)
   }, [cloning, run])
 
+  const project = state?.projects.find((candidate) => candidate.slug === state.focused_project)
+  const task = project?.tasks.find((candidate) => candidate.slug === project.focused_task)
+  const focused = project && task ? `${project.slug}/${task.slug}` : null
+  useEffect(() => {
+    if (focused) setOpened((keys) => (keys.includes(focused) ? keys : [...keys, focused]))
+  }, [focused])
+
   if (state === null) return error && <p className="p-4 text-destructive">{error}</p>
 
   const { ui, projects } = state
-  const project = projects.find((candidate) => candidate.slug === state.focused_project)
-  const task = project?.tasks.find((candidate) => candidate.slug === project.focused_task)
   const setUi = (change: UiChange) => run(api.updateUi(change))
 
   function reorderProjects(order: string[]) {
@@ -60,11 +79,36 @@ export function App() {
     run(api.reorderTasks(project.slug, bar, order))
   }
 
+  function arrange(projectSlug: string, taskSlug: string, tree: Tree) {
+    // While the user drags, the layout follows at once; the core hears of it on release.
+    setState({
+      ...state!,
+      projects: projects.map((candidate) =>
+        candidate.slug !== projectSlug
+          ? candidate
+          : {
+              ...candidate,
+              tasks: candidate.tasks.map((other) =>
+                other.slug !== taskSlug
+                  ? other
+                  : { ...other, workspace: { ...other.workspace, tree: tree as typeof other.workspace.tree } },
+              ),
+            },
+      ),
+    })
+  }
+
   function confirmDelete(confirmed: Doomed) {
     setDoomed(null)
     if (confirmed.kind === 'project') run(api.deleteProject(confirmed.slug))
     else if (project) run(api.deleteTask(project.slug, confirmed.slug))
   }
+
+  const workspaces = projects.flatMap((candidate) =>
+    candidate.tasks
+      .filter((other) => opened.includes(`${candidate.slug}/${other.slug}`))
+      .map((other) => ({ project: candidate, task: other, key: `${candidate.slug}/${other.slug}` })),
+  )
 
   return (
     <div className="flex h-full flex-col bg-zinc-50">
@@ -84,15 +128,30 @@ export function App() {
           onDelete={setDoomed}
           onReorder={reorderProjects}
         />
-        <main className="flex min-w-0 flex-1 flex-col gap-3 bg-white p-4">
-          <h1 className="text-lg font-semibold">Workspace</h1>
-          <p className="text-muted-foreground">
-            {task && project
-              ? `${project.name} / ${task.name}: no panes yet.`
-              : project
-                ? `${project.name}: no task is open.`
-                : 'Create or select a project.'}
-          </p>
+        <main className="flex min-w-0 flex-1 flex-col bg-white">
+          <div className="flex items-baseline gap-3 px-4 pt-4 pb-3">
+            <h1 className="text-lg font-semibold">Workspace</h1>
+            <p className="text-muted-foreground">
+              {task && project
+                ? `${project.name} / ${task.name}`
+                : project
+                  ? `${project.name}: no task is open.`
+                  : 'Create or select a project.'}
+            </p>
+          </div>
+          {workspaces.map((shown) => (
+            <Workspace
+              key={shown.key}
+              project={shown.project}
+              task={shown.task}
+              visible={shown.key === focused}
+              run={run}
+              onArrange={(tree) => arrange(shown.project.slug, shown.task.slug, tree)}
+              onActivePane={(pane) => {
+                activePanes.current[shown.key] = pane
+              }}
+            />
+          ))}
         </main>
         <BacklogBar
           open={ui.right_open}
@@ -113,6 +172,22 @@ export function App() {
         onReorder={(order) => reorderTasks('tasks', order)}
       />
       <DeleteDialog doomed={doomed} onCancel={() => setDoomed(null)} onConfirm={confirmDelete} />
+      {paletteOpen && project && task && focused && (
+        <Palette
+          tools={state.tools ?? []}
+          onClose={() => setPaletteOpen(false)}
+          onRun={(tool, values) => {
+            setPaletteOpen(false)
+            run(
+              api.openPane(project.slug, task.slug, {
+                tool,
+                values,
+                beside: activePanes.current[focused] ?? null,
+              }),
+            )
+          }}
+        />
+      )}
     </div>
   )
 }

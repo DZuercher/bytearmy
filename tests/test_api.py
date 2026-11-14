@@ -134,7 +134,9 @@ def test_task_errors_map_to_status_codes(client):
     assert client.post(tasks, json={"name": "x", "branch": "bad..name"}).status_code == 400
     assert client.post(f"{tasks}/ghost/start").status_code == 404
     assert client.delete(f"{tasks}/ghost").status_code == 404
-    assert client.put(f"{tasks}/order", json={"bar": "tasks", "order": ["ghost"]}).status_code == 400
+    assert (
+        client.put(f"{tasks}/order", json={"bar": "tasks", "order": ["ghost"]}).status_code == 400
+    )
     assert bars(client.get("/api/state")) == (["design-api", "fix-login"], [])
 
     blocked = client.post(f"{tasks}/fix-login/start")
@@ -171,7 +173,9 @@ def test_creating_a_task_clones_the_repository_of_its_project(client, remote):
 
 
 @pytest.mark.parametrize("target", ["/api/projects/widgets/tasks/a", "/api/projects/widgets"])
-def test_deleting_a_task_or_its_project_stops_the_running_clone(tmp_path, remote, gated_git, target):
+def test_deleting_a_task_or_its_project_stops_the_running_clone(
+    tmp_path, remote, gated_git, target
+):
     store = Store(tmp_path / "root")
     app = create_app(store, token=TOKEN, cloner=Cloner(store, git=gated_git.command))
     with TestClient(app, headers={"Authorization": f"Bearer {TOKEN}"}) as client:

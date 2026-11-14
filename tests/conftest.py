@@ -1,10 +1,13 @@
-"""Fixtures shared by the checks: a repository to clone from and a git that can be held back."""
+"""Helpers shared by the checks: reading terminals, a repository to clone from, a git on hold."""
 
 from __future__ import annotations
 
+import asyncio
 import os
+import re
 import subprocess
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -24,6 +27,35 @@ def git(*arguments: str, cwd: Path) -> str:
         text=True,
     )
     return done.stdout.strip()
+
+
+async def read_until(output: asyncio.Queue, pattern: bytes, timeout: float = 5) -> bytes:
+    """Collect terminal output until it matches, or fail showing what arrived."""
+    seen = b""
+    try:
+        async with asyncio.timeout(timeout):
+            while not re.search(pattern, seen):
+                chunk = await output.get()
+                assert chunk is not None, f"ended before {pattern!r}; saw {seen!r}"
+                seen += chunk
+    except TimeoutError:
+        pytest.fail(f"no match for {pattern!r} within {timeout}s; saw {seen!r}")
+    return seen
+
+
+async def read_to_end(output: asyncio.Queue, timeout: float = 5) -> bytes:
+    seen = b""
+    async with asyncio.timeout(timeout):
+        while (chunk := await output.get()) is not None:
+            seen += chunk
+    return seen
+
+
+def wait_until(condition: Callable[[], object], what: str, timeout: float = 5) -> None:
+    deadline = time.monotonic() + timeout
+    while not condition():
+        assert time.monotonic() < deadline, f"{what} did not happen within {timeout}s"
+        time.sleep(0.01)
 
 
 @pytest.fixture

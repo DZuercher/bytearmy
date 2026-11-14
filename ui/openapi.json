@@ -456,6 +456,237 @@
           }
         }
       }
+    },
+    "/api/projects/{project}/tasks/{task}/panes": {
+      "post": {
+        "summary": "Open Pane",
+        "operationId": "open_pane_api_projects__project__tasks__task__panes_post",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project"
+            }
+          },
+          {
+            "name": "task",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaneOpen"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project}/tasks/{task}/panes/{pane}": {
+      "delete": {
+        "summary": "Close Pane",
+        "operationId": "close_pane_api_projects__project__tasks__task__panes__pane__delete",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project"
+            }
+          },
+          {
+            "name": "task",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task"
+            }
+          },
+          {
+            "name": "pane",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pane"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project}/tasks/{task}/layout": {
+      "put": {
+        "summary": "Set Layout",
+        "operationId": "set_layout_api_projects__project__tasks__task__layout_put",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project"
+            }
+          },
+          {
+            "name": "task",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Layout"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project}/tasks/{task}/maximized": {
+      "put": {
+        "summary": "Maximize Pane",
+        "operationId": "maximize_pane_api_projects__project__tasks__task__maximized_put",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project"
+            }
+          },
+          {
+            "name": "task",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Focus"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -486,6 +717,14 @@
           },
           "ui": {
             "$ref": "#/components/schemas/UiState"
+          },
+          "tools": {
+            "items": {
+              "$ref": "#/components/schemas/Tool"
+            },
+            "type": "array",
+            "title": "Tools",
+            "default": []
           }
         },
         "type": "object",
@@ -530,6 +769,141 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "Layout": {
+        "properties": {
+          "tree": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Split-Input"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tree"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tree"
+        ],
+        "title": "Layout"
+      },
+      "Pane": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "tool": {
+            "type": "string",
+            "title": "Tool"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "values": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Values",
+            "default": {}
+          },
+          "session": {
+            "type": "string",
+            "title": "Session",
+            "default": ""
+          },
+          "rows": {
+            "type": "integer",
+            "title": "Rows",
+            "default": 24
+          },
+          "cols": {
+            "type": "integer",
+            "title": "Cols",
+            "default": 80
+          },
+          "exit_code": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exit Code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "tool",
+          "title"
+        ],
+        "title": "Pane"
+      },
+      "PaneOpen": {
+        "properties": {
+          "tool": {
+            "type": "string",
+            "title": "Tool"
+          },
+          "values": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Values",
+            "default": {}
+          },
+          "beside": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Beside"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tool"
+        ],
+        "title": "PaneOpen"
+      },
+      "Parameter": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "default": ""
+          },
+          "path": {
+            "type": "boolean",
+            "title": "Path",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "Parameter"
       },
       "Project": {
         "properties": {
@@ -632,6 +1006,112 @@
         ],
         "title": "ProjectOrder"
       },
+      "Split-Input": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "split",
+            "title": "Type",
+            "default": "split"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "row",
+              "column"
+            ],
+            "title": "Direction"
+          },
+          "children": {
+            "items": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Split-Input"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Children"
+          },
+          "splitPercentages": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Splitpercentages"
+          }
+        },
+        "type": "object",
+        "required": [
+          "direction",
+          "children"
+        ],
+        "title": "Split",
+        "description": "A node of a workspace's layout tree, in the form react-mosaic draws."
+      },
+      "Split-Output": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "split",
+            "title": "Type",
+            "default": "split"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "row",
+              "column"
+            ],
+            "title": "Direction"
+          },
+          "children": {
+            "items": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Split-Output"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Children"
+          },
+          "splitPercentages": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Splitpercentages"
+          }
+        },
+        "type": "object",
+        "required": [
+          "direction",
+          "children"
+        ],
+        "title": "Split",
+        "description": "A node of a workspace's layout tree, in the form react-mosaic draws."
+      },
       "Task": {
         "properties": {
           "name": {
@@ -711,6 +1191,9 @@
             },
             "type": "array",
             "title": "Blocked By"
+          },
+          "workspace": {
+            "$ref": "#/components/schemas/Workspace"
           }
         },
         "type": "object",
@@ -720,7 +1203,8 @@
           "path",
           "clone",
           "reminder_due",
-          "blocked_by"
+          "blocked_by",
+          "workspace"
         ],
         "title": "Task"
       },
@@ -792,6 +1276,58 @@
           "order"
         ],
         "title": "TaskOrder"
+      },
+      "Tool": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "kind": {
+            "type": "string",
+            "const": "terminal",
+            "title": "Kind",
+            "default": "terminal"
+          },
+          "command": {
+            "type": "string",
+            "title": "Command",
+            "default": ""
+          },
+          "resume": {
+            "type": "string",
+            "title": "Resume",
+            "default": ""
+          },
+          "directory": {
+            "type": "string",
+            "enum": [
+              "task",
+              "repo"
+            ],
+            "title": "Directory",
+            "default": "task"
+          },
+          "parameters": {
+            "items": {
+              "$ref": "#/components/schemas/Parameter"
+            },
+            "type": "array",
+            "title": "Parameters",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "Tool",
+        "description": "A tool the palette offers; one file in `<root>/.tools`."
       },
       "UiChange": {
         "properties": {
@@ -893,6 +1429,51 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "Workspace": {
+        "properties": {
+          "tree": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Split-Output"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tree"
+          },
+          "panes": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Pane"
+            },
+            "type": "object",
+            "title": "Panes",
+            "default": {}
+          },
+          "maximized": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maximized"
+          },
+          "next_pane": {
+            "type": "integer",
+            "title": "Next Pane",
+            "default": 1
+          }
+        },
+        "type": "object",
+        "title": "Workspace",
+        "description": "Contents of `<task>/.bytearmy/layout.json`."
       }
     }
   }

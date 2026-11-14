@@ -206,7 +206,13 @@ def test_shutdown_stops_every_clone(store, project, gated_git):
 
 @pytest.mark.parametrize(
     ("name", "valid"),
-    [("feature", True), ("fix/login", True), ("bad..name", False), ("-x", False), ("with space", False)],
+    [
+        ("feature", True),
+        ("fix/login", True),
+        ("bad..name", False),
+        ("-x", False),
+        ("with space", False),
+    ],
 )
 def test_valid_branch(store, name, valid):
     assert Cloner(store).valid_branch(name) is valid

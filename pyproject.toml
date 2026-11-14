@@ -17,6 +17,9 @@ packages = ["src/bytearmy"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# An exception in a background thread must fail the test that caused it.
+filterwarnings = ["error::pytest.PytestUnhandledThreadExceptionWarning"]
 
 [tool.ruff]
+line-length = 100
 extend-exclude = ["spikes"]  # throwaway prototypes

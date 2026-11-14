@@ -10,6 +10,11 @@ export type Task = Schemas['Task']
 export type TaskCreate = Schemas['TaskCreate']
 export type UiChange = Schemas['UiChange']
 export type Bar = Schemas['TaskOrder']['bar']
+export type Pane = Schemas['Pane']
+export type PaneOpen = Schemas['PaneOpen']
+export type Tool = Schemas['Tool']
+export type Workspace = Schemas['Workspace']
+export type Tree = Schemas['Layout']['tree']
 
 const routes = {
   state: '/api/state',
@@ -23,12 +28,17 @@ const routes = {
   taskFocus: '/api/projects/{project}/tasks/focus',
   taskStart: '/api/projects/{project}/tasks/{task}/start',
   task: '/api/projects/{project}/tasks/{task}',
+  layout: '/api/projects/{project}/tasks/{task}/layout',
+  maximized: '/api/projects/{project}/tasks/{task}/maximized',
+  panes: '/api/projects/{project}/tasks/{task}/panes',
+  pane: '/api/projects/{project}/tasks/{task}/panes/{pane}',
 } as const satisfies Record<string, keyof paths>
 
-function fill(route: string, parts: { project: string; task?: string }): string {
+function fill(route: string, parts: { project: string; task?: string; pane?: string }): string {
   return route
     .replace('{project}', encodeURIComponent(parts.project))
     .replace('{task}', encodeURIComponent(parts.task ?? ''))
+    .replace('{pane}', encodeURIComponent(parts.pane ?? ''))
 }
 
 // The core serves this page and passes the token in the page's URL.
@@ -81,4 +91,24 @@ export const api = {
     request('PUT', fill(routes.taskOrder, { project }), { bar, order } satisfies Schemas['TaskOrder']),
   focusTask: (project: string, slug: string | null) =>
     request('PUT', fill(routes.taskFocus, { project }), { slug } satisfies Schemas['Focus']),
+
+  openPane: (project: string, task: string, pane: PaneOpen) =>
+    request('POST', fill(routes.panes, { project, task }), pane),
+  closePane: (project: string, task: string, pane: string) =>
+    request('DELETE', fill(routes.pane, { project, task, pane })),
+  setLayout: (project: string, task: string, tree: Tree) =>
+    request('PUT', fill(routes.layout, { project, task }), { tree } satisfies Schemas['Layout']),
+  maximizePane: (project: string, task: string, slug: string | null) =>
+    request('PUT', fill(routes.maximized, { project, task }), { slug } satisfies Schemas['Focus']),
+}
+
+// The terminal of a pane. WebSocket routes are not part of the schema, so this path is
+// the one place the type check does not cover.
+export function openTerminal(
+  place: { project: string; task: string; pane: string },
+  size: { rows: number; cols: number },
+): WebSocket {
+  const path = `${fill(routes.pane, place)}/terminal`
+  const query = new URLSearchParams({ token, rows: String(size.rows), cols: String(size.cols) })
+  return new WebSocket(`${location.origin.replace(/^http/, 'ws')}${path}?${query}`)
 }

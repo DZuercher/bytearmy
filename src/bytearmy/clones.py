@@ -41,7 +41,9 @@ class Cloner:
         key = (project, task.slug)
         self._store.clone_started(*key)
         thread = threading.Thread(
-            target=self._clone, args=(key, url, task.branch, Path(task.path), task.repo), daemon=True
+            target=self._clone,
+            args=(key, url, task.branch, Path(task.path), task.repo),
+            daemon=True,
         )
         with self._lock:
             self._threads[key] = thread
@@ -72,7 +74,9 @@ class Cloner:
             except ProcessLookupError:
                 pass
 
-    def _clone(self, key: tuple[str, str], url: str, branch: str, task_dir: Path, repo: str) -> None:
+    def _clone(
+        self, key: tuple[str, str], url: str, branch: str, task_dir: Path, repo: str
+    ) -> None:
         # Clone beside the final place and rename: a directory named `repo` is always complete.
         temporary = task_dir / f"{repo}.cloning"
         error = ""
