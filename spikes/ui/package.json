@@ -1,0 +1,22 @@
+{
+  "name": "bytearmy-spike-ui",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Throwaway spike UI for bytearmy: Electron shell + React renderer.",
+  "main": "main.cjs",
+  "scripts": {
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-mosaic-component": "^7.2.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.3.0",
+    "electron": "^45.3.2",
+    "vite": "^8.3.8"
+  }
+}

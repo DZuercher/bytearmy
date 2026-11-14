@@ -1,0 +1,33 @@
+[workspace]
+name = "bytearmy"
+channels = ["conda-forge"]
+platforms = ["osx-arm64", "linux-64", "linux-aarch64"]
+
+[dependencies]
+python = "3.13.*"
+nodejs = "24.*"
+fastapi = "*"
+uvicorn = "*"
+websockets = "*"
+httpx = "*"
+pytest = "*"
+
+[pypi-dependencies]
+bytearmy = { path = ".", editable = true }
+
+[tasks]
+ui-install = { cmd = "npm install --no-fund --no-audit", cwd = "ui" }
+ui-types = { cmd = "python -m bytearmy --openapi > ui/openapi.json && cd ui && npx openapi-typescript openapi.json -o src/api/schema.d.ts", depends-on = ["ui-install"] }
+ui-build = { cmd = "npm run build", cwd = "ui", depends-on = ["ui-types"] }
+bytearmy = { cmd = "python -m bytearmy", depends-on = ["ui-build"] }
+test = "pytest -q"
+# The core's tests on Linux: a copy of the sources in a container, so .pixi/ of this machine stays untouched.
+test-linux = "docker run --rm -v \"$PIXI_PROJECT_ROOT\":/src:ro buildpack-deps:bookworm-curl bash -c 'curl -fsSL https://pixi.sh/install.sh | PIXI_NO_PATH_UPDATE=1 bash >/dev/null 2>&1 && mkdir /work && cd /src && cp -r pixi.toml pixi.lock pyproject.toml src tests /work/ && cd /work && uname -sm && ~/.pixi/bin/pixi run --locked test'"
+
+spike-ui-install = { cmd = "npm install --no-fund --no-audit", cwd = "spikes/ui" }
+spike-ui-build = { cmd = "npm run build", cwd = "spikes/ui", depends-on = ["spike-ui-install"] }
+spike-a = { cmd = "python spikes/core.py a", depends-on = ["spike-ui-build"] }
+spike-b = { cmd = "python spikes/core.py b", depends-on = ["spike-ui-build"] }
+spike-c = { cmd = "python spikes/core.py c", depends-on = ["spike-ui-build"] }
+spike-d = { cmd = "python spikes/core.py d", depends-on = ["spike-ui-build"] }
+spike-test = "pytest spikes/test_core.py -q"
