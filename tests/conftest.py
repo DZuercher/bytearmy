@@ -1,4 +1,5 @@
-"""Helpers shared by the checks: reading terminals, a repository to clone from, a git on hold."""
+"""Helpers shared by the checks: reading terminals, a repository to clone from, a git on hold,
+a stand-in for the service of a web tool."""
 
 from __future__ import annotations
 
@@ -6,6 +7,7 @@ import asyncio
 import os
 import re
 import subprocess
+import sys
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -56,6 +58,98 @@ def wait_until(condition: Callable[[], object], what: str, timeout: float = 5) -
     while not condition():
         assert time.monotonic() < deadline, f"{what} did not happen within {timeout}s"
         time.sleep(0.01)
+
+
+def running(pid: int) -> bool:
+    """Whether the process is alive; one that has ended but was not collected yet is not."""
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    status = Path(f"/proc/{pid}/stat")  # Linux; elsewhere an ended process is collected at once
+    return not (status.exists() and status.read_text().rsplit(")", 1)[1].split()[0] == "Z")
+
+
+FAKE_SERVICE = '''\
+"""Stands in for the service of a web tool: fake.py <port> <token> <preparing> <pids>."""
+import http.server
+import os
+import signal
+import subprocess
+import sys
+
+port, token, pids = int(sys.argv[1]), sys.argv[2], sys.argv[4]
+child = subprocess.Popen(["sleep", "60"])  # a service may start programs of its own
+with open(pids, "a") as file:
+    file.write(f"{os.getpid()} {child.pid}\\n")
+
+
+def note(kind, text):
+    with open(f"{pids}.{kind}", "a") as file:
+        file.write(text + "\\n")
+
+
+def leave(*_):
+    note("farewell", "asked to end")
+    os._exit(0)
+
+
+if signal.getsignal(signal.SIGTERM) is not signal.SIG_IGN:  # unless told to ignore it
+    signal.signal(signal.SIGTERM, leave)
+
+
+class Handler(http.server.BaseHTTPRequestHandler):
+    preparing = int(sys.argv[3])  # so many requests are answered with "still preparing"
+
+    def do_GET(self):
+        note("requests", self.path.split("?")[0])
+        if Handler.preparing > 0:
+            Handler.preparing -= 1
+            self.send_response(202)
+        elif self.path.startswith(f"/?tkn={token}"):
+            self.send_response(302)
+            self.send_header("Location", "/ready")
+        else:
+            self.send_response(403)
+        self.end_headers()
+
+    def log_message(self, *args):
+        pass
+
+
+http.server.HTTPServer(("127.0.0.1", port), Handler).serve_forever()
+'''
+
+
+@dataclass
+class FakeService:
+    """What a tool file needs to run the stand-in service, and what became of its starts."""
+
+    script: Path
+    pids: Path
+    url: str = "http://127.0.0.1:{port}/?tkn={token}"
+
+    def command(self, preparing: int = 0, before: str = "") -> str:
+        program = f"{sys.executable} {self.script} {{port}} {{token}} {preparing} {self.pids}"
+        return f"{before}exec {program}"
+
+    def started(self) -> list[tuple[int, int]]:
+        """Per start: the process id of the service and of the program it started."""
+        if not self.pids.exists():
+            return []
+        return [tuple(map(int, line.split())) for line in self.pids.read_text().splitlines()]
+
+    def noted(self, kind: str) -> list[str]:
+        """What the service wrote down: the paths of its "requests", or its "farewell"."""
+        notes = Path(f"{self.pids}.{kind}")
+        return notes.read_text().splitlines() if notes.exists() else []
+
+
+@pytest.fixture
+def fake_service(tmp_path) -> FakeService:
+    script = tmp_path / "fake_service.py"
+    script.write_text(FAKE_SERVICE)
+    return FakeService(script=script, pids=tmp_path / "fake-service.pids")
 
 
 @pytest.fixture

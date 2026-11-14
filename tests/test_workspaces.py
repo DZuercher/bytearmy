@@ -5,17 +5,20 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import sys
 import time
 import uuid
 from pathlib import Path
+from urllib.parse import quote
 
 import pytest
-from conftest import read_to_end, read_until, wait_until
+from conftest import read_to_end, read_until, running, wait_until
 
 from bytearmy.models import PaneOpen, ProjectMeta, Split, TaskCreate
 from bytearmy.ptys import Pty
 from bytearmy.store import Store
+from bytearmy.tools import ToolFailed
 from bytearmy.workspaces import (
     COULD_NOT_START,
     InvalidLayout,
@@ -502,6 +505,185 @@ def test_a_pane_whose_tool_is_gone_is_kept_as_failed(store, task):
 
     assert workspace(store, task).panes["p1"].exit_code == COULD_NOT_START
     assert second.attach(*task, "p1", 24, 80) is None
+
+
+# -- pages and windows ------------------------------------------------------
+
+
+def editor(store: Store, fake_service, before: str = "") -> None:
+    """A web tool like the IDE: it shows a service in the clone or the task directory."""
+    (store.root / ".tools").mkdir(exist_ok=True)
+    (store.root / ".tools" / "editor.toml").write_text(
+        'name = "Editor"\nkind = "web"\ndirectory = "repo"\n'
+        'url = "{service}&folder={directory}"\n\n[service]\n'
+        f"command = {json.dumps(fake_service.command(before=before))}\n"
+        f"url = {json.dumps(fake_service.url)}\n"
+    )
+
+
+def cloned_and_plain(store: Store) -> tuple[str, Path, Path]:
+    """A project with a task that has a clone and one that has none; their directories."""
+    project = store.create_project(ProjectMeta(name="Widgets", github_url="/srv/widgets.git")).slug
+    for name in ("cloned", "plain"):
+        store.create_task(project, TaskCreate(name=name))
+        store.start_task(project, name)
+    cloned = Path(store.task(project, "cloned").path)
+    (cloned / "widgets" / ".git").mkdir(parents=True)
+    return project, cloned, Path(store.task(project, "plain").path)
+
+
+def test_a_web_tool_opens_a_pane_that_shows_a_page(store, workspaces, task):
+    pane = open_pane(workspaces, task, "webpage", values={"url": " example.org/docs "})
+
+    assert (pane.kind, pane.title) == ("web", "Webpage: example.org/docs")
+    assert Store(store.root).task(*task).workspace.panes["p1"].kind == "web"
+    assert workspaces.page(*task, "p1", files="") == "https://example.org/docs"
+    assert open_pane(workspaces, task, "terminal").kind == "terminal"
+
+    workspaces.close_pane(*task, "p1")
+    assert sorted(workspace(store, task).panes) == ["p2"]
+
+
+def test_the_webpage_tool_offers_the_page_of_the_project(store, workspaces):
+    meta = ProjectMeta(name="Widgets", github_url="git@github.com:me/widgets.git")
+    place = (store.create_project(meta).slug, "work")
+    store.create_task(place[0], TaskCreate(name="Work"))
+    store.start_task(*place)
+
+    offered = open_pane(workspaces, place, "webpage")
+    entered = open_pane(workspaces, place, "webpage", values={"url": "https://example.org"})
+
+    assert offered.values == {"url": "https://github.com/me/widgets"}
+    assert entered.values == {"url": "https://example.org"}
+
+
+@pytest.mark.parametrize(
+    ("values", "why"),
+    [({}, "URL is required."), ({"url": "file:///etc/passwd"}, "file:///etc/passwd is not a web")],
+)
+def test_a_page_must_be_named_and_be_a_web_page(store, workspaces, task, values, why):
+    with pytest.raises(InvalidValues, match=why):
+        open_pane(workspaces, task, "webpage", values=values)
+
+    assert workspace(store, task).panes == {}
+
+
+def test_the_html_tool_shows_a_file_of_the_task(workspaces, task):
+    open_pane(workspaces, task, "html", values={"file": "out/my report.html"})
+
+    assert workspaces.page(*task, "p1", files="http://core/files/key/demo/work") == (
+        "http://core/files/key/demo/work/out/my%20report.html"
+    )
+    with pytest.raises(InvalidValues):
+        open_pane(workspaces, task, "html", values={"file": "../other/report.html"})
+
+
+def test_a_tool_with_a_service_shows_it_in_the_clone_or_else_in_the_task_directory(
+    store, workspaces, fake_service
+):
+    editor(store, fake_service, before=f'echo "$TERM_PROGRAM" > {store.root / "seen"}; ')
+    project, cloned, plain = cloned_and_plain(store)
+    for slug in ("cloned", "plain"):
+        open_pane(workspaces, (project, slug), "editor")
+
+    in_clone = workspaces.page(project, "cloned", "p1", files="")
+    in_task = workspaces.page(project, "plain", "p1", files="")
+
+    service, folder = in_clone.split("&folder=")
+    assert re.fullmatch(r"http://127\.0\.0\.1:\d+/\?tkn=[\w-]+", service)
+    assert folder == quote(str(cloned / "widgets"))
+    assert in_task == f"{service}&folder={quote(str(plain))}"
+    assert len(fake_service.started()) == 1  # both panes share the service
+    assert (store.root / "seen").read_text() == "bytearmy\n"  # it runs in the pane environment
+
+
+def test_shutdown_ends_the_services(store, task, fake_service):
+    editor(store, fake_service)
+    workspaces = Workspaces(store, shell=["/bin/sh"])
+    open_pane(workspaces, task, "editor")
+    workspaces.page(*task, "p1", files="")
+    (pids,) = fake_service.started()
+
+    workspaces.shutdown()
+
+    wait_until(lambda: not any(running(pid) for pid in pids), "the end of the service")
+
+
+def test_only_a_web_pane_of_a_web_tool_has_a_page(store, workspaces, task):
+    open_pane(workspaces, task, "terminal")
+    open_pane(workspaces, task, "webpage", values={"url": "example.org"})
+
+    for pane in ("p1", "p9"):
+        with pytest.raises(PaneNotFound):
+            workspaces.page(*task, pane, files="")
+    tool(store, "webpage", command="true")  # the tool file now describes a terminal tool
+    with pytest.raises(UnknownTool):
+        workspaces.page(*task, "p2", files="")
+    (store.root / ".tools" / "webpage.toml").unlink()
+    with pytest.raises(UnknownTool):
+        workspaces.page(*task, "p2", files="")
+
+
+def test_a_pane_stored_before_there_were_web_panes_is_a_terminal(store, workspaces, task):
+    tool(store, "wait", command=WAIT)
+    open_pane(workspaces, task, "wait")
+    layout = Path(store.task(*task).path) / ".bytearmy" / "layout.json"
+    stored = json.loads(layout.read_text())
+    del stored["panes"]["p1"]["kind"]
+    layout.write_text(json.dumps(stored))
+
+    assert workspace(store, task).panes["p1"].kind == "terminal"
+    assert workspaces.attach(*task, "p1", 24, 80) is not None
+
+
+def test_a_web_pane_has_no_program(store, task):
+    first = Workspaces(store, shell=["/bin/sh"])
+    open_pane(first, task, "webpage", values={"url": "example.org"})
+    second = Workspaces(store, shell=["/bin/sh"])
+    try:
+        with pytest.raises(PaneNotFound):
+            first.attach(*task, "p1", 24, 80)
+        second.start_all()
+
+        assert (first._ptys, second._ptys) == ({}, {})
+        assert workspace(store, task).panes["p1"].exit_code is None
+    finally:
+        first.shutdown()
+        second.shutdown()
+
+
+def test_an_external_tool_runs_its_command_and_gets_no_pane(store, workspaces, task):
+    (store.root / ".tools" / "note.toml").write_text(
+        'name = "Note"\nkind = "external"\ncommand = "echo $TERM_PROGRAM {text} > noted"\n\n'
+        '[[parameters]]\nname = "text"\n'
+    )
+
+    assert open_pane(workspaces, task, "note", values={"text": "a; b"}) is None
+
+    assert (Path(store.task(*task).path) / "noted").read_text() == "bytearmy a; b\n"
+    assert (workspace(store, task).panes, workspace(store, task).tree) == ({}, None)
+
+
+def test_an_external_tool_can_start_in_the_clone_if_the_task_has_one(store, workspaces):
+    tool(store, "mark", kind="external", directory="repo", command="touch marked")
+    project, cloned, plain = cloned_and_plain(store)
+
+    for slug in ("cloned", "plain"):
+        open_pane(workspaces, (project, slug), "mark")
+
+    assert (cloned / "widgets" / "marked").exists()
+    assert (plain / "marked").exists()
+    assert not (cloned / "marked").exists()
+
+
+def test_an_external_tool_that_fails_is_reported_with_what_it_printed(store, workspaces, task):
+    tool(store, "broken", kind="external", command="echo no window >&2; exit 2")
+
+    with pytest.raises(ToolFailed) as failure:
+        open_pane(workspaces, task, "broken")
+
+    assert str(failure.value) == "broken failed (exit code 2). no window"
+    assert (store.root / ".bytearmy" / "logs" / "broken.log").read_text() == "no window\n"
 
 
 def test_pane_environment_is_the_users_without_the_cores_own_additions():

@@ -32,6 +32,7 @@ const routes = {
   maximized: '/api/projects/{project}/tasks/{task}/maximized',
   panes: '/api/projects/{project}/tasks/{task}/panes',
   pane: '/api/projects/{project}/tasks/{task}/panes/{pane}',
+  panePage: '/api/projects/{project}/tasks/{task}/panes/{pane}/page',
 } as const satisfies Record<string, keyof paths>
 
 function fill(route: string, parts: { project: string; task?: string; pane?: string }): string {
@@ -49,12 +50,12 @@ const token = new URLSearchParams(location.search).get('token') ?? ''
 let queue: Promise<unknown> = Promise.resolve()
 
 function request(method: string, path: string, body?: unknown): Promise<AppState> {
-  const answer = queue.then(() => send(method, path, body))
+  const answer = queue.then(() => send<AppState>(method, path, body))
   queue = answer.catch(() => undefined)
   return answer
 }
 
-async function send(method: string, path: string, body?: unknown): Promise<AppState> {
+async function send<Answer>(method: string, path: string, body?: unknown): Promise<Answer> {
   const response = await fetch(path, {
     method,
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -100,6 +101,12 @@ export const api = {
     request('PUT', fill(routes.layout, { project, task }), { tree } satisfies Schemas['Layout']),
   maximizePane: (project: string, task: string, slug: string | null) =>
     request('PUT', fill(routes.maximized, { project, task }), { slug } satisfies Schemas['Focus']),
+}
+
+// The page of a web pane. It does not wait in the queue and holds nobody up: the answer
+// is not the state, and it can take minutes while the service of a tool starts.
+export function panePage(place: { project: string; task: string; pane: string }): Promise<string> {
+  return send<Schemas['Page']>('GET', fill(routes.panePage, place)).then((page) => page.url)
 }
 
 // The terminal of a pane. WebSocket routes are not part of the schema, so this path is

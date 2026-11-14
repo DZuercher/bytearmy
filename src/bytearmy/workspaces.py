@@ -10,10 +10,18 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 from bytearmy.layout import add_leaf, leaves, remove_leaf
-from bytearmy.models import BACKLOG, Pane, PaneOpen, Split, Tool, Workspace
+from bytearmy.models import BACKLOG, Pane, PaneOpen, Split, Task, Tool, Workspace
 from bytearmy.ptys import Pty
-from bytearmy.store import ProjectNotFound, Store, TaskNotFound
-from bytearmy.tools import command_line, ensure_premade, load_tools
+from bytearmy.services import Services, launch
+from bytearmy.store import METADATA_DIR, ProjectNotFound, Store, TaskNotFound
+from bytearmy.tools import (
+    command_line,
+    default_value,
+    ensure_premade,
+    external_command,
+    load_tools,
+    page_url,
+)
 
 COULD_NOT_START = 127  # the exit code a shell gives for a command it cannot find
 
@@ -64,28 +72,59 @@ class Workspaces:
         self._ptys: dict[Key, Pty] = {}
         self._ending: set[Key] = set()  # panes whose program is being ended on purpose
         self._stopping = False
+        self._logs = store.root / METADATA_DIR / "logs"  # of programs without a terminal
+        self._services = Services(self._logs)
         ensure_premade(store.root)
 
-    def tools(self) -> list[Tool]:
-        return list(load_tools(self._store.root).values())
+    def tools(self, github_page: str = "") -> list[Tool]:
+        """The tools, each parameter with what it defaults to in a project with that page."""
+        return [
+            tool.model_copy(
+                update={
+                    "parameters": [
+                        parameter.model_copy(
+                            update={"default": default_value(parameter, github_page)}
+                        )
+                        for parameter in tool.parameters
+                    ]
+                }
+            )
+            for tool in load_tools(self._store.root).values()
+        ]
 
     # -- panes -------------------------------------------------------------
 
-    def open_pane(self, project: str, task: str, request: PaneOpen) -> Pane:
-        """Add a pane to the task's layout. Its program starts when a terminal attaches."""
+    def open_pane(self, project: str, task: str, request: PaneOpen) -> Pane | None:
+        """Add a pane to the task's layout. Its program starts when a terminal attaches.
+
+        An external tool gets no pane: its program is started at once, in a window of its own.
+        """
         tool = load_tools(self._store.root).get(request.tool)
         if tool is None:
             raise UnknownTool(request.tool)
         found = self._store.task(project, task)
         if found.status == BACKLOG:
             raise NotStarted(found.name)
-        values = _checked_values(tool, request.values, Path(found.path))
+        github_page = self._store.project(project).github_page
+        values = _checked_values(tool, request.values, Path(found.path), github_page)
+        if tool.kind == "external":
+            launch(
+                tool,
+                external_command(tool, values),
+                _directory(tool, found),
+                pane_env(os.environ, sys.prefix),
+                self._logs / f"{tool.id}.log",
+            )
+            return None
+        if tool.kind == "web":
+            _page(tool, values, found, files="http://files", service="http://service")
         opened: list[Pane] = []
 
         def change(workspace: Workspace) -> None:
             pane = Pane(
                 id=f"p{workspace.next_pane}",
                 tool=tool.id,
+                kind=tool.kind,
                 title=": ".join([tool.name, *values.values()]),
                 values=values,
                 session=str(uuid.uuid4()),
@@ -131,7 +170,7 @@ class Workspaces:
         """
         with self._lock:
             found = self._store.task(project, task).workspace.panes.get(pane)
-            if found is None:
+            if found is None or found.kind != "terminal":
                 raise PaneNotFound(pane)
             key = (project, task, pane)
             if key not in self._ptys and found.exit_code is None:
@@ -155,6 +194,8 @@ class Workspaces:
                 for task in project.tasks:
                     for pane in task.workspace.panes.values():
                         key = (project.slug, task.slug, pane.id)
+                        if pane.kind != "terminal":
+                            continue  # a page is loaded by the pane that shows it
                         if key not in self._ptys and pane.exit_code is None:
                             self._start(key, pane, pane.rows, pane.cols, restoring=True)
 
@@ -164,20 +205,33 @@ class Workspaces:
         if tool is None:
             self._ended(key, COULD_NOT_START)
             return
-        found = self._store.task(project, task)
-        cwd = Path(found.path)
-        if tool.directory == "repo" and found.clone == "ready":
-            cwd /= found.repo
         line = command_line(tool, pane, restoring)
         argv = [*self._shell, "-c", line] if line else self._shell
         self._ptys[key] = Pty(
             argv,
-            cwd,
+            _directory(tool, self._store.task(project, task)),
             pane_env(os.environ, sys.prefix),
             rows,
             cols,
             on_exit=lambda code: self._ended(key, code),
         )
+
+    def page(self, project: str, task: str, pane: str, files: str) -> str:
+        """The page a web pane shows; `files` is where the task directory is served.
+
+        Starts the service of the pane's tool if it does not run yet, which can take a while.
+        """
+        found = self._store.task(project, task)
+        shown = found.workspace.panes.get(pane)
+        if shown is None or shown.kind != "web":
+            raise PaneNotFound(pane)
+        tool = load_tools(self._store.root).get(shown.tool)
+        if tool is None or tool.kind != "web":
+            raise UnknownTool(shown.tool)
+        service = ""
+        if tool.service is not None:
+            service = self._services.url(tool, pane_env(os.environ, sys.prefix))
+        return _page(tool, shown.values, found, files, service)
 
     def _ended(self, key: Key, code: int) -> None:
         """A program ended by itself: close its pane if all went well, keep it otherwise."""
@@ -224,6 +278,22 @@ class Workspaces:
             self._stopping = True
             keys = list(self._ptys)
         self._end(keys)
+        self._services.shutdown()
+
+
+def _directory(tool: Tool, task: Task) -> Path:
+    """Where a tool starts: the clone if it asks for it and the task has one."""
+    directory = Path(task.path)
+    if tool.directory == "repo" and task.clone == "ready":
+        directory /= task.repo
+    return directory
+
+
+def _page(tool: Tool, values: Mapping[str, str], task: Task, files: str, service: str) -> str:
+    try:
+        return page_url(tool, values, _directory(tool, task), files, service)
+    except ValueError as error:
+        raise InvalidValues(str(error)) from error
 
 
 def _drop(workspace: Workspace, pane: str) -> None:
@@ -233,11 +303,13 @@ def _drop(workspace: Workspace, pane: str) -> None:
         workspace.maximized = None
 
 
-def _checked_values(tool: Tool, given: Mapping[str, str], task_dir: Path) -> dict[str, str]:
+def _checked_values(
+    tool: Tool, given: Mapping[str, str], task_dir: Path, github_page: str
+) -> dict[str, str]:
     """The values of the tool's parameters; every parameter needs one."""
     values = {}
     for parameter in tool.parameters:
-        value = given.get(parameter.name, "").strip()
+        value = given.get(parameter.name, "").strip() or default_value(parameter, github_page)
         if not value:
             raise InvalidValues(f"{parameter.label or parameter.name} is required.")
         if parameter.path and not (task_dir / value).resolve().is_relative_to(task_dir.resolve()):

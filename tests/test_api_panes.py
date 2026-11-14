@@ -116,7 +116,15 @@ def test_pane_lifecycle_over_http(live):
     opened = live.http.post(PANES, json={"tool": "terminal"})
     assert opened.status_code == 201
     assert opened.json()["projects"][0]["tasks"][0]["workspace"]["tree"] == "p1"
-    assert [tool["id"] for tool in opened.json()["tools"]] == ["claude", "terminal", "vim"]
+    assert [tool["id"] for tool in opened.json()["tools"]] == [
+        "claude",
+        "explorer",
+        "html",
+        "ide",
+        "terminal",
+        "vim",
+        "webpage",
+    ]
 
     live.http.post(PANES, json={"tool": "vim", "values": {"file": "a.md"}, "beside": "p1"})
     assert live.workspace()["tree"]["children"] == ["p1", "p2"]
@@ -165,6 +173,108 @@ def test_pane_errors_map_to_status_codes(live):
         "File, relative to the task directory is required.",
     )
     assert live.workspace()["tree"] == "p1"
+
+
+# -- pages, files and windows -----------------------------------------------
+
+
+def page(live: Live, pane: str) -> httpx.Response:
+    return live.http.get(f"{PANES}/{pane}/page")
+
+
+def test_a_web_pane_names_its_page(live):
+    live.http.post(PANES, json={"tool": "webpage", "values": {"url": "example.org/docs"}})
+    live.http.post(PANES, json={"tool": "terminal"})
+
+    assert live.workspace()["panes"]["p1"]["kind"] == "web"
+    assert (page(live, "p1").status_code, page(live, "p1").json()) == (
+        200,
+        {"url": "https://example.org/docs"},
+    )
+    assert [page(live, pane).status_code for pane in ("p2", "p9")] == [404, 404]
+
+
+def test_the_state_offers_the_defaults_of_the_focused_project(live):
+    def offered(state: httpx.Response) -> str:
+        (webpage,) = [tool for tool in state.json()["tools"] if tool["id"] == "webpage"]
+        return webpage["parameters"][0]["default"]
+
+    widgets = {"name": "Widgets", "github_url": "git@github.com:me/widgets.git"}
+
+    assert offered(live.http.post("/api/projects", json=widgets)) == "https://github.com/me/widgets"
+    assert offered(live.http.put("/api/focus", json={"slug": "demo"})) == ""
+    assert offered(live.http.put("/api/focus", json={"slug": None})) == ""
+
+
+def test_the_page_of_an_html_pane_is_a_file_of_the_task_served_without_the_token(live):
+    task_dir = live.store.root / "demo" / "work"
+    (task_dir / "out").mkdir()
+    (task_dir / "out" / "my report.html").write_text("<h1>report</h1>")
+    live.http.post(PANES, json={"tool": "html", "values": {"file": "out/my report.html"}})
+
+    url = page(live, "p1").json()["url"]
+    served = httpx.get(url)
+
+    assert re.fullmatch(rf"{live.url}/files/[\w-]{{16,}}/demo/work/out/my%20report\.html", url)
+    assert (served.status_code, served.text) == (200, "<h1>report</h1>")
+    assert served.headers["content-type"].startswith("text/html")
+
+
+def test_only_files_inside_the_task_directory_are_served_and_only_with_the_key(live, tmp_path):
+    task_dir = live.store.root / "demo" / "work"
+    (task_dir / "page.html").write_text("inside")
+    (tmp_path / "outside.txt").write_text("outside")
+    (task_dir / "link.txt").symlink_to(tmp_path / "outside.txt")
+    live.http.post(PANES, json={"tool": "html", "values": {"file": "page.html"}})
+    files = page(live, "p1").json()["url"].removesuffix("/page.html")
+    key = files.split("/")[4]
+
+    def status(url: str) -> int:
+        return httpx.get(url).status_code
+
+    assert status(f"{files}/page.html") == 200
+    assert status(f"{files}/missing.html") == 404
+    assert status(f"{files}/") == 404  # a directory
+    assert status(f"{files}/link.txt") == 404  # leads out of the task directory
+    assert (live.store.root / ".bytearmy" / "state.json").is_file()
+    assert status(f"{files}/%2e%2e/%2e%2e/.bytearmy/state.json") == 404
+    assert status(f"{live.url}/files/{key}/demo/ghost/page.html") == 404
+    assert status(f"{live.url}/files/{'x' * len(key)}/demo/work/page.html") == 404
+    assert status(f"{live.url}/files/{TOKEN}/demo/work/page.html") == 404
+
+
+def test_files_are_served_when_the_root_is_reached_through_a_link(tmp_path):
+    (tmp_path / "real").mkdir()
+    (tmp_path / "link").symlink_to(tmp_path / "real", target_is_directory=True)
+    store = Store(tmp_path / "link" / "root")
+    started_task(store)
+    (store.root / "demo" / "work" / "page.html").write_text("inside")
+    workspaces = Workspaces(store, shell=["/bin/sh"])
+    workspaces.open_pane("demo", "work", PaneOpen(tool="html", values={"file": "page.html"}))
+
+    with serving(store, workspaces) as core:
+        served = httpx.get(core.http.get(f"{PANES}/p1/page").json()["url"])
+
+    assert (served.status_code, served.text) == (200, "inside")
+
+
+def test_an_external_tool_opens_no_pane_and_its_failure_is_reported(live):
+    tools = live.store.root / ".tools"
+    (tools / "window.toml").write_text('name = "Window"\nkind = "external"\ncommand = "touch w"\n')
+    (tools / "broken.toml").write_text(
+        'name = "Broken"\nkind = "external"\ncommand = "echo no window >&2; exit 2"\n'
+    )
+
+    opened = live.http.post(PANES, json={"tool": "window"})
+    broken = live.http.post(PANES, json={"tool": "broken"})
+
+    assert opened.status_code == 201
+    assert (live.store.root / "demo" / "work" / "w").exists()
+    assert (broken.status_code, broken.json()["detail"]) == (
+        502,
+        "Broken failed (exit code 2). no window",
+    )
+    assert live.workspace()["panes"] == {}
 
 
 # -- terminals --------------------------------------------------------------

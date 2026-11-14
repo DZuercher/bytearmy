@@ -225,6 +225,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{project}/tasks/{task}/panes/{pane}/page": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Pane Page
+         * @description What a web pane shows. Answers only once the tool's service runs.
+         */
+        get: operations["pane_page_api_projects__project__tasks__task__panes__pane__page_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects/{project}/tasks/{task}/layout": {
         parameters: {
             query?: never;
@@ -252,6 +272,26 @@ export interface paths {
         get?: never;
         /** Maximize Pane */
         put: operations["maximize_pane_api_projects__project__tasks__task__maximized_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/files/{key}/{project}/{task}/{path}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Task File
+         * @description A file below a task directory, for the pages of web panes.
+         */
+        get: operations["task_file_files__key___project___task___path__get"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -296,12 +336,26 @@ export interface components {
             /** Tree */
             tree: components["schemas"]["Split-Input"] | string | null;
         };
+        /**
+         * Page
+         * @description What a web pane shows.
+         */
+        Page: {
+            /** Url */
+            url: string;
+        };
         /** Pane */
         Pane: {
             /** Id */
             id: string;
             /** Tool */
             tool: string;
+            /**
+             * Kind
+             * @default terminal
+             * @enum {string}
+             */
+            kind: "terminal" | "web";
             /** Title */
             title: string;
             /**
@@ -357,6 +411,11 @@ export interface components {
              * @default false
              */
             path: boolean;
+            /**
+             * Default
+             * @default
+             */
+            default: string;
         };
         /** Project */
         Project: {
@@ -376,6 +435,8 @@ export interface components {
             slug: string;
             /** Path */
             path: string;
+            /** Github Page */
+            github_page: string;
             /** Backlog */
             backlog: components["schemas"]["Task"][];
             /** Tasks */
@@ -405,6 +466,16 @@ export interface components {
         ProjectOrder: {
             /** Order */
             order: string[];
+        };
+        /**
+         * Service
+         * @description A program in the background that all panes of a web tool share.
+         */
+        Service: {
+            /** Command */
+            command: string;
+            /** Url */
+            url: string;
         };
         /**
          * Split
@@ -546,9 +617,9 @@ export interface components {
             /**
              * Kind
              * @default terminal
-             * @constant
+             * @enum {string}
              */
-            kind: "terminal";
+            kind: "terminal" | "web" | "external";
             /**
              * Command
              * @default
@@ -560,16 +631,30 @@ export interface components {
              */
             resume: string;
             /**
+             * Url
+             * @default
+             */
+            url: string;
+            /**
              * Directory
              * @default task
              * @enum {string}
              */
             directory: "task" | "repo";
             /**
+             * Callers
+             * @default [
+             *       "user",
+             *       "agent"
+             *     ]
+             */
+            callers: ("user" | "agent")[];
+            /**
              * Parameters
              * @default []
              */
             parameters: components["schemas"]["Parameter"][];
+            service?: components["schemas"]["Service"] | null;
         };
         /**
          * UiChange
@@ -1066,6 +1151,39 @@ export interface operations {
             };
         };
     };
+    pane_page_api_projects__project__tasks__task__panes__pane__page_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project: string;
+                task: string;
+                pane: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     set_layout_api_projects__project__tasks__task__layout_put: {
         parameters: {
             query?: never;
@@ -1125,6 +1243,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AppState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    task_file_files__key___project___task___path__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+                project: string;
+                task: string;
+                path: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

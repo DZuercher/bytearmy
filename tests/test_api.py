@@ -28,12 +28,18 @@ def slugs(response) -> list[str]:
 
 @pytest.mark.parametrize("authorization", ["", "Bearer wrong"])
 def test_every_route_requires_the_token(client, authorization):
+    paths = client.app.openapi()["paths"]
     routes = [
         (method.upper(), path)
-        for path, operations in client.app.openapi()["paths"].items()
+        for path, operations in paths.items()
         for method in operations
+        if path.startswith("/api/")
     ]
     assert ("GET", "/api/state") in routes
+    # The one route outside /api serves the files of the tasks under a key of its own.
+    assert [path for path in paths if not path.startswith("/api/")] == [
+        "/files/{key}/{project}/{task}/{path}"
+    ]
 
     for method, path in routes:
         response = client.request(method, path, headers={"Authorization": authorization})

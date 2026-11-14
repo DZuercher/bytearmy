@@ -9,23 +9,31 @@ type Props = {
 }
 
 // The command dialogue: type to filter, arrows to move, Enter to run, Esc to close.
-// A tool with parameters asks for them one after the other in the same field.
+// A tool with parameters asks for them one after the other in the same field, which
+// starts out with what the core offers for the parameter.
 export function Palette({ tools, onRun, onClose }: Props) {
   const [text, setText] = useState('')
   const [selected, setSelected] = useState(0)
   const [asking, setAsking] = useState<{ tool: Tool; values: Record<string, string> } | null>(null)
   const input = useRef<HTMLInputElement>(null)
 
-  useEffect(() => input.current?.focus(), [asking])
+  useEffect(() => {
+    input.current?.focus()
+    input.current?.select() // typing replaces what is offered
+  }, [asking])
 
-  const matches = tools.filter((tool) => tool.name.toLowerCase().includes(text.toLowerCase()))
+  const matches = tools.filter(
+    (tool) =>
+      (tool.callers ?? ['user']).includes('user') && // some tools are for agents only
+      tool.name.toLowerCase().includes(text.toLowerCase()),
+  )
   const parameter = asking?.tool.parameters?.[Object.keys(asking.values).length]
 
   function choose(tool: Tool | undefined) {
     if (!tool) return
     if (tool.parameters?.length) {
       setAsking({ tool, values: {} })
-      setText('')
+      setText(tool.parameters[0].default ?? '')
     } else {
       onRun(tool.id, {})
     }
@@ -38,7 +46,7 @@ export function Palette({ tools, onRun, onClose }: Props) {
       onRun(asking.tool.id, values)
     } else {
       setAsking({ tool: asking.tool, values })
-      setText('')
+      setText(asking.tool.parameters?.[Object.keys(values).length]?.default ?? '')
     }
   }
 

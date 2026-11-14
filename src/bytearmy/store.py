@@ -95,6 +95,15 @@ def repo_directory(url: str) -> str:
     return name if REPO_RE.fullmatch(name) else "repo"
 
 
+def browser_page(url: str) -> str:
+    """The page a browser shows for a git URL; empty if the URL names no web host."""
+    url = url.rstrip("/").removesuffix(".git")
+    for pattern in (r"ssh://git@([^:/]+)(?::\d+)?/(.+)", r"git@([^:/]+):(.+)"):
+        if match := re.fullmatch(pattern, url):
+            return f"https://{match[1]}/{match[2]}"
+    return url if url.startswith(("https://", "http://")) else ""
+
+
 def _ordered(order: list[str], existing: Collection[str]) -> list[str]:
     """`existing` in the stored order; whatever the order does not know comes last."""
     known = [slug for slug in order if slug in existing]
@@ -186,6 +195,7 @@ class Store:
                 name=file.name,
                 description=file.description,
                 github_url=file.github_url,
+                github_page=browser_page(file.github_url),
                 backlog=backlog,
                 tasks=tasks,
                 focused_task=focused_task,

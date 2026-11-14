@@ -572,6 +572,64 @@
         }
       }
     },
+    "/api/projects/{project}/tasks/{task}/panes/{pane}/page": {
+      "get": {
+        "summary": "Pane Page",
+        "description": "What a web pane shows. Answers only once the tool's service runs.",
+        "operationId": "pane_page_api_projects__project__tasks__task__panes__pane__page_get",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project"
+            }
+          },
+          {
+            "name": "task",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task"
+            }
+          },
+          {
+            "name": "pane",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pane"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/projects/{project}/tasks/{task}/layout": {
       "put": {
         "summary": "Set Layout",
@@ -672,6 +730,71 @@
                 "schema": {
                   "$ref": "#/components/schemas/AppState"
                 }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/files/{key}/{project}/{task}/{path}": {
+      "get": {
+        "summary": "Task File",
+        "description": "A file below a task directory, for the pages of web panes.",
+        "operationId": "task_file_files__key___project___task___path__get",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          },
+          {
+            "name": "project",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project"
+            }
+          },
+          {
+            "name": "task",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task"
+            }
+          },
+          {
+            "name": "path",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
               }
             }
           },
@@ -793,6 +916,20 @@
         ],
         "title": "Layout"
       },
+      "Page": {
+        "properties": {
+          "url": {
+            "type": "string",
+            "title": "Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "title": "Page",
+        "description": "What a web pane shows."
+      },
       "Pane": {
         "properties": {
           "id": {
@@ -802,6 +939,15 @@
           "tool": {
             "type": "string",
             "title": "Tool"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "terminal",
+              "web"
+            ],
+            "title": "Kind",
+            "default": "terminal"
           },
           "title": {
             "type": "string",
@@ -897,6 +1043,11 @@
             "type": "boolean",
             "title": "Path",
             "default": false
+          },
+          "default": {
+            "type": "string",
+            "title": "Default",
+            "default": ""
           }
         },
         "type": "object",
@@ -929,6 +1080,10 @@
             "type": "string",
             "title": "Path"
           },
+          "github_page": {
+            "type": "string",
+            "title": "Github Page"
+          },
           "backlog": {
             "items": {
               "$ref": "#/components/schemas/Task"
@@ -960,6 +1115,7 @@
           "name",
           "slug",
           "path",
+          "github_page",
           "backlog",
           "tasks",
           "focused_task"
@@ -1005,6 +1161,25 @@
           "order"
         ],
         "title": "ProjectOrder"
+      },
+      "Service": {
+        "properties": {
+          "command": {
+            "type": "string",
+            "title": "Command"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "command",
+          "url"
+        ],
+        "title": "Service",
+        "description": "A program in the background that all panes of a web tool share."
       },
       "Split-Input": {
         "properties": {
@@ -1289,7 +1464,11 @@
           },
           "kind": {
             "type": "string",
-            "const": "terminal",
+            "enum": [
+              "terminal",
+              "web",
+              "external"
+            ],
             "title": "Kind",
             "default": "terminal"
           },
@@ -1303,6 +1482,11 @@
             "title": "Resume",
             "default": ""
           },
+          "url": {
+            "type": "string",
+            "title": "Url",
+            "default": ""
+          },
           "directory": {
             "type": "string",
             "enum": [
@@ -1312,6 +1496,21 @@
             "title": "Directory",
             "default": "task"
           },
+          "callers": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "user",
+                "agent"
+              ]
+            },
+            "type": "array",
+            "title": "Callers",
+            "default": [
+              "user",
+              "agent"
+            ]
+          },
           "parameters": {
             "items": {
               "$ref": "#/components/schemas/Parameter"
@@ -1319,6 +1518,16 @@
             "type": "array",
             "title": "Parameters",
             "default": []
+          },
+          "service": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Service"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",

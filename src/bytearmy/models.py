@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 BACKLOG = "Backlog"
 NEW = "New"
@@ -83,6 +83,7 @@ class Split(BaseModel):
 class Pane(BaseModel):
     id: str
     tool: str
+    kind: Literal["terminal", "web"] = "terminal"  # a program in a terminal, or a page
     title: str
     values: dict[str, str] = {}  # the tool's parameters, e.g. the file for Vim
     session: str = ""  # stays the same across restarts; lets a tool such as Claude resume
@@ -113,6 +114,14 @@ class Parameter(BaseModel):
     name: str
     label: str = ""
     path: bool = False  # the value is a file below the task directory
+    default: str = ""  # used if nothing is entered; {github_page} is the project's page
+
+
+class Service(BaseModel):
+    """A program in the background that all panes of a web tool share."""
+
+    command: str  # run by /bin/sh; {port} and {token} are chosen by bytearmy
+    url: str  # where it then answers, e.g. `http://127.0.0.1:{port}/?tkn={token}`
 
 
 class Tool(BaseModel):
@@ -120,16 +129,30 @@ class Tool(BaseModel):
 
     id: str
     name: str
-    kind: Literal["terminal"] = "terminal"
-    command: str = ""  # run by the user's shell; empty means the shell itself
+    # terminal: a program in a terminal pane. web: a page in a browser pane.
+    # external: a program with a window of its own, no pane.
+    kind: Literal["terminal", "web", "external"] = "terminal"
+    command: str = ""  # run by the user's shell; for a terminal, empty means the shell itself
     resume: str = ""  # run instead of `command` when a pane is restored after a restart
+    url: str = ""  # the page of a web tool
     directory: Literal["task", "repo"] = "task"  # repo: the clone, if the task has one
+    callers: list[Literal["user", "agent"]] = ["user", "agent"]  # who may open the tool
     parameters: list[Parameter] = []
+    service: Service | None = None
+
+    @model_validator(mode="after")
+    def _complete(self) -> Tool:
+        if self.kind == "web" and not self.url:
+            raise ValueError("a web tool needs a url")
+        if self.kind == "external" and not self.command:
+            raise ValueError("an external tool needs a command")
+        return self
 
 
 class Project(ProjectMeta):
     slug: str  # directory name below the root; the project's id
     path: str
+    github_page: str  # the GitHub URL as a browser can show it; empty if it has none
     backlog: list[Task]
     tasks: list[Task]
     focused_task: str | None
@@ -188,3 +211,9 @@ class PaneOpen(BaseModel):
 
 class Layout(BaseModel):
     tree: Split | str | None
+
+
+class Page(BaseModel):
+    """What a web pane shows."""
+
+    url: str

@@ -10,7 +10,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, WebSocket
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from bytearmy.clones import Cloner
@@ -18,6 +18,7 @@ from bytearmy.models import (
     AppState,
     Focus,
     Layout,
+    Page,
     PaneOpen,
     ProjectMeta,
     ProjectOrder,
@@ -34,6 +35,7 @@ from bytearmy.store import (
     TaskNotFound,
     UnknownDependency,
 )
+from bytearmy.tools import ToolFailed
 from bytearmy.workspaces import (
     InvalidLayout,
     InvalidValues,
@@ -55,6 +57,9 @@ def create_app(
 ) -> FastAPI:
     cloner = cloner or Cloner(store)
     workspaces = workspaces or Workspaces(store)
+    # Pages in web panes cannot send the token, and must not know it: the files of the
+    # tasks are served under a key of their own.
+    files_key = secrets.token_urlsafe(16)
 
     def token_ok(supplied: str) -> bool:
         return secrets.compare_digest(supplied.encode(), token.encode())
@@ -67,7 +72,9 @@ def create_app(
     def state() -> AppState:
         """Everything the UI shows. Every change answers with it, so the UI never merges."""
         whole = store.app_state()
-        whole.tools = workspaces.tools()
+        pages = {project.slug: project.github_page for project in whole.projects}
+        # The command dialogue opens tools in the focused project: its defaults are offered.
+        whole.tools = workspaces.tools(pages.get(whole.focused_project, ""))
         return whole
 
     api = APIRouter(prefix="/api", dependencies=[Depends(require_token)])
@@ -146,6 +153,12 @@ def create_app(
         workspaces.close_pane(project, task, pane)
         return state()
 
+    @api.get(PANES + "/{pane}/page")
+    def pane_page(project: str, task: str, pane: str, request: Request) -> Page:
+        """What a web pane shows. Answers only once the tool's service runs."""
+        files = f"{str(request.base_url).rstrip('/')}/files/{files_key}/{project}/{task}"
+        return Page(url=workspaces.page(project, task, pane, files))
+
     @api.put("/projects/{project}/tasks/{task}/layout")
     def set_layout(project: str, task: str, layout: Layout) -> AppState:
         workspaces.set_tree(project, task, layout.tree)
@@ -212,6 +225,17 @@ def create_app(
             await asyncio.gather(*directions, return_exceptions=True)
             pty.stop_listening(output)
 
+    @app.get("/files/{key}/{project}/{task}/{path:path}")
+    def task_file(key: str, project: str, task: str, path: str) -> FileResponse:
+        """A file below a task directory, for the pages of web panes."""
+        if not secrets.compare_digest(key.encode(), files_key.encode()):
+            raise HTTPException(status_code=404)
+        directory = Path(store.task(project, task).path).resolve()
+        file = (directory / path).resolve()
+        if not file.is_relative_to(directory) or not file.is_file():
+            raise HTTPException(status_code=404)
+        return FileResponse(file)
+
     def answer(status_code: int, detail: str) -> JSONResponse:
         return JSONResponse(status_code=status_code, content={"detail": detail})
 
@@ -262,6 +286,10 @@ def create_app(
     @app.exception_handler(InvalidLayout)
     def invalid_layout(_request: Request, error: InvalidLayout) -> JSONResponse:
         return answer(400, str(error))
+
+    @app.exception_handler(ToolFailed)
+    def tool_failed(_request: Request, error: ToolFailed) -> JSONResponse:
+        return answer(502, str(error))
 
     if ui_dist is not None and ui_dist.is_dir():
         app.mount("/", StaticFiles(directory=ui_dist, html=True))

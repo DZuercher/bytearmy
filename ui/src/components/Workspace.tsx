@@ -4,6 +4,7 @@ import { Mosaic, type MosaicNode, MosaicWindow } from 'react-mosaic-component'
 import { type AppState, type Project, type Task, type Tree, api } from '@/api/client'
 import { TerminalPane } from '@/components/TerminalPane'
 import { Button } from '@/components/ui/button'
+import { WebPane } from '@/components/WebPane'
 import { cn } from '@/lib/utils'
 
 type Props = {
@@ -68,11 +69,15 @@ export function Workspace({ project, task, visible, run, onArrange, onActivePane
               ]}
             >
               <div data-pane={id} className="size-full" onFocusCapture={() => onActivePane(id)}>
-                <TerminalPane
-                  place={{ ...place, pane: id }}
-                  visible={visible}
-                  onEnded={() => run(api.state())}
-                />
+                {pane.kind === 'web' ? (
+                  <WebPane place={{ ...place, pane: id }} />
+                ) : (
+                  <TerminalPane
+                    place={{ ...place, pane: id }}
+                    visible={visible}
+                    onEnded={() => run(api.state())}
+                  />
+                )}
               </div>
             </MosaicWindow>
           )

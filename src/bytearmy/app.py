@@ -7,13 +7,13 @@ import asyncio
 import json
 import os
 import secrets
-import socket
 from pathlib import Path
 
 import uvicorn
 
 from bytearmy.api import create_app, schema
-from bytearmy.store import Store
+from bytearmy.services import free_port
+from bytearmy.store import METADATA_DIR, Store
 
 UI_DIR = Path(__file__).resolve().parents[2] / "ui"
 ROOT_VARIABLE = "BYTEARMY_ROOT"
@@ -23,10 +23,14 @@ def default_root() -> Path:
     return Path(os.environ.get(ROOT_VARIABLE) or Path.home() / "bytearmy")
 
 
-def free_port() -> int:
-    with socket.socket() as sock:
-        sock.bind(("127.0.0.1", 0))
-        return sock.getsockname()[1]
+def window_env(root: Path, url: str, token: str) -> dict[str, str]:
+    """What the window is told: where the core is, and where it keeps its own data."""
+    return {
+        "BYTEARMY_URL": url,
+        "BYTEARMY_TOKEN": token,
+        # Logins made in web panes; inside the root, so every root has its own.
+        "BYTEARMY_PROFILE": str(root / METADATA_DIR / "electron"),
+    }
 
 
 async def run(root: Path) -> None:
@@ -49,7 +53,7 @@ async def run(root: Path) -> None:
     electron = await asyncio.create_subprocess_exec(
         str(UI_DIR / "node_modules" / ".bin" / "electron"),
         str(UI_DIR),
-        env={**os.environ, "BYTEARMY_URL": url, "BYTEARMY_TOKEN": token},
+        env={**os.environ, **window_env(root, url, token)},
     )
     window_closed = asyncio.create_task(electron.wait())
     await asyncio.wait({serving, window_closed}, return_when=asyncio.FIRST_COMPLETED)

@@ -9,7 +9,14 @@ from pathlib import Path
 import pytest
 
 from bytearmy.models import ProjectMeta, UiChange, UiState
-from bytearmy.store import DuplicateName, InvalidOrder, ProjectNotFound, Store, slugify
+from bytearmy.store import (
+    DuplicateName,
+    InvalidOrder,
+    ProjectNotFound,
+    Store,
+    browser_page,
+    slugify,
+)
 
 
 @pytest.fixture
@@ -61,6 +68,32 @@ def test_create_writes_metadata_into_a_slug_directory(store):
         "task_order": [],
         "focused_task": None,
     }
+
+
+@pytest.mark.parametrize(
+    ("git_url", "page"),
+    [
+        ("https://github.com/org/repo.git", "https://github.com/org/repo"),
+        ("https://github.com/org/repo/", "https://github.com/org/repo"),
+        ("http://git.example.org/org/repo", "http://git.example.org/org/repo"),
+        ("git@github.com:org/repo.git", "https://github.com/org/repo"),
+        ("ssh://git@github.com/org/repo.git", "https://github.com/org/repo"),
+        ("ssh://git@git.example.org:2222/org/repo", "https://git.example.org/org/repo"),
+        ("/srv/widgets.git", ""),
+        ("", ""),
+    ],
+)
+def test_browser_page_of_a_git_url(git_url, page):
+    assert browser_page(git_url) == page
+
+
+def test_a_project_knows_the_page_of_its_github_url(store):
+    create(store, "With", github_url="git@github.com:me/p1.git")
+    create(store, "Without")
+
+    pages = {project.slug: project.github_page for project in store.app_state().projects}
+
+    assert pages == {"with": "https://github.com/me/p1", "without": ""}
 
 
 def test_created_project_is_listed_last_and_focused(store):
