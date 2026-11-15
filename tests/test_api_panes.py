@@ -209,6 +209,18 @@ def test_the_state_offers_the_defaults_of_the_focused_project(live):
     assert offered(live.http.put("/api/focus", json={"slug": None})) == ""
 
 
+def test_the_state_offers_the_tools_of_the_focused_project(live):
+    def offered(state: httpx.Response) -> str:
+        (vim,) = [tool for tool in state.json()["tools"] if tool["id"] == "vim"]
+        return vim["name"]
+
+    (live.store.root / "demo" / ".tools").mkdir()
+    (live.store.root / "demo" / ".tools" / "vim.toml").write_text('name = "Demo editor"\n')
+
+    assert offered(live.http.put("/api/focus", json={"slug": "demo"})) == "Demo editor"
+    assert offered(live.http.put("/api/focus", json={"slug": None})) == "Vim"
+
+
 def test_the_page_of_an_html_pane_is_a_file_of_the_task_served_without_the_token(live):
     task_dir = live.store.root / "demo" / "work"
     (task_dir / "out").mkdir()

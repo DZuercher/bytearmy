@@ -185,6 +185,20 @@ def test_files_that_are_not_tools_are_skipped(tmp_path):
     assert list(load_tools(tmp_path)) == ["good"]
 
 
+def test_a_project_tool_file_replaces_the_one_of_the_root(tmp_path):
+    root, project = tmp_path, tmp_path / "demo"
+    for directory in (root / ".tools", project / ".tools"):
+        directory.mkdir(parents=True)
+    (root / ".tools" / "claude.toml").write_text('name = "Claude"\nspawn = "claude {prompt}"\n')
+    (root / ".tools" / "vim.toml").write_text('name = "Vim"\n')
+    (project / ".tools" / "claude.toml").write_text('name = "Work"\nspawn = "work {prompt}"\n')
+
+    tools = load_tools(root, project)
+    assert (tools["claude"].name, tools["claude"].spawn) == ("Work", "work {prompt}")
+    assert tools["vim"].name == "Vim"
+    assert load_tools(root)["claude"].spawn == "claude {prompt}"
+
+
 def test_a_web_tool_needs_a_url_and_an_external_tool_a_command(tmp_path):
     directory = tmp_path / ".tools"
     directory.mkdir()
