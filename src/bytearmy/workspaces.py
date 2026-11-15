@@ -25,6 +25,7 @@ from bytearmy.agents import (
     next_role,
     write_instructions,
 )
+from bytearmy.config import ACCOUNTS, AGENT_COMMANDS, Config, config_of, ensure_config
 from bytearmy.layout import add_leaf, leaves, remove_leaf
 from bytearmy.models import (
     BACKLOG,
@@ -49,6 +50,7 @@ from bytearmy.pulls import PullRequests
 from bytearmy.services import Services, launch
 from bytearmy.store import LOG_FILE, METADATA_DIR, ProjectNotFound, Store, TaskNotFound
 from bytearmy.tools import (
+    as_configured,
     command_line,
     default_value,
     ensure_premade,
@@ -103,6 +105,10 @@ class InvalidLayout(ValueError):
 
 class NoDiffTool(LookupError):
     """No tool shows the changes of a task."""
+
+
+class CommandNotAllowed(PermissionError):
+    """args: the `bytearmy` command, then the table of config.toml whose `allow` lacks it."""
 
 
 class NoMaster(LookupError):
@@ -164,6 +170,7 @@ class Workspaces:
             EARLIER_ORCHESTRATOR_INSTRUCTIONS,
         )
         themes.ensure_premade(store.root)
+        ensure_config(store.root)
 
     def tools(self, project: str | None = None, task: str | None = None) -> list[Tool]:
         """The tools of a project, each parameter with what it defaults to there.
@@ -186,13 +193,25 @@ class Workspaces:
                     ]
                 }
             )
-            for tool in self._tools(project).values()
+            for tool in self._tools(project, task).values()
         ]
 
-    def _tools(self, project: str | None) -> dict[str, Tool]:
-        """The tools by id; a project's own tool files replace those of the root."""
+    def config(self, project: str | None = None, task: str | None = None) -> Config:
+        """The settings that hold in a task, a project or the whole root."""
+        project_dir = Path(self._store.project(project).path) if project else None
+        task_dir = Path(self._store.task(project, task).path) if project and task else None
+        return config_of(self._store.root, project_dir, task_dir)
+
+    def github_env(self, project: str | None = None, task: str | None = None) -> dict[str, str]:
+        """What makes gh and git act as the GitHub account the config names."""
+        return ACCOUNTS.env(self.config(project, task).github)
+
+    def _tools(self, project: str | None, task: str | None = None) -> dict[str, Tool]:
+        """The tools by id; a project's own tool files replace those of the root, and the
+        config leaves out or changes some."""
         directory = Path(self._store.project(project).path) if project else None
-        return load_tools(self._store.root, directory)
+        settings = self.config(project, task).tools
+        return load_tools(self._store.root, directory, settings)
 
     # -- panes -------------------------------------------------------------
 
@@ -213,7 +232,7 @@ class Workspaces:
         An agent gets a name with its `role`; without one, the first agent of the task is
         its master. `prompt` and `spawned_by` are for an agent that another one starts.
         """
-        tool = self._tools(project).get(request.tool)
+        tool = self._tools(project, task).get(request.tool)
         if tool is None:
             raise UnknownTool(request.tool)
         found = self._store.task(project, task)
@@ -235,7 +254,7 @@ class Workspaces:
                 tool,
                 external_command(tool, values),
                 _directory(tool, found),
-                pane_env(os.environ, sys.prefix),
+                {**pane_env(os.environ, sys.prefix), **self.github_env(project, task)},
                 self._logs / f"{tool.id}.log",
             )
             return None
@@ -381,17 +400,31 @@ class Workspaces:
                 None,
             )
 
+    def check_allowed(self, caller: Key, command: str) -> None:
+        """Raise CommandNotAllowed if config.toml does not let the calling agent run a
+        `bytearmy` command. A pane without an agent is used by the user: it may run all."""
+        project, task, pane = caller
+        found = self._store.task(project, task)
+        calling = found.workspace.panes.get(pane)
+        if calling is None or not calling.agent:
+            return
+        config = self.config(project, task)
+        key = "master" if found.workspace.master == pane else "agents"
+        if not getattr(config, key).allows(command):
+            raise CommandNotAllowed(command, key)
+
     def open_for(self, caller: Key, call: PaneCall) -> Pane | LogEntry | None:
         """Open a tool for the program of a pane, beside that pane, and start it at once.
 
         A log entry is written by the pane's agent; a pane without one is used by the user.
         """
         project, task, pane = caller
-        tool = self._tools(project).get(call.tool)
+        tool = self._tools(project, task).get(call.tool)
         if tool is None:
             raise UnknownTool(call.tool)
         if "agent" not in tool.callers:
             raise NotForAgents(tool.id)
+        self.check_allowed(caller, "log" if tool.kind == "log" else "pane.open")
         request = PaneOpen(
             tool=tool.id,
             values=values_from_args(tool, call.args),
@@ -413,11 +446,12 @@ class Workspaces:
         """
         project, task, pane = caller
         calling = self._store.task(project, task).workspace.panes.get(pane)
-        tools = self._tools(project)
+        tools = self._tools(project, task)
+        settings = self.config(project, task).agents
         tool = tools.get(calling.tool) if calling else None
-        if tool is None or not (tool.agent and tool.spawn):
+        if tool is None or not (tool.agent and as_configured(tool, settings).spawn):
             tool = tools.get(SPAWNING_TOOL)
-        if tool is None or not (tool.agent and tool.spawn):
+        if tool is None or not (tool.agent and as_configured(tool, settings).spawn):
             raise NoAgentTool()
         opened = self.open_pane(
             project,
@@ -439,7 +473,9 @@ class Workspaces:
 
         The orchestrator passes its own prompt, and itself as `spawned_by`.
         """
-        tool = self._tools(project).get(SPAWNING_TOOL)
+        tool = self._tools(project, task).get(SPAWNING_TOOL)
+        if tool is not None:
+            tool = as_configured(tool, self.config(project, task).master)
         if tool is None or not tool.agent or (prompt and not tool.spawn):
             raise NoAgentTool()
         found = self._store.task(project, task)
@@ -474,7 +510,7 @@ class Workspaces:
         """Open a highlighted diff pane beside the calling one; the review the user writes
         there is kept for the caller instead of being sent to the master."""
         project, task, pane = caller
-        tools = self._tools(project)
+        tools = self._tools(project, task)
         tool = tools.get("diff")
         if tool is None or tool.kind != "diff":
             tool = next((other for other in tools.values() if other.kind == "diff"), None)
@@ -572,7 +608,7 @@ class Workspaces:
         shown = found.workspace.panes.get(pane)
         if shown is None or shown.kind != "diff":
             raise PaneNotFound(pane)
-        tool = self._tools(project).get(shown.tool)
+        tool = self._tools(project, task).get(shown.tool)
         if tool is None or tool.kind != "diff":
             raise UnknownTool(shown.tool)
         return found, shown, tool
@@ -643,7 +679,7 @@ class Workspaces:
 
     def _start(self, key: Key, pane: Pane, rows: int, cols: int, restoring: bool) -> None:
         project, task, pane_id = key
-        tool = self._tools(project).get(pane.tool)
+        tool = self._tools(project, task).get(pane.tool)
         if tool is None:
             self._ended(key, COULD_NOT_START)
             return
@@ -657,8 +693,17 @@ class Workspaces:
             )
         found = self._store.task(project, task)
         pane = found.workspace.panes[pane_id]
-        instructions = write_instructions(self._store.root, found, pane) if tool.agent else None
-        line = command_line(tool, pane, restoring, instructions)
+        instructions = None
+        permissions = ""
+        if tool.agent:
+            config = self.config(project, task)
+            settings = config.master if found.workspace.master == pane_id else config.agents
+            tool = as_configured(tool, settings)
+            permissions = settings.flags()
+            instructions = write_instructions(
+                self._store.root, found, pane, settings.denied(AGENT_COMMANDS)
+            )
+        line = command_line(tool, pane, restoring, instructions, permissions)
         argv = [*self._shell, "-c", line] if line else self._shell
         directory = _directory(tool, found)
         if tool.agent:
@@ -687,6 +732,7 @@ class Workspaces:
             BYTEARMY_TASK=f"{project}/{task}",
             BYTEARMY_PANE=pane,
         )
+        env.update(self.github_env(project, task))
         return env
 
     def page(self, project: str, task: str, pane: str, files: str, log: str = "") -> str:
@@ -699,12 +745,14 @@ class Workspaces:
         shown = found.workspace.panes.get(pane)
         if shown is None or shown.kind != "web":
             raise PaneNotFound(pane)
-        tool = self._tools(project).get(shown.tool)
+        tool = self._tools(project, task).get(shown.tool)
         if tool is None or tool.kind != "web":
             raise UnknownTool(shown.tool)
         service = ""
         if tool.service is not None:
-            service = self._services.url(tool, pane_env(os.environ, sys.prefix))
+            service = self._services.url(
+                tool, {**pane_env(os.environ, sys.prefix), **self.github_env()}
+            )
         return _page(tool, shown.values, found, files, service, log)
 
     def page_version(self, project: str, task: str, pane: str) -> str | None:
@@ -717,7 +765,7 @@ class Workspaces:
         shown = found.workspace.panes.get(pane)
         if shown is None or shown.kind != "web":
             raise PaneNotFound(pane)
-        tool = self._tools(project).get(shown.tool)
+        tool = self._tools(project, task).get(shown.tool)
         files = [
             Path(found.path) / shown.values[parameter.name]
             for parameter in (tool.parameters if tool else [])

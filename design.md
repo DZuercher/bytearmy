@@ -145,7 +145,7 @@ A thread in the core asks every source for new messages once a minute; the refre
 The messages are kept in `<bytearmy_root>/.bytearmy/inbox.json`.
 
 ### GitHub
-The messages from GitHub are the users notifications (what github.com/notifications shows). bytearmy asks for them with `gh`, as the user logged in with `gh auth login`; it keeps no token of its own. Marking a message read marks the notification read on GitHub; dismissing it marks it done. Marking unread stays in bytearmy, as GitHub cannot. A notification read on GitHub turns read in bytearmy.
+The messages from GitHub are the users notifications (what github.com/notifications shows). bytearmy asks for them with `gh`, as the user logged in with `gh auth login`, or as the account `[github] user` of the config names; it keeps no token of its own. Marking a message read marks the notification read on GitHub; dismissing it marks it done. Marking unread stays in bytearmy, as GitHub cannot. A notification read on GitHub turns read in bytearmy.
 
 ## Orchestrator
 Above the masters of the tasks there is one more agent, the orchestrator. There is exactly one per bytearmy; it belongs to no project.
@@ -160,6 +160,23 @@ Its `bytearmy` command has a key of its own, which reaches no task's commands; t
 The orchestrator talks to the masters with `SendMessage`, by their names (`<project>-<task>-master`); the masters answer the same way and are told in their instructions that `orchestrator` stands above them. A master the orchestrator started is told so, and that it should report when it is done or stuck.
 When the inbox finds messages that are new or saw new activity, bytearmy types a note naming them into the orchestrator's terminal, as if the user had typed it. It waits until the user has typed nothing into that terminal for 30 seconds. What arrived while bytearmy did not run is not announced. The orchestrator's instructions tell it to turn messages that ask for work into tasks, start them, and delete a task once its master reported it done and its work is saved.
 
+## Configuration
+The settings of bytearmy are TOML files named `config.toml`:
+- `<bytearmy_root>/.bytearmy/config.toml` holds the settings of all projects and tasks. It is always there: bytearmy writes it with the defaults, each explained in a comment, when it is missing, and never overwrites it.
+- `<project>/.bytearmy/config.toml` and `<project>/<task>/.bytearmy/config.toml` are optional and set any setting again for one project or task. A task's file overrides its project's, which overrides the root's. Tables merge key by key; other values (strings, numbers, lists) are replaced.
+- What belongs to no project counts only in the root's file: `color_scheme`, `[orchestrator]` and `[inbox]`. Set in a lower file, it is ignored.
+- The files are read again whenever a setting is needed, so an edit counts at once; an agent that runs keeps how it was started. A file that cannot be read, or holds a setting bytearmy does not know, is ignored as a whole; a banner at the top of the window says why, for the files that hold in the focused task.
+
+The settings:
+- `color_scheme`: the color scheme of the window, a file in `<bytearmy_root>/.bytearmy/themes`.
+- `[orchestrator]`: `autostart` (start it with bytearmy, otherwise when its tab is first shown); `command` and `resume`, which replace those of the Claude tool; `allow`, the `bytearmy` commands it may call (`project.list|create|delete`, `tasks.list|create|start|delete`, `inbox.list|read|dismiss`), as patterns like `tasks.*`; Claude's own permissions `permission_mode`, `allowed_tools` and `disallowed_tools`; `announce_inbox` and `quiet_seconds` for the notes about new messages.
+- `[master]` and `[agents]`: the same for the master of a task and for every other agent of it, plus `spawn`. Their `allow` names the commands of the panes: `pane.list|open|close|maximize|hide|highlight|move`, `tool.list`, `task.show|set-status|set-color|set-description|set-reminder`, `agent.list|spawn`, `review`, `log`. A pane without an agent is the user's, and may call all.
+- `[tools.<id>]`: `enabled = false` takes a tool out of the command dialogue and away from the agents; `name`, `callers`, `command`, `resume`, `spawn`, `url` and `directory` replace what its tool file says.
+- `[inbox]`: `enabled`, `poll_seconds` (at least 60), and in `[inbox.github]` `enabled`, `reasons` and `repositories`, which keep only the notifications for these reasons and of these repositories.
+- `[github]`: `user` and `host`. With a user, `gh` and `git` act as that account of `gh auth login` instead of gh's active one: bytearmy asks `gh auth token --user` for its token and gives it, as `GH_TOKEN` with gh as git's credential helper, to the inbox, the clones and the programs in the panes. If gh does not know the account, the active one is used and the banner says so.
+
+A call the config does not allow is refused, and the agent's instructions name the commands it may not call. Claude's permissions reach Claude through `{permissions}` in the command of the Claude tool or of the config.
+
 ## Directory structure
 Each task is assigned to a project and has its own working directory. 
 `bytearmy_root` is `~/bytearmy` by default. It can be changed with the `--root` option or the `BYTEARMY_ROOT` environment variable.
@@ -169,12 +186,12 @@ Only one bytearmy runs on a root at a time: a second one refuses to start and na
 bytearmy_root
 |- .tools [contains tools]
 |- .claude [contains bytearmy.md, the explanation for claude about how bytearmy works and how claude can interact with it. It is passed to every Claude pane when it starts. orchestrator.md is that of the orchestrator]
-|- .bytearmy [contains global metadata, the messages of the inbox, the session of the orchestrator, the logs of programs without a pane, the browser session of the web panes, the `bytearmy` command of the panes and the lock that keeps a second bytearmy off the root]
+|- .bytearmy [contains config.toml, the settings of all projects and tasks, global metadata, the color schemes, the messages of the inbox, the session of the orchestrator, the logs of programs without a pane, the browser session of the web panes, the `bytearmy` command of the panes and the lock that keeps a second bytearmy off the root]
 |-- project-1
-    |- .bytearmy [contains bytearmy project level metadata, like name and Github URL, and the mirror of the projects repository the tasks clone from]
+    |- .bytearmy [contains bytearmy project level metadata, like name and Github URL, the mirror of the projects repository the tasks clone from, and optionally the project's config.toml]
     |- .claude [contains project specific claude configurations like CLAUDE.md etc. Claude loads this CLAUDE.md by itself in every task of the project]
     |- task-1
-        |- .bytearmy [contains bytearmy metadata, like current state of the UI, and the instructions each agent of the task started with]
+        |- .bytearmy [contains bytearmy metadata, like current state of the UI, the instructions each agent of the task started with, and optionally the task's config.toml]
         |- <repo_name> [clone of the projects Github URL, if there is one]
     |- task-2
         |- .bytearmy [contains bytearmy metadata, like current state of the UI]

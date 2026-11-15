@@ -9,17 +9,18 @@ the window shows it at once.
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import threading
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, datetime
 from typing import Protocol
 
+from bytearmy.config import ACCOUNTS, Config
 from bytearmy.models import InboxState, Message
 from bytearmy.store import METADATA_DIR, Store, _write_json
 
-POLL_SECONDS = 60.0  # how often the sources are asked; GitHub asks for no more than once a minute
 KEPT_MESSAGES = 500  # the oldest messages beyond this are forgotten
 ERROR_CHARACTERS = 300  # how much of a source's complaint is kept
 
@@ -47,11 +48,17 @@ class Source(Protocol):
 Runner = Callable[[Sequence[str]], str]
 
 
-def run_command(command: Sequence[str]) -> str:
-    """The output of a command; a failing command raises SourceFailed with its complaint."""
+def run_command(command: Sequence[str], env: Mapping[str, str] | None = None) -> str:
+    """The output of a command; a failing command raises SourceFailed with its complaint.
+    `env` is added to bytearmy's environment."""
     try:
         done = subprocess.run(
-            list(command), capture_output=True, text=True, timeout=60, check=False
+            list(command),
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+            env={**os.environ, **env} if env else None,
         )
     except (OSError, subprocess.TimeoutExpired) as error:
         raise SourceFailed(str(error)) from error
@@ -76,14 +83,26 @@ def browser_url(api_url: str | None, repository_page: str) -> str:
 
 
 class GitHubSource:
-    """The user's GitHub notifications, asked for with the `gh` they are logged in with."""
+    """The user's GitHub notifications, asked for with `gh`: as the account `[github]` of the
+    config names, or the one gh is logged in with."""
 
     name = "github"
     PAGE = 50
 
-    def __init__(self, run: Runner = run_command, gh: Sequence[str] = ("gh",)) -> None:
-        self._run = run
+    def __init__(
+        self,
+        run: Runner | None = None,
+        gh: Sequence[str] = ("gh",),
+        settings: Callable[[], Config] = Config,
+    ) -> None:
+        self._settings = settings
+        self._run = run or (
+            lambda command: run_command(command, ACCOUNTS.env(self._settings().github))
+        )
         self._gh = list(gh)
+
+    def enabled(self) -> bool:
+        return self._settings().inbox.github.enabled
 
     def fetch(self) -> tuple[list[Message], bool]:
         output = self._run([*self._gh, "api", f"/notifications?per_page={self.PAGE}"])
@@ -91,7 +110,11 @@ class GitHubSource:
             threads = json.loads(output)
         except json.JSONDecodeError as error:
             raise SourceFailed(f"GitHub answered with no list: {output[:100]!r}") from error
+        wanted = self._settings().inbox.github
         messages = [self._message(thread) for thread in threads]
+        messages = [
+            message for message in messages if wanted.wants(message.reason, message.context)
+        ]
         return messages, len(threads) < self.PAGE
 
     def _message(self, thread: dict) -> Message:
@@ -131,17 +154,20 @@ class Inbox:
         self,
         store: Store,
         sources: Sequence[Source] = (),
-        poll_seconds: float = POLL_SECONDS,
+        poll_seconds: float | None = None,
         now: Callable[[], datetime] = lambda: datetime.now(UTC),
         on_new: Callable[[list[Message]], None] | None = None,
+        settings: Callable[[], Config] = Config,
     ) -> None:
         """`on_new` hears of the messages that arrive, or see new activity, after the first
-        check: what arrived while bytearmy did not run is not news."""
+        check: what arrived while bytearmy did not run is not news. `settings` gives the
+        config, read anew at every turn; `poll_seconds` overrides its `[inbox]`."""
         self._store = store
         self._on_new = on_new
         self._checked = False
         self._sources = {source.name: source for source in sources}
         self._poll_seconds = poll_seconds
+        self._settings = settings
         self._now = now
         self._lock = threading.RLock()
         self._wake = threading.Event()
@@ -185,13 +211,19 @@ class Inbox:
     def _poll(self) -> None:
         while not self._stop.is_set():
             self.check()
-            self._wake.wait(self._poll_seconds)
+            seconds = self._poll_seconds
+            self._wake.wait(seconds if seconds is not None else self._settings().inbox.poll_seconds)
             self._wake.clear()
 
     def check(self) -> None:
         """Ask every source once and keep what is new."""
         reports: dict[str, tuple[list[Message], bool] | str] = {}
+        if not self._settings().inbox.enabled:
+            return
         for name, source in self._sources.items():
+            enabled = getattr(source, "enabled", None)
+            if enabled is not None and not enabled():
+                continue
             try:
                 reports[name] = source.fetch()
             except SourceFailed as error:

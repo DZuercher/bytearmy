@@ -3,6 +3,7 @@ is told how to steer bytearmy and who else works on its task."""
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 
 from bytearmy.models import Pane, Task
@@ -212,8 +213,21 @@ def next_role(taken: set[str]) -> str:
     return f"agent-{number}"
 
 
-def write_instructions(root: Path, task: Task, pane: Pane) -> Path:
-    """The instructions an agent starts with: the root's file, then who it is.
+def not_allowed(commands: Sequence[str], key: str) -> str:
+    """The part of the instructions that names the commands config.toml forbids."""
+    if not commands:
+        return ""
+    listed = ", ".join(f"`{command}`" for command in commands)
+    return (
+        "\n## Not allowed by the config\n\n"
+        f"These `bytearmy` commands are not allowed to you (`allow` in `[{key}]` of\n"
+        f"config.toml), so do not call them: {listed}. Ask the user if you need one.\n"
+    )
+
+
+def write_instructions(root: Path, task: Task, pane: Pane, denied: Sequence[str] = ()) -> Path:
+    """The instructions an agent starts with: the root's file, what the config forbids it,
+    then who it is.
 
     Written anew at every start, so a restarted agent learns who the master is now.
     """
@@ -234,17 +248,25 @@ def write_instructions(root: Path, task: Task, pane: Pane) -> Path:
     text = general.read_text() if general.is_file() else INSTRUCTIONS
     file = Path(task.path) / METADATA_DIR / "agents" / f"{pane.id}.md"
     file.parent.mkdir(parents=True, exist_ok=True)
+    key = "master" if task.workspace.master == pane.id else "agents"
     file.write_text(
-        text + ABOUT_YOU.format(name=pane.agent, pane=pane.id, task=task.name, relation=relation)
+        text
+        + not_allowed(denied, key)
+        + ABOUT_YOU.format(name=pane.agent, pane=pane.id, task=task.name, relation=relation)
     )
     return file
 
 
-def write_orchestrator_instructions(root: Path, directory: Path) -> Path:
-    """The orchestrator's instructions: the root's file, then who it is."""
+def write_orchestrator_instructions(
+    root: Path, directory: Path, denied: Sequence[str] = ()
+) -> Path:
+    """The orchestrator's instructions: the root's file, what the config forbids it, then
+    who it is."""
     general = root / ORCHESTRATOR_FILE
     text = general.read_text() if general.is_file() else ORCHESTRATOR_INSTRUCTIONS
     file = directory / "orchestrator.md"
     file.parent.mkdir(parents=True, exist_ok=True)
-    file.write_text(text + f"\n## You\n\nYour name is `{ORCHESTRATOR}`.\n")
+    file.write_text(
+        text + not_allowed(denied, "orchestrator") + f"\n## You\n\nYour name is `{ORCHESTRATOR}`.\n"
+    )
     return file

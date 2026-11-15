@@ -1,5 +1,5 @@
 """The colors of the window. Each color scheme is one TOML file in `<root>/.bytearmy/themes`;
-`<root>/.bytearmy/config.toml` names the one in use, and without it light is used."""
+`color_scheme` in `<root>/.bytearmy/config.toml` names the one in use."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
+from bytearmy.config import CONFIG_FILE, config_of
 from bytearmy.models import Theme
 from bytearmy.store import METADATA_DIR
 from bytearmy.tools import write_premade
@@ -17,7 +18,6 @@ from bytearmy.tools import write_premade
 log = logging.getLogger(__name__)
 
 THEMES_DIR = Path(METADATA_DIR) / "themes"
-CONFIG_FILE = Path(METADATA_DIR) / "config.toml"
 DEFAULT = "light"
 NAME_RE = re.compile(r"[A-Za-z0-9_-]+")
 
@@ -144,14 +144,7 @@ def ensure_premade(root: Path) -> None:
 
 def chosen(root: Path) -> str:
     """The name of the scheme in use; light if the config names none or cannot be read."""
-    file = root / CONFIG_FILE
-    if not file.exists():
-        return DEFAULT
-    try:
-        name = tomllib.loads(file.read_text()).get("color_scheme", DEFAULT)
-    except (OSError, tomllib.TOMLDecodeError) as error:
-        log.warning("Using the light color scheme, %s cannot be read: %s", CONFIG_FILE, error)
-        return DEFAULT
+    name = config_of(root).color_scheme
     if not isinstance(name, str) or not NAME_RE.fullmatch(name):
         log.warning("Using the light color scheme, %r is no scheme name", name)
         return DEFAULT

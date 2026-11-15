@@ -161,6 +161,13 @@ export function App() {
           {error} (click to dismiss)
         </button>
       )}
+      {state.config_errors.length > 0 && (
+        <div role="status" aria-label="Config problems" className="border-l-4 border-l-task-amber-mark bg-task-amber px-4 py-1 text-sm">
+          {state.config_errors.map((problem) => (
+            <div key={problem}>{problem}</div>
+          ))}
+        </div>
+      )}
       <div className="flex min-h-0 flex-1">
         <div className="flex shrink-0 flex-col">
           <OrchestratorTab

@@ -61,7 +61,7 @@ def test_the_premade_tools_say_how_they_run(tmp_path):
     tools = load_tools(tmp_path)
 
     assert tools["terminal"] == Tool(id="terminal", name="Terminal")
-    flags = "--name {agent} --append-system-prompt-file {instructions}"
+    flags = "--name {agent} --append-system-prompt-file {instructions} {permissions}"
     assert tools["claude"] == Tool(
         id="claude",
         name="Claude",

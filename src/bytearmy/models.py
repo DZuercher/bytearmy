@@ -387,6 +387,7 @@ class AppState(BaseModel):
     theme: Theme = Theme()
     inbox: InboxState = InboxState()
     orchestrator: OrchestratorState = OrchestratorState()
+    config_errors: list[str] = []  # what is wrong with the config files, for the user to fix
 
 
 class ProjectOrder(BaseModel):
