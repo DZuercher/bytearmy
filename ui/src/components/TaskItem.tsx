@@ -12,6 +12,15 @@ import {
 } from '@/components/ui/context-menu'
 import { cn } from '@/lib/utils'
 
+// The colors an agent can give a task to get the user's attention.
+const COLORS: Record<string, string> = {
+  red: 'border-l-red-500 bg-red-50',
+  amber: 'border-l-amber-500 bg-amber-50',
+  green: 'border-l-green-500 bg-green-50',
+  blue: 'border-l-blue-500 bg-blue-50',
+  purple: 'border-l-purple-500 bg-purple-50',
+}
+
 // A task in the backlog or in the task bar: click acts, right-click shows its data.
 // `children` is what the bar adds below the name: the blocked note or the status tag.
 export function TaskItem({
@@ -46,6 +55,7 @@ export function TaskItem({
             highlighted
               ? 'bg-white font-medium shadow-sm ring-1 ring-border'
               : 'text-muted-foreground hover:bg-zinc-100 hover:text-foreground',
+            task.color && cn('border-l-4 text-foreground', COLORS[task.color]),
             isDragging && 'relative z-10 cursor-grabbing shadow-md',
           )}
           onClick={onClick}
@@ -62,7 +72,7 @@ export function TaskItem({
         <DataList
           rows={[
             ['Name', task.name],
-            ['Status', task.status],
+            ['Status', task.status + (task.color ? ` (${task.color})` : '')],
             ['Description', task.description],
             ['Branch', task.branch],
             ['Reminder', task.reminder && `${task.reminder}${task.reminder_due ? ' (due)' : ''}`],

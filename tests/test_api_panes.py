@@ -70,9 +70,10 @@ def live(tmp_path):
 def serving(store: Store, workspaces: Workspaces):
     """Run the core on a local port for the duration of the block."""
     port = free_port()
+    url = f"http://127.0.0.1:{port}"
     server = uvicorn.Server(
         uvicorn.Config(
-            create_app(store, TOKEN, workspaces=workspaces),
+            create_app(store, TOKEN, workspaces=workspaces, url=url),
             host="127.0.0.1",
             port=port,
             log_level="warning",
@@ -82,7 +83,6 @@ def serving(store: Store, workspaces: Workspaces):
     thread = threading.Thread(target=server.run, daemon=True)
     thread.start()
     wait_until(lambda: server.started, "starting the server")
-    url = f"http://127.0.0.1:{port}"
     try:
         with httpx.Client(base_url=url, headers={"Authorization": f"Bearer {TOKEN}"}) as http:
             yield Live(url, store, workspaces, http)
@@ -399,6 +399,17 @@ def test_deleting_a_task_or_its_project_ends_its_programs(live, target):
 
     assert pty.exit_code is not None
     assert not (live.store.root / "demo" / "work").exists()
+
+
+def test_the_window_ends_a_highlight(live):
+    live.http.post(PANES, json={"tool": "terminal"})
+    live.workspaces.highlight("demo", "work", "p1", True)
+
+    answer = live.http.put(f"{PANES}/p1/highlight", json={"on": False})
+
+    assert answer.status_code == 200
+    assert live.workspace()["panes"]["p1"]["highlighted"] is False
+    assert live.http.put(f"{PANES}/p9/highlight", json={"on": False}).status_code == 404
 
 
 def test_the_app_restores_the_panes_when_it_starts_and_ends_them_when_it_stops(tmp_path):

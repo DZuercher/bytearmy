@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { type AppState, type Bar, type Tree, type UiChange, api } from '@/api/client'
+import { type AppState, type Bar, type Tree, type UiChange, api, listenForChanges } from '@/api/client'
 import { BacklogBar } from '@/components/BacklogBar'
 import { DeleteDialog, type Doomed } from '@/components/DeleteDialog'
 import { Palette } from '@/components/Palette'
@@ -41,6 +41,8 @@ export function App() {
 
   useEffect(() => run(api.state()), [run])
   useEffect(() => window.shell?.onPaletteToggle(() => setPaletteOpen((open) => !open)), [])
+  // What the agents in the panes change shows at once.
+  useEffect(() => listenForChanges(() => run(api.state())), [run])
 
   const cloning =
     state?.projects.some((project) =>

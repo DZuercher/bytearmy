@@ -30,6 +30,15 @@ def default_root() -> Path:
     return Path(os.environ.get(ROOT_VARIABLE) or Path.home() / "bytearmy")
 
 
+def confirmed(question: str) -> bool:
+    """Ask on the terminal. Anything but yes is no, and so is having no terminal to ask on."""
+    try:
+        answer = input(f"{question} [y/N] ")
+    except EOFError:
+        return False
+    return answer.strip().lower() in ("y", "yes")
+
+
 def hold_root(root: Path) -> IO[str]:
     """Claim the root for this process; the claim lasts while the returned file is open.
 
@@ -66,7 +75,7 @@ async def run(root: Path) -> None:
     token = secrets.token_urlsafe(24)
     port = free_port()
     url = f"http://127.0.0.1:{port}"
-    app = create_app(Store(root), token, ui_dist=UI_DIR / "dist")
+    app = create_app(Store(root), token, ui_dist=UI_DIR / "dist", url=url)
     server = uvicorn.Server(
         uvicorn.Config(
             app, host="127.0.0.1", port=port, log_level="warning", timeout_graceful_shutdown=3
@@ -109,6 +118,9 @@ def main() -> None:
         print(json.dumps(schema(), indent=2))
         return
     root = args.root.expanduser().resolve()
+    # A mistyped root would otherwise start an empty bytearmy beside the real one.
+    if not root.exists() and not confirmed(f"{root} does not exist. Create it?"):
+        sys.exit(f"bytearmy did not start: {root} does not exist.")
     try:
         claim = hold_root(root)
     except RootInUse as error:

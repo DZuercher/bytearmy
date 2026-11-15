@@ -271,7 +271,8 @@ def test_a_program_gets_the_pane_environment(store, workspaces, task, monkeypatc
 
     seen = output_until(workspaces.attach(*task, "p1", 24, 80), rb"\.")
 
-    assert b"bytearmy unset /usr/bin:/bin." in seen
+    commands = store.root / ".bytearmy" / "bin"  # the `bytearmy` command of the panes
+    assert f"bytearmy unset {commands}:/usr/bin:/bin.".encode() in seen
 
 
 def test_a_tool_can_run_in_the_clone_if_the_task_has_one(store, workspaces):

@@ -3,14 +3,36 @@
 from __future__ import annotations
 
 import os
+import secrets
+import shlex
 import sys
 import threading
 import uuid
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
+from bytearmy.agents import (
+    EARLIER_INSTRUCTIONS,
+    INSTRUCTIONS,
+    INSTRUCTIONS_FILE,
+    MASTER,
+    agent_name,
+    next_role,
+    write_instructions,
+)
 from bytearmy.layout import add_leaf, leaves, remove_leaf
-from bytearmy.models import BACKLOG, Pane, PaneOpen, Split, Task, Tool, Workspace
+from bytearmy.models import (
+    BACKLOG,
+    Agent,
+    AgentSpawn,
+    Pane,
+    PaneCall,
+    PaneOpen,
+    Split,
+    Task,
+    Tool,
+    Workspace,
+)
 from bytearmy.ptys import Pty
 from bytearmy.services import Services, launch
 from bytearmy.store import METADATA_DIR, ProjectNotFound, Store, TaskNotFound
@@ -21,15 +43,29 @@ from bytearmy.tools import (
     external_command,
     load_tools,
     page_url,
+    write_premade,
 )
 
 COULD_NOT_START = 127  # the exit code a shell gives for a command it cannot find
+SPAWNING_TOOL = "claude"  # starts agents for a pane that is not an agent itself
 
 Key = tuple[str, str, str]  # project, task, pane
 
 
 class UnknownTool(LookupError):
     pass
+
+
+class NoAgentTool(LookupError):
+    """No tool can start an agent with a prompt."""
+
+
+class NotForAgents(PermissionError):
+    """args: the id of a tool that only the user may open."""
+
+
+class RoleTaken(ValueError):
+    """args: a role that another agent of the task already has."""
 
 
 class PaneNotFound(LookupError):
@@ -63,18 +99,32 @@ def pane_env(environ: Mapping[str, str], prefix: str) -> dict[str, str]:
     return env
 
 
+def pane_command(bin_dir: Path) -> Path:
+    """Write the `bytearmy` command of the panes: this Python, running bytearmy.cli."""
+    bin_dir.mkdir(parents=True, exist_ok=True)
+    command = bin_dir / "bytearmy"
+    # -I: what lies in the directory the command is called from cannot replace a module.
+    command.write_text(f'#!/bin/sh\nexec {shlex.quote(sys.executable)} -I -m bytearmy.cli "$@"\n')
+    command.chmod(0o755)
+    return command
+
+
 class Workspaces:
-    def __init__(self, store: Store, shell: Sequence[str] | None = None) -> None:
+    def __init__(self, store: Store, shell: Sequence[str] | None = None, url: str = "") -> None:
         self._store = store
         # A login shell that reads the user's startup files: functions and aliases work.
         self._shell = list(shell or [os.environ.get("SHELL", "/bin/sh"), "-l", "-i"])
+        self.url = url  # where the programs in the panes reach the core
         self._lock = threading.RLock()
         self._ptys: dict[Key, Pty] = {}
         self._ending: set[Key] = set()  # panes whose program is being ended on purpose
+        self._keys: dict[Key, str] = {}  # the key each pane's program calls the core with
         self._stopping = False
         self._logs = store.root / METADATA_DIR / "logs"  # of programs without a terminal
         self._services = Services(self._logs)
+        self._bin = pane_command(store.root / METADATA_DIR / "bin").parent
         ensure_premade(store.root)
+        write_premade(store.root / INSTRUCTIONS_FILE, INSTRUCTIONS, EARLIER_INSTRUCTIONS)
 
     def tools(self, github_page: str = "") -> list[Tool]:
         """The tools, each parameter with what it defaults to in a project with that page."""
@@ -94,10 +144,20 @@ class Workspaces:
 
     # -- panes -------------------------------------------------------------
 
-    def open_pane(self, project: str, task: str, request: PaneOpen) -> Pane | None:
+    def open_pane(
+        self,
+        project: str,
+        task: str,
+        request: PaneOpen,
+        role: str | None = None,
+        prompt: str = "",
+        spawned_by: str = "",
+    ) -> Pane | None:
         """Add a pane to the task's layout. Its program starts when a terminal attaches.
 
         An external tool gets no pane: its program is started at once, in a window of its own.
+        An agent gets a name with its `role`; without one, the first agent of the task is
+        its master. `prompt` and `spawned_by` are for an agent that another one starts.
         """
         tool = load_tools(self._store.root).get(request.tool)
         if tool is None:
@@ -128,7 +188,11 @@ class Workspaces:
                 title=": ".join([tool.name, *values.values()]),
                 values=values,
                 session=str(uuid.uuid4()),
+                prompt=prompt,
+                spawned_by=spawned_by,
             )
+            if tool.agent:
+                _make_agent(workspace, pane, (project, task), tool, role)
             workspace.next_pane += 1
             workspace.panes[pane.id] = pane
             workspace.tree = add_leaf(workspace.tree, pane.id, request.beside)
@@ -161,6 +225,100 @@ class Workspaces:
 
         self._store.change_workspace(project, task, change)
 
+    def highlight(self, project: str, task: str, pane: str, on: bool) -> None:
+        def change(workspace: Workspace) -> None:
+            if pane not in workspace.panes:
+                raise PaneNotFound(pane)
+            workspace.panes[pane].highlighted = on
+
+        self._store.change_workspace(project, task, change)
+
+    def move(self, project: str, task: str, pane: str, beside: str) -> None:
+        """Place a pane next to another one, splitting that one's place."""
+
+        def change(workspace: Workspace) -> None:
+            for wanted in (pane, beside):
+                if wanted not in workspace.panes:
+                    raise PaneNotFound(wanted)
+            if pane == beside:
+                raise InvalidLayout("a pane cannot be placed next to itself")
+            workspace.tree = add_leaf(remove_leaf(workspace.tree, pane), pane, beside)
+
+        self._store.change_workspace(project, task, change)
+
+    # -- calls from the programs in the panes ------------------------------
+
+    def caller(self, key: str) -> Key | None:
+        """The pane whose program calls with this key; None if no running program has it."""
+        with self._lock:
+            return next(
+                (
+                    pane
+                    for pane, known in self._keys.items()
+                    if secrets.compare_digest(known.encode(), key.encode())
+                ),
+                None,
+            )
+
+    def open_for(self, caller: Key, call: PaneCall) -> Pane | None:
+        """Open a tool for the program of a pane, beside that pane, and start it at once."""
+        project, task, pane = caller
+        tool = load_tools(self._store.root).get(call.tool)
+        if tool is None:
+            raise UnknownTool(call.tool)
+        if "agent" not in tool.callers:
+            raise NotForAgents(tool.id)
+        request = PaneOpen(
+            tool=tool.id, values=values_from_args(tool, call.args), beside=call.beside or pane
+        )
+        opened = self.open_pane(project, task, request)
+        if opened is not None:
+            self.start(project, task, opened.id)
+        return opened
+
+    def spawn(self, caller: Key, request: AgentSpawn) -> Pane:
+        """Start an agent with a prompt, in a pane of its own beside the calling one.
+
+        It runs the calling pane's tool if that starts agents, the Claude tool otherwise.
+        """
+        project, task, pane = caller
+        calling = self._store.task(project, task).workspace.panes.get(pane)
+        tools = load_tools(self._store.root)
+        tool = tools.get(calling.tool) if calling else None
+        if tool is None or not (tool.agent and tool.spawn):
+            tool = tools.get(SPAWNING_TOOL)
+        if tool is None or not (tool.agent and tool.spawn):
+            raise NoAgentTool()
+        opened = self.open_pane(
+            project,
+            task,
+            PaneOpen(tool=tool.id, beside=request.beside or pane),
+            role=request.role,
+            prompt=request.prompt,
+            spawned_by=calling.agent if calling else "",
+        )
+        assert opened is not None  # an agent tool is never external
+        self.start(project, task, opened.id)
+        return opened
+
+    def agents(self, project: str, task: str) -> list[Agent]:
+        workspace = self._store.task(project, task).workspace
+        with self._lock:
+            return [
+                Agent(
+                    name=pane.agent,
+                    pane=pane.id,
+                    master=pane.id == workspace.master,
+                    running=self._running((project, task, pane.id)),
+                )
+                for pane in workspace.panes.values()
+                if pane.agent
+            ]
+
+    def _running(self, key: Key) -> bool:
+        pty = self._ptys.get(key)
+        return pty is not None and pty.exit_code is None
+
     # -- programs ----------------------------------------------------------
 
     def attach(self, project: str, task: str, pane: str, rows: int, cols: int) -> Pty | None:
@@ -176,6 +334,14 @@ class Workspaces:
             if key not in self._ptys and found.exit_code is None:
                 self._start(key, found, rows, cols, restoring=False)
             return self._ptys.get(key)
+
+    def start(self, project: str, task: str, pane: str) -> None:
+        """Start the program of a new terminal pane now, not when the window first shows it."""
+        with self._lock:
+            found = self._store.task(project, task).workspace.panes[pane]
+            key = (project, task, pane)
+            if found.kind == "terminal" and key not in self._ptys:
+                self._start(key, found, found.rows, found.cols, restoring=False)
 
     def resized(self, project: str, task: str, pane: str, rows: int, cols: int) -> None:
         """Remember the size, so a restored program starts at the size it had."""
@@ -200,21 +366,49 @@ class Workspaces:
                             self._start(key, pane, pane.rows, pane.cols, restoring=True)
 
     def _start(self, key: Key, pane: Pane, rows: int, cols: int, restoring: bool) -> None:
-        project, task, _ = key
+        project, task, pane_id = key
         tool = load_tools(self._store.root).get(pane.tool)
         if tool is None:
             self._ended(key, COULD_NOT_START)
             return
-        line = command_line(tool, pane, restoring)
+        if tool.agent and not pane.agent:  # opened before its tool started agents
+            self._store.change_workspace(
+                project,
+                task,
+                lambda workspace: _make_agent(
+                    workspace, workspace.panes[pane_id], (project, task), tool, None
+                ),
+            )
+        found = self._store.task(project, task)
+        pane = found.workspace.panes[pane_id]
+        instructions = write_instructions(self._store.root, found, pane) if tool.agent else None
+        line = command_line(tool, pane, restoring, instructions)
         argv = [*self._shell, "-c", line] if line else self._shell
         self._ptys[key] = Pty(
             argv,
-            _directory(tool, self._store.task(project, task)),
-            pane_env(os.environ, sys.prefix),
+            _directory(tool, found),
+            self._env(key),
             rows,
             cols,
             on_exit=lambda code: self._ended(key, code),
         )
+
+    def _env(self, key: Key) -> dict[str, str]:
+        """The environment of a pane's program: the user's, and how to reach the core.
+
+        The key it gets lets the core tell which pane calls; it lasts as long as the program.
+        """
+        project, task, pane = key
+        self._keys[key] = secrets.token_urlsafe(24)
+        env = pane_env(os.environ, sys.prefix)
+        env["PATH"] = os.pathsep.join(filter(None, [str(self._bin), env["PATH"]]))
+        env.update(
+            BYTEARMY_URL=self.url,
+            BYTEARMY_TOKEN=self._keys[key],
+            BYTEARMY_TASK=f"{project}/{task}",
+            BYTEARMY_PANE=pane,
+        )
+        return env
 
     def page(self, project: str, task: str, pane: str, files: str) -> str:
         """The page a web pane shows; `files` is where the task directory is served.
@@ -254,6 +448,7 @@ class Workspaces:
         """A program ended by itself: close its pane if all went well, keep it otherwise."""
         project, task, pane = key
         with self._lock:
+            self._keys.pop(key, None)
             if self._stopping or key in self._ending:
                 return
 
@@ -327,6 +522,43 @@ def _drop(workspace: Workspace, pane: str) -> None:
     workspace.tree = remove_leaf(workspace.tree, pane)
     if workspace.maximized == pane:
         workspace.maximized = None
+    if workspace.master == pane:
+        workspace.master = None
+
+
+def _make_agent(
+    workspace: Workspace, pane: Pane, place: tuple[str, str], tool: Tool, role: str | None
+) -> None:
+    """Name the agent of a pane. Without a role it is the master, if the task has none."""
+    prefix = agent_name(*place, "")
+    roles = {other.agent.removeprefix(prefix) for other in workspace.panes.values() if other.agent}
+    if role is None:
+        role = next_role(roles) if workspace.master is not None else MASTER
+    if role in roles:
+        raise RoleTaken(role)
+    pane.agent = agent_name(*place, role)
+    pane.title = f"{tool.name}: {role}"
+    if role == MASTER:
+        workspace.master = pane.id
+
+
+def values_from_args(tool: Tool, args: Sequence[str]) -> dict[str, str]:
+    """The parameter values a command line gives: `name=value`, or by position."""
+    names = [parameter.name for parameter in tool.parameters]
+    values: dict[str, str] = {}
+    by_position = []
+    for arg in args:
+        name, equals, value = arg.partition("=")
+        if equals and name in names and name not in values:
+            values[name] = value
+        else:
+            by_position.append(arg)
+    free = [name for name in names if name not in values]
+    if len(by_position) > len(free):
+        takes = ", ".join(names) or "nothing"
+        raise InvalidValues(f"{tool.id} takes {takes}; got {' '.join(args)}")
+    values.update(zip(free, by_position, strict=False))
+    return values
 
 
 def _checked_values(

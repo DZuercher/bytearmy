@@ -33,6 +33,7 @@ const routes = {
   maximized: '/api/projects/{project}/tasks/{task}/maximized',
   panes: '/api/projects/{project}/tasks/{task}/panes',
   pane: '/api/projects/{project}/tasks/{task}/panes/{pane}',
+  paneHighlight: '/api/projects/{project}/tasks/{task}/panes/{pane}/highlight',
   panePage: '/api/projects/{project}/tasks/{task}/panes/{pane}/page',
   panePageVersion: '/api/projects/{project}/tasks/{task}/panes/{pane}/page/version',
 } as const satisfies Record<string, keyof paths>
@@ -105,6 +106,29 @@ export const api = {
     request('PUT', fill(routes.layout, { project, task }), { tree } satisfies Schemas['Layout']),
   maximizePane: (project: string, task: string, slug: string | null) =>
     request('PUT', fill(routes.maximized, { project, task }), { slug } satisfies Schemas['Focus']),
+  highlightPane: (project: string, task: string, pane: string, on: boolean) =>
+    request('PUT', fill(routes.paneHighlight, { project, task, pane }), { on } satisfies Schemas['Highlight']),
+}
+
+// Calls `onChange` whenever the core's data changed, also by a program in a pane, so the
+// window can fetch the state again. Returns the function that stops listening.
+export function listenForChanges(onChange: () => void): () => void {
+  let socket: WebSocket | null = null
+  let retry: ReturnType<typeof setTimeout> | undefined
+  let stopped = false
+  const connect = () => {
+    socket = new WebSocket(`${location.origin.replace(/^http/, 'ws')}/api/changes?token=${token}`)
+    socket.onmessage = () => onChange()
+    socket.onclose = () => {
+      if (!stopped) retry = setTimeout(connect, 1_000) // the core is busy or restarting
+    }
+  }
+  connect()
+  return () => {
+    stopped = true
+    clearTimeout(retry)
+    socket?.close()
+  }
 }
 
 // The page of a web pane. It does not wait in the queue and holds nobody up: the answer

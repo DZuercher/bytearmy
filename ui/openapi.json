@@ -853,6 +853,429 @@
         }
       }
     },
+    "/api/projects/{project}/tasks/{task}/panes/{pane}/highlight": {
+      "put": {
+        "summary": "Highlight Pane",
+        "operationId": "highlight_pane_api_projects__project__tasks__task__panes__pane__highlight_put",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project"
+            }
+          },
+          {
+            "name": "task",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task"
+            }
+          },
+          {
+            "name": "pane",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pane"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Highlight"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agent/panes": {
+      "get": {
+        "summary": "Agent Panes",
+        "operationId": "agent_panes_agent_panes_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Workspace"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Agent Open Pane",
+        "operationId": "agent_open_pane_agent_panes_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaneCall"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Opened"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agent/panes/{pane}": {
+      "delete": {
+        "summary": "Agent Close Pane",
+        "operationId": "agent_close_pane_agent_panes__pane__delete",
+        "parameters": [
+          {
+            "name": "pane",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pane"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agent/maximized": {
+      "put": {
+        "summary": "Agent Maximize",
+        "operationId": "agent_maximize_agent_maximized_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Focus"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agent/panes/{pane}/highlight": {
+      "put": {
+        "summary": "Agent Highlight",
+        "operationId": "agent_highlight_agent_panes__pane__highlight_put",
+        "parameters": [
+          {
+            "name": "pane",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pane"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Highlight"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agent/panes/{pane}/move": {
+      "put": {
+        "summary": "Agent Move",
+        "operationId": "agent_move_agent_panes__pane__move_put",
+        "parameters": [
+          {
+            "name": "pane",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pane"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaneMove"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agent/task": {
+      "get": {
+        "summary": "Agent Task",
+        "operationId": "agent_task_agent_task_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "summary": "Agent Change Task",
+        "operationId": "agent_change_task_agent_task_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agent/agents": {
+      "get": {
+        "summary": "Agent List",
+        "operationId": "agent_list_agent_agents_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Agent"
+                  },
+                  "type": "array",
+                  "title": "Response Agent List Agent Agents Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Agent Spawn",
+        "operationId": "agent_spawn_agent_agents_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentSpawn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Opened"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agent/tools": {
+      "get": {
+        "summary": "Agent Tools",
+        "description": "The tools an agent may open, with the defaults of its project.",
+        "operationId": "agent_tools_agent_tools_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Tool"
+                  },
+                  "type": "array",
+                  "title": "Response Agent Tools Agent Tools Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/files/{key}/{project}/{task}/{path}": {
       "get": {
         "summary": "Task File",
@@ -921,6 +1344,64 @@
   },
   "components": {
     "schemas": {
+      "Agent": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "pane": {
+            "type": "string",
+            "title": "Pane"
+          },
+          "master": {
+            "type": "boolean",
+            "title": "Master"
+          },
+          "running": {
+            "type": "boolean",
+            "title": "Running"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "pane",
+          "master",
+          "running"
+        ],
+        "title": "Agent",
+        "description": "An agent of a task, as `bytearmy agent list` shows it."
+      },
+      "AgentSpawn": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "prompt": {
+            "type": "string",
+            "title": "Prompt"
+          },
+          "beside": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Beside"
+          }
+        },
+        "type": "object",
+        "required": [
+          "role",
+          "prompt"
+        ],
+        "title": "AgentSpawn"
+      },
       "AppState": {
         "properties": {
           "root": {
@@ -1000,6 +1481,19 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
+      "Highlight": {
+        "properties": {
+          "on": {
+            "type": "boolean",
+            "title": "On"
+          }
+        },
+        "type": "object",
+        "required": [
+          "on"
+        ],
+        "title": "Highlight"
+      },
       "Layout": {
         "properties": {
           "tree": {
@@ -1022,6 +1516,25 @@
           "tree"
         ],
         "title": "Layout"
+      },
+      "Opened": {
+        "properties": {
+          "pane": {
+            "type": "string",
+            "title": "Pane"
+          },
+          "agent": {
+            "type": "string",
+            "title": "Agent",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "pane"
+        ],
+        "title": "Opened",
+        "description": "The answer to a call that opened a pane."
       },
       "Page": {
         "properties": {
@@ -1094,6 +1607,26 @@
             "title": "Session",
             "default": ""
           },
+          "agent": {
+            "type": "string",
+            "title": "Agent",
+            "default": ""
+          },
+          "prompt": {
+            "type": "string",
+            "title": "Prompt",
+            "default": ""
+          },
+          "spawned_by": {
+            "type": "string",
+            "title": "Spawned By",
+            "default": ""
+          },
+          "highlighted": {
+            "type": "boolean",
+            "title": "Highlighted",
+            "default": false
+          },
           "rows": {
             "type": "integer",
             "title": "Rows",
@@ -1123,6 +1656,52 @@
           "title"
         ],
         "title": "Pane"
+      },
+      "PaneCall": {
+        "properties": {
+          "tool": {
+            "type": "string",
+            "title": "Tool"
+          },
+          "args": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Args",
+            "default": []
+          },
+          "beside": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Beside"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tool"
+        ],
+        "title": "PaneCall",
+        "description": "Open a tool in a new pane; `args` are the values of its parameters.\n\nAn arg `name=value` sets the parameter `name`; the others fill the remaining\nparameters in their order."
+      },
+      "PaneMove": {
+        "properties": {
+          "beside": {
+            "type": "string",
+            "title": "Beside"
+          }
+        },
+        "type": "object",
+        "required": [
+          "beside"
+        ],
+        "title": "PaneMove"
       },
       "PaneOpen": {
         "properties": {
@@ -1456,6 +2035,19 @@
             "title": "Status",
             "default": "Backlog"
           },
+          "color": {
+            "type": "string",
+            "enum": [
+              "",
+              "red",
+              "amber",
+              "green",
+              "blue",
+              "purple"
+            ],
+            "title": "Color",
+            "default": ""
+          },
           "repo": {
             "type": "string",
             "title": "Repo",
@@ -1510,6 +2102,48 @@
           "workspace"
         ],
         "title": "Task"
+      },
+      "TaskChange": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "default": ""
+          },
+          "color": {
+            "type": "string",
+            "enum": [
+              "",
+              "red",
+              "amber",
+              "green",
+              "blue",
+              "purple"
+            ],
+            "title": "Color",
+            "default": ""
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "reminder": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reminder"
+          }
+        },
+        "type": "object",
+        "title": "TaskChange",
+        "description": "What an agent may change about its task. Only the fields that are sent change;\n`color` \"\" removes the color, `reminder` null removes the reminder."
       },
       "TaskCreate": {
         "properties": {
@@ -1608,6 +2242,16 @@
           "resume": {
             "type": "string",
             "title": "Resume",
+            "default": ""
+          },
+          "agent": {
+            "type": "boolean",
+            "title": "Agent",
+            "default": false
+          },
+          "spawn": {
+            "type": "string",
+            "title": "Spawn",
             "default": ""
           },
           "url": {
@@ -1801,6 +2445,17 @@
               }
             ],
             "title": "Maximized"
+          },
+          "master": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Master"
           },
           "next_pane": {
             "type": "integer",

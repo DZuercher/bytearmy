@@ -34,6 +34,7 @@ from bytearmy.models import (
     ProjectFile,
     ProjectMeta,
     Task,
+    TaskChange,
     TaskCreate,
     TaskFile,
     UiChange,
@@ -123,7 +124,12 @@ class Store:
         self._today = today
         self._lock = threading.RLock()
         self._cloning: set[tuple[str, str]] = set()  # (project, task) with a clone under way
+        self.version = 0  # counts the changes, so a window learns that it shows old data
         (self.root / METADATA_DIR).mkdir(parents=True, exist_ok=True)
+
+    def _changed(self) -> None:
+        with self._lock:
+            self.version += 1
 
     # -- global state ------------------------------------------------------
 
@@ -138,6 +144,7 @@ class Store:
 
     def _save_state(self, state: GlobalState) -> None:
         _write_json(self._state_file, state)
+        self._changed()
 
     def app_state(self) -> AppState:
         with self._lock:
@@ -238,6 +245,7 @@ class Store:
         """
         with self._lock:
             shutil.rmtree(self._project_dir(slug))
+            self._changed()
 
     def reorder_projects(self, order: list[str]) -> None:
         with self._lock:
@@ -284,9 +292,11 @@ class Store:
 
     def _save_task(self, project_dir: Path, slug: str, file: TaskFile) -> None:
         _write_json(project_dir / slug / METADATA_DIR / "task.json", file)
+        self._changed()
 
     def _save_project(self, project_dir: Path, file: ProjectFile) -> None:
         _write_json(project_dir / METADATA_DIR / "project.json", file)
+        self._changed()
 
     def _list_tasks(self, project_dir: Path, project: ProjectFile) -> tuple[list[Task], list[Task]]:
         """The project's tasks as (backlog, task bar), each in its stored order."""
@@ -387,6 +397,7 @@ class Store:
         with self._lock:
             project_dir = self._project_dir(project)
             shutil.rmtree(self._task_dir(project_dir, slug))
+            self._changed()
             # Nothing can wait for a task that no longer exists.
             for other, file in self._task_files(project_dir).items():
                 if slug in file.dependencies:
@@ -418,6 +429,16 @@ class Store:
             project_file.focused_task = slug
             self._save_project(project_dir, project_file)
 
+    def change_task(self, project: str, slug: str, change: TaskChange) -> None:
+        """Take over what an agent changed about its task: the fields it sent."""
+        with self._lock:
+            project_dir = self._project_dir(project)
+            self._task_dir(project_dir, slug)
+            file = self._task_files(project_dir)[slug]
+            for name in change.model_fields_set:
+                setattr(file, name, getattr(change, name))
+            self._save_task(project_dir, slug, file)
+
     # -- workspaces --------------------------------------------------------
 
     def _load_workspace(self, task_dir: Path) -> Workspace:
@@ -439,6 +460,7 @@ class Store:
             workspace = self._load_workspace(task_dir)
             change(workspace)
             _write_json(task_dir / METADATA_DIR / "layout.json", workspace)
+            self._changed()
             return workspace
 
     # -- clones ------------------------------------------------------------
@@ -446,6 +468,7 @@ class Store:
     def clone_started(self, project: str, slug: str) -> None:
         with self._lock:
             self._cloning.add((project, slug))
+            self._changed()
 
     def clone_finished(self, project: str, slug: str, error: str) -> None:
         """Record the outcome; `error` is empty after a successful clone."""

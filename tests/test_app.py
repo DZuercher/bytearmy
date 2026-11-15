@@ -61,6 +61,7 @@ def test_only_one_process_at_a_time_holds_a_root(tmp_path):
 
 def test_a_second_bytearmy_on_a_root_says_which_process_has_it(tmp_path, monkeypatch):
     root = (tmp_path / "root").resolve()
+    root.mkdir()
     ran = []
 
     async def run(given):
@@ -70,6 +71,7 @@ def test_a_second_bytearmy_on_a_root_says_which_process_has_it(tmp_path, monkeyp
 
     monkeypatch.setattr(app, "run", run)
     monkeypatch.setattr(sys, "argv", ["bytearmy", "--root", str(root)])
+    monkeypatch.setattr("builtins.input", lambda question: pytest.fail(f"asked {question!r}"))
     main()
     assert ran == [root]
 
@@ -85,3 +87,36 @@ def test_a_second_bytearmy_on_a_root_says_which_process_has_it(tmp_path, monkeyp
             main()
     assert refused.value.code == f"bytearmy already runs on {root}. Close its window first."
     assert ran == [root]
+
+
+@pytest.mark.parametrize(
+    ("answer", "starts"),
+    [("y", True), (" Yes ", True), ("", False), ("n", False), (EOFError, False)],
+)
+def test_a_root_that_does_not_exist_is_created_only_when_the_user_says_so(
+    tmp_path, monkeypatch, answer, starts
+):
+    root = (tmp_path / "bytearmy-check,").resolve()  # a typo
+    asked, ran = [], []
+
+    def reply(question):
+        asked.append(question)
+        if answer is EOFError:  # no terminal to ask on
+            raise EOFError
+        return answer
+
+    async def run(given):
+        ran.append(given)
+
+    monkeypatch.setattr("builtins.input", reply)
+    monkeypatch.setattr(app, "run", run)
+    monkeypatch.setattr(sys, "argv", ["bytearmy", "--root", str(root)])
+
+    if starts:
+        main()
+    else:
+        with pytest.raises(SystemExit) as refused:
+            main()
+        assert refused.value.code == f"bytearmy did not start: {root} does not exist."
+    assert asked == [f"{root} does not exist. Create it? [y/N] "]
+    assert (ran, root.exists()) == (([root], True) if starts else ([], False))

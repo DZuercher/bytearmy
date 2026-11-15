@@ -10,10 +10,14 @@ import pytest
 
 from bytearmy.models import Pane, Parameter, Tool
 from bytearmy.tools import (
+    EARLIER,
+    HEADER,
+    PREMADE,
     command_line,
     default_value,
     ensure_premade,
     external_command,
+    fingerprint,
     load_tools,
     page_url,
 )
@@ -53,12 +57,15 @@ def test_the_premade_tools_say_how_they_run(tmp_path):
     tools = load_tools(tmp_path)
 
     assert tools["terminal"] == Tool(id="terminal", name="Terminal")
+    flags = "--name {agent} --append-system-prompt-file {instructions}"
     assert tools["claude"] == Tool(
         id="claude",
         name="Claude",
         directory="repo",
-        command="claude --session-id {session}",
-        resume="claude --resume {session} || claude --session-id {session}",
+        agent=True,
+        command=f"claude --session-id {{session}} {flags}",
+        resume=f"claude --resume {{session}} {flags} || claude --session-id {{session}} {flags}",
+        spawn=f"claude --session-id {{session}} {flags} {{prompt}}",
     )
     assert tools["vim"] == Tool(
         id="vim",
@@ -69,6 +76,29 @@ def test_the_premade_tools_say_how_they_run(tmp_path):
         ],
     )
     assert tools["terminal"].callers == ["user", "agent"]
+
+
+def test_an_agent_whose_tool_has_no_spawn_line_starts_with_its_command():
+    tool = Tool(id="bot", name="Bot", agent=True, command="bot {agent}")
+    pane = Pane(id="p1", tool="bot", title="Bot", agent="a-b-c", prompt="Do it.")
+
+    assert command_line(tool, pane, restoring=False, instructions=Path("x.md")) == "bot a-b-c"
+
+
+def test_a_premade_file_nobody_edited_is_brought_up_to_date(tmp_path, monkeypatch):
+    tools = tmp_path / ".tools"
+    tools.mkdir()
+    earlier = "written by an earlier bytearmy\n"
+    (tools / "claude.toml").write_text(earlier)
+    (tools / "vim.toml").write_text("changed by the user\n")
+    monkeypatch.setitem(EARLIER, "claude", {fingerprint(earlier)})
+    monkeypatch.setitem(EARLIER, "vim", {fingerprint(earlier)})
+
+    ensure_premade(tmp_path)
+
+    assert (tools / "claude.toml").read_text() == HEADER + PREMADE["claude"]
+    assert (tools / "vim.toml").read_text() == "changed by the user\n"
+    assert (tools / "terminal.toml").read_text() == HEADER + PREMADE["terminal"]
 
 
 def test_the_premade_web_and_external_tools_say_what_they_show(tmp_path):

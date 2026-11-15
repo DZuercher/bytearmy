@@ -34,6 +34,7 @@ The task is created at `<bytearmy_root>/<project_slug>/<task_slug>` where the pr
 If a Github URL is provided for the current project `git clone <github url>` in `<bytearmy_root>/<project_slug>/<task_slug>`.
 The clone lands in `<bytearmy_root>/<project_slug>/<task_slug>/<repo_name>`, so the tasks `.bytearmy` directory stays outside of the repository.
 If a branch name was provided the branch is checked out after the clone if it exists on the remote, otherwise it is created from the default branch.
+If the clone fails, the task shows a warning marker and its data says why. Its right-click menu then offers to clone again, with the projects Github URL and the tasks branch.
 The task then becomes visible in the backlog task bar. The status of the task should be set to `Backlog`.
 The status, name, description, branch, reminder date, dependencies of a task is tracked in its metadata (.bytearmy directory).
 
@@ -50,8 +51,9 @@ It should be possible to drag and drop tasks to change their order, the order sh
 Every task has a status. When a task is placed from the backlog into the task bar it is set to `New`.
 The status is shown as a small tag below the task name in the task bar.
 When a task is clicked on in the task bar the workspace of the task is shown.
-The master agent running in the workspace of a task should be able to modify its metadata.
-It can also override the status and the coloring of the task tab to notify the user.
+The agents working in a task can change its status, its color, its description and its reminder with the `bytearmy` command line tool; its name, branch and dependencies stay as the user set them.
+The status is free text; only `Backlog` is not allowed, as a started task cannot go back.
+The color (red, amber, green, blue, purple or none) colors the task in the bars, to get the user's attention.
 When right-clicking on a task the tasks data should be shown as well as a button allowing to delete the task.
 When deleting a task show a warning informing the user that all the data associated with the task will be deleted and ask for confirmation.
 It should be possible to drag and drop tasks to change their order, the order should be persistet when restarting the program.
@@ -66,19 +68,29 @@ When choosing a tool a new pane is opened in the workspace showing the tool spec
 The current layout of a workspace is stored in the tasks metadata.
 A pane closes when its program ends without an error. If the program fails the pane stays and shows the exit code.
 When bytearmy quits, the programs in all panes are stopped. When it starts again the panes of all tasks are restored with their layout and their programs are started again. A Claude pane continues its earlier conversation.
-Each task has one master agent, which is the agent that was created first in the task. This agent can also create new panes by calling tools.
-It can also destruct, highlight, maximize, rearrange them.
-It does this with the `bytearmy` command line tool, which is available in every pane (e.g. `bytearmy pane open webpage <url>`, `bytearmy pane maximize <id>`, `bytearmy task set-status <status>`).
-Subagents should always be created in their own pane.
-Every agent is a Claude session with its own name (`claude --name <name>`, e.g. `<project>-<task>-<role>`). bytearmy assigns the names and tells each agent which other agents work on its task.
+Each task has one master agent, which is the agent that was created first in the task. If the master's pane is closed, the next Claude pane that is opened becomes the master.
+Agents create, close, highlight, maximize and rearrange panes with the `bytearmy` command line tool, which is available in every terminal pane:
+- `bytearmy pane list|open|close|maximize|restore|highlight|unhighlight|move`, e.g. `bytearmy pane open webpage <url>` or `bytearmy pane maximize <id>`
+- `bytearmy tool list`
+- `bytearmy task show|set-status|set-color|set-description|set-reminder`, e.g. `bytearmy task set-status "Needs review" --color amber`
+- `bytearmy agent list|spawn`
+
+The command works only on the task of the pane it runs in: bytearmy gives the program of every pane a key of its own. Every pane of the task may run every command; that the master leads the others is said only in its instructions.
+A pane opened with the command appears next to the pane that called it, and its program starts at once, also when the task is not shown.
+A highlighted pane gets an amber frame. The frame goes away when the user clicks into the pane, or when an agent ends the highlight.
+Whatever an agent changes shows in the window at once.
+
+Subagents are always created in their own pane: `bytearmy agent spawn <role> "<prompt>"` starts a new agent next to the calling pane, in the same directory, with the prompt as its first message. The agent that spawned it closes its pane once it needs nothing more from it.
+Every agent is a Claude session with its own name (`claude --name <name>`), `<project>-<task>-<role>`. The master has the role `master`, a Claude pane the user opens while there is a master gets `agent-2`, `agent-3` and so on, and a spawned agent gets the role its spawner chose (lower-case letters, digits and dashes, up to 32 characters). No two agents of a task have the same role.
+Every agent starts with the instructions in `<bytearmy_root>/.claude/bytearmy.md`, followed by its name, its pane, who the master is and who spawned it. bytearmy writes these anew at every start, so a restarted agent learns who the master is now.
 The agents talk to each other with the cross-session messaging that is built into Claude Code (`SendMessage`). An idle agent starts a new turn when a message arrives, a busy agent reads it between two tool calls.
-The names are visible to every Claude session of the user on the machine, so they must be unique across projects and tasks.
+The names are visible to every Claude session of the user on the machine, so they must be unique across projects and tasks. Two roots that run at the same time and hold a project and task of the same names give their agents the same names.
 
 ## Tools
 Calling a tool opens a new pane on the workspace.
 The tools are found in .tools. Ideally these just open already existing programs but within the panes in bytearmy.
-Every tool is one file `<bytearmy_root>/.tools/<tool>.toml` holding its name, its kind, its command or page and its parameters. bytearmy writes the files of the premade tools if they are missing and never overwrites them, so the user can change them.
-A tool file also says who may call the tool (the user, agents or both), what a parameter is set to if nothing is entered (e.g. the projects GitHub page), and which background program the tool needs (e.g. the VS Code server of the IDE).
+Every tool is one file `<bytearmy_root>/.tools/<tool>.toml` holding its name, its kind, its command or page and its parameters. bytearmy writes the files of the premade tools if they are missing. When a newer bytearmy brings a new version of a premade file, it replaces the files nobody edited; a file the user changed is never overwritten. The same holds for `<bytearmy_root>/.claude/bytearmy.md`.
+A tool file also says who may call the tool (the user, agents or both), what a parameter is set to if nothing is entered (e.g. the projects GitHub page), which background program the tool needs (e.g. the VS Code server of the IDE), whether its program is an agent, and how it is started when another agent spawns it.
 A program can run inside a pane if it is a terminal program or if it serves a web UI. Windows of native programs (Finder, Ghostty, the VS Code desktop app) cannot be placed inside a pane.
 Every tool therefore has one of three kinds:
 - terminal: the program runs in a terminal emulator inside the pane (xterm.js connected to a pseudo-terminal).
@@ -95,7 +107,7 @@ Web panes:
 The user calls a tool from the command dialogue, an agent calls it with the `bytearmy` command line tool.
 Tools can be added by the user or agents but the following tools should come premade with bytearmy.
 - Terminal [terminal. Opens the users default shell in the embedded terminal emulator. The systems terminal application itself cannot be embedded.]
-- Claude [terminal. Same as Terminal but directly executes `claude` to spawn a claude agent. if this is currently the only agent running in the task it becomes the master agent. The command runs through the users interactive shell, so a shell function or alias named `claude` works. It starts in the clone of the repository if the task has one, otherwise in the tasks working directory.]
+- Claude [terminal. Same as Terminal but directly executes `claude` to spawn a claude agent. The first Claude pane of a task becomes its master agent. Claude starts with its name (`--name`) and bytearmy's instructions (`--append-system-prompt-file`). The command runs through the users interactive shell, so a shell function or alias named `claude` works. It starts in the clone of the repository if the task has one, otherwise in the tasks working directory. Agents that other agents spawn are started with the `spawn` line of the tool file; as `claude` may first ask which account to use, the user can put a command there that does not ask.]
 - Vim [terminal. Opens the vim editor. Needs to be pointed to a specific file in the workspace.]
 - HTML [web. Renders a static html file in the workspace. Can only be invoked by the agent, so the command dialogue does not list it. The file must lie inside the tasks working directory; bytearmy serves it to the pane under a random key, not under the token of its API. When the file changes the pane loads it again.]
 - Webpage [web. Shows a specific webpage. Eg github page associaated with the projects github url. The command dialogue offers the projects GitHub page; an address can be typed instead.]
@@ -108,16 +120,18 @@ What a program without a pane (an external tool, the VS Code server) prints goes
 ## Directory structure
 Each task is assigned to a project and has its own working directory. 
 `bytearmy_root` is `~/bytearmy` by default. It can be changed with the `--root` option or the `BYTEARMY_ROOT` environment variable.
+If the root does not exist, bytearmy asks whether to create it and does not start without a yes, so a mistyped root does not start an empty bytearmy.
+Only one bytearmy runs on a root at a time: a second one refuses to start and names the process that has the root. The claim on the root ends with that process, also when it crashes.
 
 bytearmy_root
 |- .tools [contains tools]
-|- .claude [contains the explanation for claude about how bytearmy works and how claude can interact with it. It is passed to every Claude pane when it starts]
-|- .bytearmy [contains global metadata, the logs of programs without a pane and the browser session of the web panes]
+|- .claude [contains bytearmy.md, the explanation for claude about how bytearmy works and how claude can interact with it. It is passed to every Claude pane when it starts]
+|- .bytearmy [contains global metadata, the logs of programs without a pane, the browser session of the web panes, the `bytearmy` command of the panes and the lock that keeps a second bytearmy off the root]
 |-- project-1
     |- .bytearmy [contains bytearmy project level metadata, like name and Github URL]
     |- .claude [contains project specific claude configurations like CLAUDE.md etc. Claude loads this CLAUDE.md by itself in every task of the project]
     |- task-1
-        |- .bytearmy [contains bytearmy metadata, like current state of the UI]
+        |- .bytearmy [contains bytearmy metadata, like current state of the UI, and the instructions each agent of the task started with]
         |- <repo_name> [clone of the projects Github URL, if there is one]
     |- task-2
         |- .bytearmy [contains bytearmy metadata, like current state of the UI]

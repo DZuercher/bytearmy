@@ -319,6 +319,165 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{project}/tasks/{task}/panes/{pane}/highlight": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Highlight Pane */
+        put: operations["highlight_pane_api_projects__project__tasks__task__panes__pane__highlight_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agent/panes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Agent Panes */
+        get: operations["agent_panes_agent_panes_get"];
+        put?: never;
+        /** Agent Open Pane */
+        post: operations["agent_open_pane_agent_panes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agent/panes/{pane}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Agent Close Pane */
+        delete: operations["agent_close_pane_agent_panes__pane__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agent/maximized": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Agent Maximize */
+        put: operations["agent_maximize_agent_maximized_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agent/panes/{pane}/highlight": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Agent Highlight */
+        put: operations["agent_highlight_agent_panes__pane__highlight_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agent/panes/{pane}/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Agent Move */
+        put: operations["agent_move_agent_panes__pane__move_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agent/task": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Agent Task */
+        get: operations["agent_task_agent_task_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Agent Change Task */
+        patch: operations["agent_change_task_agent_task_patch"];
+        trace?: never;
+    };
+    "/agent/agents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Agent List */
+        get: operations["agent_list_agent_agents_get"];
+        put?: never;
+        /** Agent Spawn */
+        post: operations["agent_spawn_agent_agents_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agent/tools": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Agent Tools
+         * @description The tools an agent may open, with the defaults of its project.
+         */
+        get: operations["agent_tools_agent_tools_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/files/{key}/{project}/{task}/{path}": {
         parameters: {
             query?: never;
@@ -343,6 +502,29 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * Agent
+         * @description An agent of a task, as `bytearmy agent list` shows it.
+         */
+        Agent: {
+            /** Name */
+            name: string;
+            /** Pane */
+            pane: string;
+            /** Master */
+            master: boolean;
+            /** Running */
+            running: boolean;
+        };
+        /** AgentSpawn */
+        AgentSpawn: {
+            /** Role */
+            role: string;
+            /** Prompt */
+            prompt: string;
+            /** Beside */
+            beside?: string | null;
+        };
         /**
          * AppState
          * @description Everything the UI shows, in one piece.
@@ -371,10 +553,28 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** Highlight */
+        Highlight: {
+            /** On */
+            on: boolean;
+        };
         /** Layout */
         Layout: {
             /** Tree */
             tree: components["schemas"]["Split-Input"] | string | null;
+        };
+        /**
+         * Opened
+         * @description The answer to a call that opened a pane.
+         */
+        Opened: {
+            /** Pane */
+            pane: string;
+            /**
+             * Agent
+             * @default
+             */
+            agent: string;
         };
         /**
          * Page
@@ -419,6 +619,26 @@ export interface components {
              */
             session: string;
             /**
+             * Agent
+             * @default
+             */
+            agent: string;
+            /**
+             * Prompt
+             * @default
+             */
+            prompt: string;
+            /**
+             * Spawned By
+             * @default
+             */
+            spawned_by: string;
+            /**
+             * Highlighted
+             * @default false
+             */
+            highlighted: boolean;
+            /**
              * Rows
              * @default 24
              */
@@ -430,6 +650,29 @@ export interface components {
             cols: number;
             /** Exit Code */
             exit_code?: number | null;
+        };
+        /**
+         * PaneCall
+         * @description Open a tool in a new pane; `args` are the values of its parameters.
+         *
+         *     An arg `name=value` sets the parameter `name`; the others fill the remaining
+         *     parameters in their order.
+         */
+        PaneCall: {
+            /** Tool */
+            tool: string;
+            /**
+             * Args
+             * @default []
+             */
+            args: string[];
+            /** Beside */
+            beside?: string | null;
+        };
+        /** PaneMove */
+        PaneMove: {
+            /** Beside */
+            beside: string;
         };
         /** PaneOpen */
         PaneOpen: {
@@ -594,6 +837,12 @@ export interface components {
              */
             status: string;
             /**
+             * Color
+             * @default
+             * @enum {string}
+             */
+            color: "" | "red" | "amber" | "green" | "blue" | "purple";
+            /**
              * Repo
              * @default
              */
@@ -617,6 +866,31 @@ export interface components {
             /** Blocked By */
             blocked_by: string[];
             workspace: components["schemas"]["Workspace"];
+        };
+        /**
+         * TaskChange
+         * @description What an agent may change about its task. Only the fields that are sent change;
+         *     `color` "" removes the color, `reminder` null removes the reminder.
+         */
+        TaskChange: {
+            /**
+             * Status
+             * @default
+             */
+            status: string;
+            /**
+             * Color
+             * @default
+             * @enum {string}
+             */
+            color: "" | "red" | "amber" | "green" | "blue" | "purple";
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /** Reminder */
+            reminder?: string | null;
         };
         /**
          * TaskCreate
@@ -678,6 +952,16 @@ export interface components {
              * @default
              */
             resume: string;
+            /**
+             * Agent
+             * @default false
+             */
+            agent: boolean;
+            /**
+             * Spawn
+             * @default
+             */
+            spawn: string;
             /**
              * Url
              * @default
@@ -763,6 +1047,8 @@ export interface components {
             };
             /** Maximized */
             maximized?: string | null;
+            /** Master */
+            master?: string | null;
             /**
              * Next Pane
              * @default 1
@@ -1365,6 +1651,356 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    highlight_pane_api_projects__project__tasks__task__panes__pane__highlight_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project: string;
+                task: string;
+                pane: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Highlight"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_panes_agent_panes_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Workspace"];
+                };
+            };
+        };
+    };
+    agent_open_pane_agent_panes_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PaneCall"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Opened"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_close_pane_agent_panes__pane__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pane: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_maximize_agent_maximized_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Focus"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_highlight_agent_panes__pane__highlight_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pane: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Highlight"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_move_agent_panes__pane__move_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pane: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PaneMove"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_task_agent_task_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Task"];
+                };
+            };
+        };
+    };
+    agent_change_task_agent_task_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TaskChange"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Task"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_list_agent_agents_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Agent"][];
+                };
+            };
+        };
+    };
+    agent_spawn_agent_agents_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentSpawn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Opened"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_tools_agent_tools_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Tool"][];
                 };
             };
         };

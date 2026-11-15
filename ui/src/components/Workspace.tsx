@@ -54,6 +54,12 @@ export function Workspace({ project, task, visible, run, onArrange, onActivePane
             <MosaicWindow<string>
               path={path}
               title={pane.title + ended}
+              // An agent wants the user to look here; clicking into the pane ends it. The frame
+              // is a layer above the pane, as its title bar and content would cover an outline.
+              className={cn(
+                pane.highlighted &&
+                  "relative after:pointer-events-none after:absolute after:inset-0 after:z-30 after:border-4 after:border-amber-500 after:content-['']",
+              )}
               toolbarControls={[
                 pane.kind === 'web' && <WebControls key="web" browser={browsers[id]} />,
                 <Button
@@ -76,7 +82,18 @@ export function Workspace({ project, task, visible, run, onArrange, onActivePane
                 </Button>,
               ]}
             >
-              <div data-pane={id} className="size-full" onFocusCapture={() => onActivePane(id)}>
+              <div
+                data-pane={id}
+                className="size-full"
+                onFocusCapture={() => onActivePane(id)}
+                // A browser view tells only of `focus`, which React does not hear in a parent.
+                ref={(element) => {
+                  if (!element || !pane.highlighted) return
+                  const seen = () => run(api.highlightPane(place.project, place.task, id, false))
+                  element.addEventListener('focus', seen, { capture: true, once: true })
+                  return () => element.removeEventListener('focus', seen, { capture: true })
+                }}
+              >
                 {pane.kind === 'web' ? (
                   <WebPane
                     place={{ ...place, pane: id }}

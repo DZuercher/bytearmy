@@ -8,6 +8,7 @@ import secrets
 import tempfile
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, WebSocket
 from fastapi.responses import FileResponse, JSONResponse
@@ -15,17 +16,27 @@ from fastapi.staticfiles import StaticFiles
 
 from bytearmy.clones import AlreadyCloning, Cloner
 from bytearmy.models import (
+    Agent,
+    AgentSpawn,
     AppState,
     Focus,
+    Highlight,
     Layout,
+    Opened,
     Page,
     PageVersion,
+    PaneCall,
+    PaneMove,
     PaneOpen,
     ProjectMeta,
     ProjectOrder,
+    Task,
+    TaskChange,
     TaskCreate,
     TaskOrder,
+    Tool,
     UiChange,
+    Workspace,
 )
 from bytearmy.store import (
     Blocked,
@@ -38,15 +49,33 @@ from bytearmy.store import (
 )
 from bytearmy.tools import ToolFailed
 from bytearmy.workspaces import (
+    SPAWNING_TOOL,
     InvalidLayout,
     InvalidValues,
+    Key,
+    NoAgentTool,
+    NotForAgents,
     NotStarted,
     PaneNotFound,
+    RoleTaken,
     UnknownTool,
     Workspaces,
 )
 
 PANES = "/projects/{project}/tasks/{task}/panes"
+CHANGE_CHECK_SECONDS = 0.2  # how often the change channel looks for a new version
+
+
+def calling_pane(request: Request) -> Key:
+    """The pane whose program calls; its key is the token it sends."""
+    supplied = request.headers.get("authorization", "").removeprefix("Bearer ").strip()
+    caller = request.app.state.workspaces.caller(supplied)
+    if caller is None:
+        raise HTTPException(status_code=401, detail="not called from a running bytearmy pane")
+    return caller
+
+
+Caller = Annotated[Key, Depends(calling_pane)]
 
 
 def create_app(
@@ -55,9 +84,13 @@ def create_app(
     ui_dist: Path | None = None,
     cloner: Cloner | None = None,
     workspaces: Workspaces | None = None,
+    url: str = "",
 ) -> FastAPI:
+    """The core's app. `url` is where it is served: the programs in the panes call it there."""
     cloner = cloner or Cloner(store)
     workspaces = workspaces or Workspaces(store)
+    if url:
+        workspaces.url = url
     # Pages in web panes cannot send the token, and must not know it: the files of the
     # tasks are served under a key of their own.
     files_key = secrets.token_urlsafe(16)
@@ -186,6 +219,65 @@ def create_app(
         workspaces.maximize(project, task, body.slug)
         return state()
 
+    @api.put(PANES + "/{pane}/highlight")
+    def highlight_pane(project: str, task: str, pane: str, body: Highlight) -> AppState:
+        workspaces.highlight(project, task, pane, body.on)
+        return state()
+
+    # -- the `bytearmy` command in the panes -------------------------------
+    # Each pane's program has a key of its own and reaches only its own task.
+
+    agent = APIRouter(prefix="/agent")
+
+    @agent.get("/panes")
+    def agent_panes(caller: Caller) -> Workspace:
+        return store.task(*caller[:2]).workspace
+
+    @agent.post("/panes", status_code=201)
+    def agent_open_pane(caller: Caller, call: PaneCall) -> Opened:
+        opened = workspaces.open_for(caller, call)
+        return Opened(pane=opened.id if opened else "")
+
+    @agent.delete("/panes/{pane}")
+    def agent_close_pane(caller: Caller, pane: str) -> None:
+        workspaces.close_pane(*caller[:2], pane)
+
+    @agent.put("/maximized")
+    def agent_maximize(caller: Caller, body: Focus) -> None:
+        workspaces.maximize(*caller[:2], body.slug)
+
+    @agent.put("/panes/{pane}/highlight")
+    def agent_highlight(caller: Caller, pane: str, body: Highlight) -> None:
+        workspaces.highlight(*caller[:2], pane, body.on)
+
+    @agent.put("/panes/{pane}/move")
+    def agent_move(caller: Caller, pane: str, body: PaneMove) -> None:
+        workspaces.move(*caller[:2], pane, body.beside)
+
+    @agent.get("/task")
+    def agent_task(caller: Caller) -> Task:
+        return store.task(*caller[:2])
+
+    @agent.patch("/task")
+    def agent_change_task(caller: Caller, change: TaskChange) -> Task:
+        store.change_task(*caller[:2], change)
+        return store.task(*caller[:2])
+
+    @agent.get("/agents")
+    def agent_list(caller: Caller) -> list[Agent]:
+        return workspaces.agents(*caller[:2])
+
+    @agent.post("/agents", status_code=201)
+    def agent_spawn(caller: Caller, spawn: AgentSpawn) -> Opened:
+        opened = workspaces.spawn(caller, spawn)
+        return Opened(pane=opened.id, agent=opened.agent)
+
+    @agent.get("/tools")
+    def agent_tools(caller: Caller) -> list[Tool]:
+        """The tools an agent may open, with the defaults of its project."""
+        page = store.project(caller[0]).github_page
+        return [tool for tool in workspaces.tools(page) if "agent" in tool.callers]
+
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
         workspaces.start_all()
@@ -195,7 +287,37 @@ def create_app(
 
     # FastAPI's schema and docs pages would answer without the token.
     app = FastAPI(title="bytearmy", openapi_url=None, lifespan=lifespan)
+    app.state.workspaces = workspaces  # for `calling_pane`
     app.include_router(api)
+    app.include_router(agent)
+
+    @app.websocket("/api/changes")
+    async def changes(socket: WebSocket) -> None:
+        """Sends the store's version whenever it changed, so the window fetches the state."""
+        if not token_ok(socket.query_params.get("token", "")):
+            await socket.close(code=4401)
+            return
+        await socket.accept()
+
+        async def send_versions() -> None:
+            sent = None
+            while True:
+                if store.version != sent:
+                    sent = store.version
+                    await socket.send_text(str(sent))
+                await asyncio.sleep(CHANGE_CHECK_SECONDS)
+
+        async def until_closed() -> None:
+            while (await socket.receive())["type"] != "websocket.disconnect":
+                pass
+
+        directions = [asyncio.create_task(send_versions()), asyncio.create_task(until_closed())]
+        try:
+            await asyncio.wait(directions, return_when=asyncio.FIRST_COMPLETED)
+        finally:
+            for direction in directions:
+                direction.cancel()
+            await asyncio.gather(*directions, return_exceptions=True)
 
     @app.websocket("/api" + PANES + "/{pane}/terminal")
     async def terminal(socket: WebSocket, project: str, task: str, pane: str) -> None:
@@ -271,6 +393,22 @@ def create_app(
     @app.exception_handler(UnknownTool)
     def unknown_tool(_request: Request, error: UnknownTool) -> JSONResponse:
         return answer(404, f"no tool {error.args[0]!r}")
+
+    @app.exception_handler(NoAgentTool)
+    def no_agent_tool(_request: Request, _error: NoAgentTool) -> JSONResponse:
+        return answer(
+            404,
+            f"no tool starts agents: .tools/{SPAWNING_TOOL}.toml needs `agent = true`"
+            " and a `spawn` line",
+        )
+
+    @app.exception_handler(NotForAgents)
+    def not_for_agents(_request: Request, error: NotForAgents) -> JSONResponse:
+        return answer(403, f"only the user may open the tool {error.args[0]!r}")
+
+    @app.exception_handler(RoleTaken)
+    def role_taken(_request: Request, error: RoleTaken) -> JSONResponse:
+        return answer(409, f"this task already has an agent with the role {error.args[0]!r}")
 
     @app.exception_handler(DuplicateName)
     def duplicate_name(_request: Request, error: DuplicateName) -> JSONResponse:

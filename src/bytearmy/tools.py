@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import re
 import shlex
 import sys
 import tomllib
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from pathlib import Path
 from urllib.parse import quote
 
@@ -30,6 +31,10 @@ HEADER = """\
 #               {session} is replaced by an id that stays the same across restarts,
 #               {<parameter>} by what was entered for that parameter.
 #   resume      run instead of `command` when the pane is restored after a restart
+#   agent       true: the program is an agent. It gets a name, {agent}, and a file with
+#               bytearmy's instructions, {instructions}.
+#   spawn       agent: run instead of `command` when another agent starts this one;
+#               {prompt} is what it asks the new agent to do
 #   url         web: the page. Besides the parameters it can hold {directory},
 #               {files} (the task directory, served by bytearmy) and {service}.
 #   directory   "task" (default) or "repo": the clone, if the task has one
@@ -49,14 +54,20 @@ VSCODE_IN_APP = "/Applications/Visual Studio Code.app/Contents/Resources/app/bin
 VSCODE = f"\"$(command -v code || echo '{VSCODE_IN_APP}')\"" if MACOS else "code"
 FILE_MANAGER = "open" if MACOS else "xdg-open"
 SCHEME = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*://")
+CLAUDE_FLAGS = "--name {agent} --append-system-prompt-file {instructions}"
 
 PREMADE = {
     "terminal": 'name = "Terminal"\n',
     "claude": (
         'name = "Claude"\n'
         'directory = "repo"\n'
-        'command = "claude --session-id {session}"\n'
-        'resume = "claude --resume {session} || claude --session-id {session}"\n'
+        "agent = true\n"
+        f'command = "claude --session-id {{session}} {CLAUDE_FLAGS}"\n'
+        f'resume = "claude --resume {{session}} {CLAUDE_FLAGS}'
+        f' || claude --session-id {{session}} {CLAUDE_FLAGS}"\n'
+        "# Agents that other agents start. `claude` may ask which account to use first;\n"
+        "# put the command of the account they should use here instead.\n"
+        f'spawn = "claude --session-id {{session}} {CLAUDE_FLAGS} {{prompt}}"\n'
     ),
     "vim": (
         'name = "Vim"\n'
@@ -103,18 +114,58 @@ PREMADE = {
 }
 
 
+# Fingerprints of the files earlier versions wrote (m3, m4; macOS and Linux). A file that
+# still has one was never edited, and is replaced by the current version.
+EARLIER = {
+    "terminal": {
+        "30b737f89737ed7f1b39205ae4433539e3ea837eebb6b8afd4c0c42c2195b02a",
+        "878e8097727c2ffc5dd4ad05345e2aae2cddceecfb192416c890cabd383e648b",
+    },
+    "claude": {
+        "853e7b4147fdd6c899fcc0cbf62bebd01e0584797ee836d31067558760cce5c1",
+        "28e17bf121edfed84b4486e018d1564072c3aa2454b1cc64b148f46e1ed6d556",
+    },
+    "vim": {
+        "eb5b624575842e280a1f807756a723dc74be432b0c4e479d9718d7911b516114",
+        "f8ef1b57eddbe2f97dfb76f747bc34f23620de28200cc8cbf7fdbd7b7015d9b8",
+    },
+    "webpage": {"8140c3ef66b8e098021dbbb777d41a480fc9673a0765c76029cdd835e92e0665"},
+    "html": {"67cb2d82c4660e7d4ae9e26fcb960b8ba456b5cbf92878a1729730619e785539"},
+    "ide": {
+        "4803194c0a2d9eed46b3db8f2631c4be644c0df691dbc776e7662eb30625afe3",
+        "d21a8e27826fb881a6731ba7567a595cfcd8c834f5cc56c93aadcd05cb9a5bc8",
+    },
+    "explorer": {
+        "123b6b37c169a431418c0fe6dc96e168679d22a32fc3d7ca402df9f6afaab07a",
+        "4bf639b0cf4d8f3d317e04c550495f429af9953a02db66222f9b48b996123e89",
+    },
+}
+
+
 class ToolFailed(RuntimeError):
     """A tool's program could not be started; the message says why."""
 
 
+def fingerprint(text: str) -> str:
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
+def write_premade(file: Path, text: str, earlier: Collection[str]) -> None:
+    """Write a file bytearmy comes with, unless the user has changed it.
+
+    The file is written if it is missing, or if it still holds what an earlier version
+    of bytearmy wrote: then nobody has edited it.
+    """
+    if file.exists() and fingerprint(file.read_text()) not in earlier:
+        return
+    file.parent.mkdir(parents=True, exist_ok=True)
+    file.write_text(text)
+
+
 def ensure_premade(root: Path) -> None:
-    """Write the tools bytearmy comes with, unless a file of that name already exists."""
-    directory = root / TOOLS_DIR
-    directory.mkdir(parents=True, exist_ok=True)
+    """Write the tools bytearmy comes with, unless the user has changed their files."""
     for tool_id, text in PREMADE.items():
-        file = directory / f"{tool_id}.toml"
-        if not file.exists():
-            file.write_text(HEADER + text)
+        write_premade(root / TOOLS_DIR / f"{tool_id}.toml", HEADER + text, EARLIER[tool_id])
 
 
 def load_tools(root: Path) -> dict[str, Tool]:
@@ -133,12 +184,22 @@ def fill(template: str, values: Mapping[str, str]) -> str:
     return re.sub(r"\{(\w+)\}", lambda match: values.get(match[1], match[0]), template)
 
 
-def command_line(tool: Tool, pane: Pane, restoring: bool) -> str:
-    """The shell command of a pane, with the session id and the parameters filled in."""
-    line = tool.resume if restoring and tool.resume else tool.command
-    for name, value in {"session": pane.session, **pane.values}.items():
-        line = line.replace("{" + name + "}", shlex.quote(value))
-    return line
+def command_line(tool: Tool, pane: Pane, restoring: bool, instructions: Path | None = None) -> str:
+    """The shell command of a pane, with the session id and the parameters filled in.
+
+    An agent's command also gets its name and the file with its instructions; one that
+    another agent started gets that agent's prompt the first time.
+    """
+    if restoring and tool.resume:
+        line = tool.resume
+    elif pane.prompt and tool.spawn:
+        line = tool.spawn
+    else:
+        line = tool.command
+    values = {"session": pane.session, **pane.values}
+    if tool.agent:
+        values.update(agent=pane.agent, instructions=str(instructions), prompt=pane.prompt)
+    return fill(line, {name: shlex.quote(value) for name, value in values.items()})
 
 
 def external_command(tool: Tool, values: Mapping[str, str]) -> str:
