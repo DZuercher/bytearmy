@@ -54,6 +54,7 @@ from bytearmy.tools import (
     page_url,
     write_premade,
 )
+from bytearmy.trust import trust_directory
 
 PASTE_START, PASTE_END = b"\x1b[200~", b"\x1b[201~"  # bracketed paste, as terminals send it
 SUBMIT_DELAY_SECONDS = 0.3  # Claude takes a paste as such only if Enter comes after it
@@ -626,9 +627,12 @@ class Workspaces:
         instructions = write_instructions(self._store.root, found, pane) if tool.agent else None
         line = command_line(tool, pane, restoring, instructions)
         argv = [*self._shell, "-c", line] if line else self._shell
+        directory = _directory(tool, found)
+        if tool.agent:
+            trust_directory(directory)  # Claude would first ask whether to trust it
         self._ptys[key] = Pty(
             argv,
-            _directory(tool, found),
+            directory,
             self._env(key),
             rows,
             cols,

@@ -719,3 +719,18 @@ def test_a_task_waiting_for_one_in_the_backlog_is_not_created_to_start(store):
         )
         assert refused.status_code == 409
         assert [task.slug for task in store.project("demo").backlog] == ["first"]
+
+
+def test_an_agent_pane_trusts_its_directory_for_claude(core, claude_config):
+    tool(core.store, "claude", **BOT)
+    tool(core.store, "plain", name="Plain", command=WAIT)
+    core.workspaces.open_pane("demo", "work", PaneOpen(tool="plain"))
+    core.workspaces.start("demo", "work", "p1")
+    assert not claude_config.exists()  # a pane that is no agent trusts nothing
+
+    core.workspaces.open_pane("demo", "work", PaneOpen(tool="claude"))
+    core.workspaces.start("demo", "work", "p2")
+
+    directory = str(Path(core.store.task("demo", "work").path).resolve())
+    projects = json.loads(claude_config.read_text())["projects"]
+    assert projects == {directory: {"hasTrustDialogAccepted": True}}
