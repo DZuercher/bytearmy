@@ -71,7 +71,7 @@ export function ProjectBar({ open, onToggle, projects, focused, onFocus, onCreat
                     className={cn(
                       'w-full truncate rounded-md px-3 py-1.5 text-left outline-none focus-visible:ring-2',
                       project.slug === focused
-                        ? 'bg-white font-medium shadow-sm ring-1 ring-border'
+                        ? 'bg-primary font-medium text-primary-foreground shadow-sm'
                         : 'text-muted-foreground hover:bg-zinc-100 hover:text-foreground',
                       isDragging && 'relative z-10 cursor-grabbing shadow-md',
                     )}
