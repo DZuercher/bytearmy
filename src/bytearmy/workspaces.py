@@ -15,9 +15,13 @@ from pathlib import Path
 from bytearmy import themes
 from bytearmy.agents import (
     EARLIER_INSTRUCTIONS,
+    EARLIER_ORCHESTRATOR_INSTRUCTIONS,
     INSTRUCTIONS,
     INSTRUCTIONS_FILE,
     MASTER,
+    ORCHESTRATOR,
+    ORCHESTRATOR_FILE,
+    ORCHESTRATOR_INSTRUCTIONS,
     agent_name,
     next_role,
     write_instructions,
@@ -136,6 +140,11 @@ class Workspaces:
         self._bin = pane_command(store.root / METADATA_DIR / "bin").parent
         ensure_premade(store.root)
         write_premade(store.root / INSTRUCTIONS_FILE, INSTRUCTIONS, EARLIER_INSTRUCTIONS)
+        write_premade(
+            store.root / ORCHESTRATOR_FILE,
+            ORCHESTRATOR_INSTRUCTIONS,
+            EARLIER_ORCHESTRATOR_INSTRUCTIONS,
+        )
         themes.ensure_premade(store.root)
 
     def tools(self, project: str | None = None, task: str | None = None) -> list[Tool]:
@@ -400,6 +409,39 @@ class Workspaces:
         assert isinstance(opened, Pane)  # an agent tool is never external, nor a log
         self.start(project, task, opened.id)
         return opened
+
+    def start_master(self, project: str, task: str, prompt: str) -> Pane:
+        """Start the master of a task for the orchestrator, with `prompt` as its first message.
+
+        It runs the Claude tool of the project and is shown on the task's workspace.
+        """
+        tool = self._tools(project).get(SPAWNING_TOOL)
+        if tool is None or not (tool.agent and tool.spawn):
+            raise NoAgentTool()
+        if self._store.task(project, task).workspace.master is not None:
+            raise RoleTaken(MASTER)
+        opened = self.open_pane(
+            project,
+            task,
+            PaneOpen(tool=tool.id),
+            role=MASTER,
+            prompt=prompt,
+            spawned_by=ORCHESTRATOR,
+        )
+        assert isinstance(opened, Pane)  # an agent tool is never external, nor a log
+        self.start(project, task, opened.id)
+        return opened
+
+    def master_running(self, project: str, task: str) -> bool:
+        """Whether the program of the task's master runs."""
+        workspace = self._store.task(project, task).workspace
+        with self._lock:
+            return workspace.master is not None and self._running((project, task, workspace.master))
+
+    @property
+    def bin_dir(self) -> Path:
+        """Where the `bytearmy` command of the panes lies."""
+        return self._bin
 
     def agents(self, project: str, task: str) -> list[Agent]:
         workspace = self._store.task(project, task).workspace

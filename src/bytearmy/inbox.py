@@ -133,8 +133,13 @@ class Inbox:
         sources: Sequence[Source] = (),
         poll_seconds: float = POLL_SECONDS,
         now: Callable[[], datetime] = lambda: datetime.now(UTC),
+        on_new: Callable[[list[Message]], None] | None = None,
     ) -> None:
+        """`on_new` hears of the messages that arrive, or see new activity, after the first
+        check: what arrived while bytearmy did not run is not news."""
         self._store = store
+        self._on_new = on_new
+        self._checked = False
         self._sources = {source.name: source for source in sources}
         self._poll_seconds = poll_seconds
         self._now = now
@@ -194,6 +199,7 @@ class Inbox:
         with self._lock:
             state = self.state()
             before = state.model_dump()
+            seen = {(message.id, message.updated_at) for message in state.messages}
             for name, report in reports.items():
                 if isinstance(report, str):
                     state.errors[name] = report
@@ -206,6 +212,16 @@ class Inbox:
             _write_json(self._file, state)
             if changed:
                 self._store._changed()
+            new = [
+                message
+                for message in state.messages
+                if message.unread
+                and not message.dismissed
+                and (message.id, message.updated_at) not in seen
+            ]
+            first, self._checked = not self._checked, True
+        if new and not first and self._on_new is not None:
+            self._on_new(new)
 
     # -- changes from the user -------------------------------------------------
 

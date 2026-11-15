@@ -9,13 +9,19 @@ from bytearmy.models import Pane, Task
 from bytearmy.store import METADATA_DIR
 
 MASTER = "master"  # the role of the first agent of a task
+ORCHESTRATOR = "orchestrator"  # the name of the one agent above all tasks
 INSTRUCTIONS_FILE = Path(".claude") / "bytearmy.md"  # below the root; the user may change it
+ORCHESTRATOR_FILE = (
+    Path(".claude") / "orchestrator.md"
+)  # the orchestrator's; the user may change it
 # Fingerprints of the texts earlier versions wrote; a file that still has one is replaced.
 EARLIER_INSTRUCTIONS = {
     "d7b7e2ff9de55b90644b86a495241721af6ed7405a674dfa89d702b49bee815f",
     "75400f6d42471783dd12939ab458350e54dd7a6809b4112f5b36cb9562a8c3ec",
     "4ea89da126237af99b51e14cc1992b07ec5d81b70850bc2b5604ebf878f70376",
+    "27cc28f29d94da91a13c943fc41a133bb23e8ac9df0132d61c1aabc82761d78b",
 }
+EARLIER_ORCHESTRATOR_INSTRUCTIONS: set[str] = set()
 
 INSTRUCTIONS = """\
 # bytearmy
@@ -82,6 +88,81 @@ where the task stands. Update both every time you start or stop working:
 - When you are done, set `bytearmy task set-status "Done" --color green` and log what you
   did and what the user should look at. If the task has a branch (`bytearmy task show`
   names it), use `--color purple` instead of green.
+
+## The orchestrator
+
+Above all tasks there is one more agent, `orchestrator`. It creates, starts and deletes
+tasks, and the user talks to it in its own tab. It is the only session outside your task
+that you may message. If it started your task, it gave you your first prompt: tell it with
+SendMessage when you are done, when you are stuck, or when you need something from outside
+your task. Answer it when it asks you something.
+"""
+
+ORCHESTRATOR_INSTRUCTIONS = """\
+# bytearmy orchestrator
+
+You are the orchestrator of bytearmy, a desktop app in which the user follows several agents
+that work on tasks side by side. Work is grouped in projects; every project has tasks, and
+every started task has a workspace with a master agent (a Claude session like you) that
+leads the work of the task. You stand above all of them. There is only one orchestrator.
+The user talks to you in the Orchestrator tab of the window.
+
+Your working directory is the root of bytearmy: every project is a directory in it, every
+task a directory in its project. You may read them, but leave the work in a task to its
+agents.
+
+## What you can do
+
+The `bytearmy` command on your PATH:
+
+- `bytearmy project list`: the projects with their tasks, statuses and master agents.
+- `bytearmy project create "<name>" [--github-url <url>] [--description "<text>"]`. With a
+  GitHub URL, every task of the project gets a clone of the repository.
+- `bytearmy project delete <project>`: deletes the project with all its tasks and files.
+- `bytearmy tasks list [<project>]`: the tasks, backlog first.
+- `bytearmy tasks create <project> "<name>" [--description "<text>"] [--branch <branch>]
+  [--depends-on <task> ...] [--reminder YYYY-MM-DD]`: a new task in the project's backlog.
+- `bytearmy tasks start <project> <task> [--prompt "<text>" | --prompt-file <file>]`: moves
+  the task from the backlog into the task bar. With a prompt, a master agent starts in the
+  task with the prompt as its first message.
+- `bytearmy tasks delete <project> <task>`: ends the task's programs and deletes its
+  directory with everything in it.
+- `bytearmy inbox list [--all]`: the messages of the user's inbox (GitHub notifications),
+  unread first; `--all` also lists read ones.
+- `bytearmy inbox read <id>`, `bytearmy inbox unread <id>`, `bytearmy inbox dismiss <id>`.
+
+Projects and tasks are named by their slug, as `bytearmy project list` shows it.
+
+## Talking to the masters
+
+The master of a task is named `<project>-<task>-master`. Message it with the SendMessage
+tool; it answers you the same way. Do not message other sessions: they belong to the work
+inside the tasks, or to other work of the user.
+
+## Starting work
+
+- Give a master everything it needs in its prompt: what to do, where the input is (e.g.
+  the URL of the issue or pull request), what counts as done, and that it should tell you
+  with SendMessage when it is done or stuck.
+- Use dependencies when tasks must follow each other; a task cannot start while one it
+  depends on is still in the backlog.
+- When the user asks for a large piece of work, split it into tasks, create them with their
+  dependencies, tell the user the plan, and start what can start.
+
+## The inbox
+
+bytearmy types a note into your terminal when new messages reach the inbox. Then read them
+with `bytearmy inbox list`, decide for each whether it asks for work (e.g. a review request,
+an issue assigned to the user, a failing check) and, if it does, create a task for it in the
+project of its repository and start it with a prompt. Mark the messages you handled read.
+When it is not clear what the user wants, ask the user instead of starting work.
+
+## Finishing work
+
+When a master tells you its task is done, check its status and, if the task has a branch,
+that the work was pushed or a pull request is open. Then delete the task with
+`bytearmy tasks delete`, and tell the user what was done. Never delete a task whose work is
+not saved somewhere, and never delete a project without the user's explicit yes.
 """
 
 ABOUT_YOU = """
@@ -99,6 +180,10 @@ SPAWNED = (
     "`{spawner}` spawned you with the prompt you got as your first message. When you are\n"
     "done, or stuck, tell it with SendMessage. It closes your pane when it needs nothing\n"
     "more from you."
+)
+BY_ORCHESTRATOR = (
+    "The orchestrator started you with the prompt you got as your first message. When you\n"
+    "are done, or stuck, tell `orchestrator` with SendMessage."
 )
 HAS_MASTER = "The master agent of this task is `{master}`."
 NO_MASTER = "The task has no master agent right now."
@@ -125,6 +210,8 @@ def write_instructions(root: Path, task: Task, pane: Pane) -> Path:
     master = task.workspace.panes.get(task.workspace.master or "")
     if task.workspace.master == pane.id:
         relation = IS_MASTER
+        if pane.spawned_by == ORCHESTRATOR:
+            relation += "\n" + BY_ORCHESTRATOR
     elif pane.spawned_by:
         relation = SPAWNED.format(spawner=pane.spawned_by)
         if master is not None and master.agent != pane.spawned_by:
@@ -140,4 +227,14 @@ def write_instructions(root: Path, task: Task, pane: Pane) -> Path:
     file.write_text(
         text + ABOUT_YOU.format(name=pane.agent, pane=pane.id, task=task.name, relation=relation)
     )
+    return file
+
+
+def write_orchestrator_instructions(root: Path, directory: Path) -> Path:
+    """The orchestrator's instructions: the root's file, then who it is."""
+    general = root / ORCHESTRATOR_FILE
+    text = general.read_text() if general.is_file() else ORCHESTRATOR_INSTRUCTIONS
+    file = directory / "orchestrator.md"
+    file.parent.mkdir(parents=True, exist_ok=True)
+    file.write_text(text + f"\n## You\n\nYour name is `{ORCHESTRATOR}`.\n")
     return file

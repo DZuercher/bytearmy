@@ -2,7 +2,7 @@ import 'react-mosaic-component/react-mosaic-component.css'
 import { EyeOff, Maximize2, Minimize2, X } from 'lucide-react'
 import { useState } from 'react'
 import { Mosaic, type MosaicNode, MosaicWindow } from 'react-mosaic-component'
-import { type AppState, type Project, type Task, type Tree, api } from '@/api/client'
+import { type AppState, type Project, type Task, type Tree, api, openTerminal } from '@/api/client'
 import { TerminalPane } from '@/components/TerminalPane'
 import { Button } from '@/components/ui/button'
 import { type Browser, WebControls, WebPane } from '@/components/WebPane'
@@ -121,7 +121,8 @@ export function Workspace({ project, task, visible, run, onArrange, onActivePane
                   />
                 ) : (
                   <TerminalPane
-                    place={{ ...place, pane: id }}
+                    program={`${place.project}/${place.task}/${id}`}
+                    connect={(size) => openTerminal({ ...place, pane: id }, size)}
                     visible={visible}
                     onEnded={() => run(api.state())}
                   />

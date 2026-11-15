@@ -16,8 +16,10 @@ import uvicorn
 
 from bytearmy.api import create_app, schema
 from bytearmy.inbox import GitHubSource, Inbox
+from bytearmy.orchestrator import Orchestrator
 from bytearmy.services import free_port
 from bytearmy.store import METADATA_DIR, Store
+from bytearmy.workspaces import Workspaces
 
 UI_DIR = Path(__file__).resolve().parents[2] / "ui"
 ROOT_VARIABLE = "BYTEARMY_ROOT"
@@ -77,8 +79,18 @@ async def run(root: Path) -> None:
     port = free_port()
     url = f"http://127.0.0.1:{port}"
     store = Store(root)
-    inbox = Inbox(store, [GitHubSource()])
-    app = create_app(store, token, ui_dist=UI_DIR / "dist", url=url, inbox=inbox)
+    workspaces = Workspaces(store)
+    orchestrator = Orchestrator(store, workspaces, autostart=True)
+    inbox = Inbox(store, [GitHubSource()], on_new=orchestrator.announce)
+    app = create_app(
+        store,
+        token,
+        ui_dist=UI_DIR / "dist",
+        url=url,
+        inbox=inbox,
+        workspaces=workspaces,
+        orchestrator=orchestrator,
+    )
     server = uvicorn.Server(
         uvicorn.Config(
             app, host="127.0.0.1", port=port, log_level="warning", timeout_graceful_shutdown=3

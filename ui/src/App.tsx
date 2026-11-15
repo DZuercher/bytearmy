@@ -5,6 +5,8 @@ import { DeleteDialog, type Doomed } from '@/components/DeleteDialog'
 import { EditTaskDialog } from '@/components/EditTaskDialog'
 import { InboxTab } from '@/components/InboxTab'
 import { InboxView } from '@/components/InboxView'
+import { OrchestratorTab } from '@/components/OrchestratorTab'
+import { OrchestratorView } from '@/components/OrchestratorView'
 import { Palette } from '@/components/Palette'
 import { ProjectBar } from '@/components/ProjectBar'
 import { TaskBar } from '@/components/TaskBar'
@@ -34,6 +36,8 @@ export function App() {
   const [paletteOpen, setPaletteOpen] = useState(false)
   // Workspaces stay mounted once opened, so their terminals keep their content.
   const [opened, setOpened] = useState<string[]>([])
+  // The orchestrator's terminal stays mounted once shown, so it keeps its content.
+  const [orchestratorOpened, setOrchestratorOpened] = useState(false)
   const activePanes = useRef<Record<string, string>>({})
 
   // Every call answers with the complete state: show it, or show why the call failed.
@@ -82,16 +86,22 @@ export function App() {
   useEffect(() => {
     if (focused) setOpened((keys) => (keys.includes(focused) ? keys : [...keys, focused]))
   }, [focused])
+  const orchestratorView = state?.ui.view === 'orchestrator'
+  useEffect(() => {
+    if (orchestratorView) setOrchestratorOpened(true)
+  }, [orchestratorView])
 
   if (state === null) return error && <p className="p-4 text-destructive">{error}</p>
 
   const { ui, projects } = state
   const setUi = (change: UiChange) => run(api.updateUi(change))
   const inboxShown = ui.view === 'inbox'
+  const orchestratorShown = ui.view === 'orchestrator'
+  const workspaceShown = ui.view === 'workspace'
   const unread = state.inbox.messages.filter((message) => message.unread && !message.dismissed).length
-  // Choosing a project, a task or a pane leaves the inbox.
+  // Choosing a project, a task or a pane leaves the inbox and the orchestrator.
   const showWorkspace = () => {
-    if (inboxShown) setUi({ view: 'workspace' })
+    if (!workspaceShown) setUi({ view: 'workspace' })
   }
 
   function reorderProjects(order: string[]) {
@@ -153,6 +163,12 @@ export function App() {
       )}
       <div className="flex min-h-0 flex-1">
         <div className="flex shrink-0 flex-col">
+          <OrchestratorTab
+            open={ui.left_open}
+            active={orchestratorShown}
+            running={state.orchestrator.running}
+            onClick={() => setUi({ view: 'orchestrator' })}
+          />
           <InboxTab
             open={ui.left_open}
             active={inboxShown}
@@ -163,7 +179,7 @@ export function App() {
             open={ui.left_open}
             onToggle={() => setUi({ left_open: !ui.left_open })}
             projects={projects}
-            focused={inboxShown ? null : state.focused_project}
+            focused={workspaceShown ? state.focused_project : null}
             onFocus={(slug) => {
               showWorkspace()
               run(api.focusProject(slug))
@@ -197,9 +213,15 @@ export function App() {
         />
         <main className="flex min-w-0 flex-1 flex-col bg-background">
           <div className="flex items-baseline gap-3 px-4 pt-4 pb-3">
-            <h1 className="text-lg font-semibold">{inboxShown ? 'Inbox' : 'Workspace'}</h1>
+            <h1 className="text-lg font-semibold">
+              {inboxShown ? 'Inbox' : orchestratorShown ? 'Orchestrator' : 'Workspace'}
+            </h1>
             <p className="text-muted-foreground">
-              {inboxShown
+              {orchestratorShown
+                ? state.orchestrator.running
+                  ? 'Creates, starts and closes tasks, and reads the inbox.'
+                  : 'Not running.'
+                : inboxShown
                 ? unread
                   ? `${unread} unread`
                   : 'Everything read.'
@@ -215,7 +237,7 @@ export function App() {
               key={shown.key}
               project={shown.project}
               task={shown.task}
-              visible={!inboxShown && shown.key === focused}
+              visible={workspaceShown && shown.key === focused}
               run={run}
               onArrange={(tree) => arrange(shown.project.slug, shown.task.slug, tree)}
               onActivePane={(pane) => {
@@ -223,6 +245,14 @@ export function App() {
               }}
             />
           ))}
+          {orchestratorOpened && (
+            <OrchestratorView
+              orchestrator={state.orchestrator}
+              visible={orchestratorShown}
+              onEnded={() => run(api.state())}
+              onRestart={() => run(api.restartOrchestrator())}
+            />
+          )}
           {inboxShown && (
             <InboxView
               inbox={state.inbox}

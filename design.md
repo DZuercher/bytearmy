@@ -138,6 +138,19 @@ The messages are kept in `<bytearmy_root>/.bytearmy/inbox.json`.
 ### GitHub
 The messages from GitHub are the users notifications (what github.com/notifications shows). bytearmy asks for them with `gh`, as the user logged in with `gh auth login`; it keeps no token of its own. Marking a message read marks the notification read on GitHub; dismissing it marks it done. Marking unread stays in bytearmy, as GitHub cannot. A notification read on GitHub turns read in bytearmy.
 
+## Orchestrator
+Above the masters of the tasks there is one more agent, the orchestrator. There is exactly one per bytearmy; it belongs to no project.
+A small `Orchestrator` tab sits above the `Inbox` tab. Clicking it shows the orchestrator's terminal in place of the workspace; choosing a project, a task or a pane shows the workspace again. Which of the three is shown is kept with the state of the bars. The terminal stays mounted once shown, so it keeps its content. When the orchestrator does not run, the tab shows a red dot and the view a button that starts it again.
+The orchestrator is a Claude session named `orchestrator`, started with the Claude tool of the root in the root directory, so it can read every project. It starts with bytearmy and is ended when bytearmy quits; after a restart it resumes its conversation. If it ends with an error, it stays ended until the user starts it again. Its session and terminal size are kept in `<bytearmy_root>/.bytearmy/orchestrator.json`.
+It starts with the instructions in `<bytearmy_root>/.claude/orchestrator.md`, followed by its name. bytearmy writes the file if it is missing and replaces it when nobody edited it, like `bytearmy.md`.
+Its `bytearmy` command has a key of its own, which reaches no task's commands; the commands of the tasks' panes cannot reach its commands:
+- `bytearmy project list|create|delete`
+- `bytearmy tasks list|create|start|delete`. `tasks start <project> <task> --prompt "<text>"` moves the task into the task bar and starts its master, on the workspace, with the prompt as its first message. A task that already has a master gets no second one.
+- `bytearmy inbox list|read|unread|dismiss`
+
+The orchestrator talks to the masters with `SendMessage`, by their names (`<project>-<task>-master`); the masters answer the same way and are told in their instructions that `orchestrator` stands above them. A master the orchestrator started is told so, and that it should report when it is done or stuck.
+When the inbox finds messages that are new or saw new activity, bytearmy types a note naming them into the orchestrator's terminal, as if the user had typed it. It waits until the user has typed nothing into that terminal for 30 seconds. What arrived while bytearmy did not run is not announced. The orchestrator's instructions tell it to turn messages that ask for work into tasks, start them, and delete a task once its master reported it done and its work is saved.
+
 ## Directory structure
 Each task is assigned to a project and has its own working directory. 
 `bytearmy_root` is `~/bytearmy` by default. It can be changed with the `--root` option or the `BYTEARMY_ROOT` environment variable.
@@ -146,8 +159,8 @@ Only one bytearmy runs on a root at a time: a second one refuses to start and na
 
 bytearmy_root
 |- .tools [contains tools]
-|- .claude [contains bytearmy.md, the explanation for claude about how bytearmy works and how claude can interact with it. It is passed to every Claude pane when it starts]
-|- .bytearmy [contains global metadata, the messages of the inbox, the logs of programs without a pane, the browser session of the web panes, the `bytearmy` command of the panes and the lock that keeps a second bytearmy off the root]
+|- .claude [contains bytearmy.md, the explanation for claude about how bytearmy works and how claude can interact with it. It is passed to every Claude pane when it starts. orchestrator.md is that of the orchestrator]
+|- .bytearmy [contains global metadata, the messages of the inbox, the session of the orchestrator, the logs of programs without a pane, the browser session of the web panes, the `bytearmy` command of the panes and the lock that keeps a second bytearmy off the root]
 |-- project-1
     |- .bytearmy [contains bytearmy project level metadata, like name and Github URL, and the mirror of the projects repository the tasks clone from]
     |- .claude [contains project specific claude configurations like CLAUDE.md etc. Claude loads this CLAUDE.md by itself in every task of the project]

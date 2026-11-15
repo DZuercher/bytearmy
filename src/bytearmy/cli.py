@@ -1,5 +1,6 @@
 """The `bytearmy` command in the panes. It lets the program of a pane, such as an agent,
-steer the workspace of its own task. Standard library only, so it starts fast."""
+steer the workspace of its own task; the orchestrator steers projects, tasks and the inbox
+with it. Standard library only, so it starts fast."""
 
 from __future__ import annotations
 
@@ -18,13 +19,13 @@ class Failed(Exception):
     """What went wrong, to be printed; the command then ends with an error."""
 
 
-def call(method: str, path: str, body: object = None) -> object:
-    """Ask the core, as the pane this command runs in."""
+def call(method: str, path: str, body: object = None, prefix: str = "/agent") -> object:
+    """Ask the core, as the pane this command runs in, or as the orchestrator."""
     url, key = os.environ.get("BYTEARMY_URL"), os.environ.get("BYTEARMY_TOKEN")
     if not url or not key:
         raise Failed("this command works only inside a pane of bytearmy")
     request = urllib.request.Request(
-        f"{url}/agent{path}",
+        f"{url}{prefix}{path}",
         method=method,
         data=None if body is None else json.dumps(body).encode(),
         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
@@ -210,6 +211,121 @@ def agent_spawn(args: argparse.Namespace) -> str:
     return f"spawned {spawned['agent']} in pane {spawned['pane']}"
 
 
+# -- commands of the orchestrator ----------------------------------------------
+
+
+def above(method: str, path: str, body: object = None) -> object:
+    return call(method, path, body, prefix="/orchestrator")
+
+
+def _task_line(task: dict) -> str:
+    notes = [task["status"]]
+    if task["branch"]:
+        notes.append(f"branch {task['branch']}")
+    if task["master"]:
+        notes.append(
+            f"master {task['master']}" + ("" if task["master_running"] else " (not running)")
+        )
+    return f"  {task['slug']}  {task['name']}  ({', '.join(notes)})"
+
+
+def _project_lines(project: dict) -> list[str]:
+    head = f"{project['slug']}  {project['name']}"
+    if project["github_url"]:
+        head += f"  ({project['github_url']})"
+    tasks = [_task_line(task) for task in [*project["backlog"], *project["tasks"]]]
+    return [head, *(tasks or ["  no tasks"])]
+
+
+def project_list(_args: argparse.Namespace) -> str:
+    lines = [line for project in above("GET", "/projects") for line in _project_lines(project)]
+    return "\n".join(lines) or "no projects"
+
+
+def project_create(args: argparse.Namespace) -> str:
+    body = {"name": args.name, "github_url": args.github_url, "description": args.description}
+    created = above("POST", "/projects", body)
+    return f"created project {created['slug']}"
+
+
+def project_delete(args: argparse.Namespace) -> str:
+    above("DELETE", f"/projects/{args.project}")
+    return f"deleted project {args.project}"
+
+
+def tasks_list(args: argparse.Namespace) -> str:
+    projects = above("GET", "/projects")
+    if args.project:
+        projects = [project for project in projects if project["slug"] == args.project]
+        if not projects:
+            raise Failed(f"no project {args.project!r}")
+    lines = [line for project in projects for line in _project_lines(project)]
+    return "\n".join(lines) or "no projects"
+
+
+def tasks_create(args: argparse.Namespace) -> str:
+    body = {
+        "name": args.name,
+        "description": args.description,
+        "branch": args.branch,
+        "dependencies": args.depends_on,
+        "reminder": args.reminder,
+    }
+    created = above("POST", f"/projects/{args.project}/tasks", body)
+    return f"created task {args.project}/{created['slug']} in the backlog"
+
+
+def tasks_start(args: argparse.Namespace) -> str:
+    if args.prompt is not None and args.prompt_file is not None:
+        raise Failed("give --prompt or --prompt-file, not both")
+    prompt = args.prompt if args.prompt_file is None else Path(args.prompt_file).read_text()
+    started = above("POST", f"/projects/{args.project}/tasks/{args.task}/start", {"prompt": prompt})
+    if started["master"]:
+        return f"started {args.project}/{args.task}; its master is {started['master']}"
+    return f"started {args.project}/{args.task}"
+
+
+def tasks_delete(args: argparse.Namespace) -> str:
+    above("DELETE", f"/projects/{args.project}/tasks/{args.task}")
+    return f"deleted task {args.project}/{args.task}"
+
+
+def inbox_list(args: argparse.Namespace) -> str:
+    messages = [
+        message for message in above("GET", "/inbox")["messages"] if not message["dismissed"]
+    ]
+    if not args.all:
+        messages = [message for message in messages if message["unread"]]
+    messages.sort(key=lambda message: not message["unread"])  # stable: newest first in each
+    lines = []
+    for message in messages:
+        notes = [
+            note for note in (message["kind"], message["reason"], message["updated_at"]) if note
+        ]
+        notes += ["unread"] * message["unread"]
+        lines.append(
+            f"{message['id']}  {message['title']}  [{message['context']}]  ({', '.join(notes)})"
+        )
+        if message["url"]:
+            lines.append(f"  {message['url']}")
+    return "\n".join(lines) or ("no messages" if args.all else "no unread messages")
+
+
+def inbox_read(args: argparse.Namespace) -> str:
+    above("POST", f"/inbox/{args.id}/read", {"unread": False})
+    return f"marked {args.id} read"
+
+
+def inbox_unread(args: argparse.Namespace) -> str:
+    above("POST", f"/inbox/{args.id}/read", {"unread": True})
+    return f"marked {args.id} unread"
+
+
+def inbox_dismiss(args: argparse.Namespace) -> str:
+    above("POST", f"/inbox/{args.id}/dismiss")
+    return f"dismissed {args.id}"
+
+
 # -- command line --------------------------------------------------------------
 
 
@@ -217,7 +333,9 @@ def parser() -> argparse.ArgumentParser:
     main = argparse.ArgumentParser(
         prog="bytearmy", description="Steer the workspace of this pane's task in bytearmy."
     )
-    groups = main.add_subparsers(dest="group", required=True, metavar="{pane,tool,task,agent,log}")
+    groups = main.add_subparsers(
+        dest="group", required=True, metavar="{pane,tool,task,agent,log,project,tasks,inbox}"
+    )
 
     def command(group, name: str, run, help: str):
         sub = group.add_parser(name, help=help, description=help)
@@ -284,6 +402,54 @@ def parser() -> argparse.ArgumentParser:
     )
     logging.set_defaults(run=log)
     logging.add_argument("entry", help="the text of the entry; the time is taken from the clock")
+
+    # The orchestrator's commands; the core refuses them to the panes.
+    project = groups.add_parser("project", help="the projects (orchestrator only)").add_subparsers(
+        dest="action", required=True
+    )
+    command(project, "list", project_list, "list the projects with their tasks")
+    creating = command(project, "create", project_create, "create a project")
+    creating.add_argument("name")
+    creating.add_argument("--github-url", default="", help="its tasks clone this repository")
+    creating.add_argument("--description", default="")
+    deleting = command(project, "delete", project_delete, "delete a project and all its files")
+    deleting.add_argument("project", help="the project's slug")
+
+    tasks = groups.add_parser(
+        "tasks", help="the tasks of every project (orchestrator only)"
+    ).add_subparsers(dest="action", required=True)
+    command(tasks, "list", tasks_list, "list the tasks, backlog first").add_argument(
+        "project", nargs="?", help="only this project"
+    )
+    creating = command(tasks, "create", tasks_create, "create a task in a project's backlog")
+    creating.add_argument("project", help="the project's slug")
+    creating.add_argument("name")
+    creating.add_argument("--description", default="")
+    creating.add_argument("--branch", default="", help="checked out in the task's clone")
+    creating.add_argument(
+        "--depends-on", nargs="*", default=[], metavar="TASK", help="tasks it waits for"
+    )
+    creating.add_argument("--reminder", help="YYYY-MM-DD")
+    starting = command(
+        tasks, "start", tasks_start, "move a task into the task bar, optionally with a master"
+    )
+    starting.add_argument("project", help="the project's slug")
+    starting.add_argument("task", help="the task's slug")
+    starting.add_argument("--prompt", help="start the task's master with this first message")
+    starting.add_argument("--prompt-file", help="read the master's prompt from this file")
+    deleting = command(tasks, "delete", tasks_delete, "end a task's programs and delete it")
+    deleting.add_argument("project", help="the project's slug")
+    deleting.add_argument("task", help="the task's slug")
+
+    inbox = groups.add_parser("inbox", help="the user's inbox (orchestrator only)").add_subparsers(
+        dest="action", required=True
+    )
+    command(inbox, "list", inbox_list, "list the unread messages").add_argument(
+        "--all", action="store_true", help="also the read ones"
+    )
+    command(inbox, "read", inbox_read, "mark a message read").add_argument("id")
+    command(inbox, "unread", inbox_unread, "mark a message unread").add_argument("id")
+    command(inbox, "dismiss", inbox_dismiss, "dismiss a message").add_argument("id")
     return main
 
 

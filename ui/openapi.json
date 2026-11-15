@@ -1254,6 +1254,393 @@
         }
       }
     },
+    "/api/orchestrator": {
+      "get": {
+        "summary": "Orchestrator State",
+        "operationId": "orchestrator_state_api_orchestrator_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrchestratorState"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orchestrator/restart": {
+      "post": {
+        "summary": "Restart Orchestrator",
+        "operationId": "restart_orchestrator_api_orchestrator_restart_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppState"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/orchestrator/projects": {
+      "get": {
+        "summary": "Above Projects",
+        "operationId": "above_projects_orchestrator_projects_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ProjectSummary"
+                  },
+                  "type": "array",
+                  "title": "Response Above Projects Orchestrator Projects Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Above Create Project",
+        "operationId": "above_create_project_orchestrator_projects_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectMeta"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectSummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/orchestrator/projects/{project}": {
+      "delete": {
+        "summary": "Above Delete Project",
+        "operationId": "above_delete_project_orchestrator_projects__project__delete",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/orchestrator/projects/{project}/tasks": {
+      "post": {
+        "summary": "Above Create Task",
+        "operationId": "above_create_task_orchestrator_projects__project__tasks_post",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskSummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/orchestrator/projects/{project}/tasks/{task}/start": {
+      "post": {
+        "summary": "Above Start Task",
+        "description": "Move the task into the task bar; with a prompt, start its master with it.",
+        "operationId": "above_start_task_orchestrator_projects__project__tasks__task__start_post",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project"
+            }
+          },
+          {
+            "name": "task",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskStart"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskSummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/orchestrator/projects/{project}/tasks/{task}": {
+      "delete": {
+        "summary": "Above Delete Task",
+        "operationId": "above_delete_task_orchestrator_projects__project__tasks__task__delete",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project"
+            }
+          },
+          {
+            "name": "task",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/orchestrator/inbox": {
+      "get": {
+        "summary": "Above Inbox",
+        "operationId": "above_inbox_orchestrator_inbox_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboxState"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/orchestrator/inbox/{message}/read": {
+      "post": {
+        "summary": "Above Mark Message",
+        "operationId": "above_mark_message_orchestrator_inbox__message__read_post",
+        "parameters": [
+          {
+            "name": "message",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Message"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReadChange"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/orchestrator/inbox/{message}/dismiss": {
+      "post": {
+        "summary": "Above Dismiss Message",
+        "operationId": "above_dismiss_message_orchestrator_inbox__message__dismiss_post",
+        "parameters": [
+          {
+            "name": "message",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Message"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/agent/panes": {
       "get": {
         "summary": "Agent Panes",
@@ -1888,6 +2275,13 @@
               "messages": [],
               "errors": {}
             }
+          },
+          "orchestrator": {
+            "$ref": "#/components/schemas/OrchestratorState",
+            "default": {
+              "name": "orchestrator",
+              "running": false
+            }
           }
         },
         "type": "object",
@@ -2086,6 +2480,34 @@
         ],
         "title": "Opened",
         "description": "The answer to a call that opened a pane."
+      },
+      "OrchestratorState": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": "orchestrator"
+          },
+          "running": {
+            "type": "boolean",
+            "title": "Running",
+            "default": false
+          },
+          "exit_code": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exit Code"
+          }
+        },
+        "type": "object",
+        "title": "OrchestratorState",
+        "description": "What the window shows of the orchestrator."
       },
       "Page": {
         "properties": {
@@ -2453,6 +2875,56 @@
           "order"
         ],
         "title": "ProjectOrder"
+      },
+      "ProjectSummary": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "github_url": {
+            "type": "string",
+            "title": "Github Url",
+            "default": ""
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "backlog": {
+            "items": {
+              "$ref": "#/components/schemas/TaskSummary"
+            },
+            "type": "array",
+            "title": "Backlog"
+          },
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/TaskSummary"
+            },
+            "type": "array",
+            "title": "Tasks"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug",
+          "name",
+          "path",
+          "backlog",
+          "tasks"
+        ],
+        "title": "ProjectSummary",
+        "description": "A project with its tasks, as the orchestrator sees it."
       },
       "ReadChange": {
         "properties": {
@@ -2869,6 +3341,86 @@
         ],
         "title": "TaskOrder"
       },
+      "TaskStart": {
+        "properties": {
+          "prompt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt"
+          }
+        },
+        "type": "object",
+        "title": "TaskStart",
+        "description": "Start a task; with a prompt, a master agent starts in it and gets the prompt."
+      },
+      "TaskSummary": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "color": {
+            "type": "string",
+            "enum": [
+              "",
+              "red",
+              "amber",
+              "green",
+              "blue",
+              "purple"
+            ],
+            "title": "Color",
+            "default": ""
+          },
+          "branch": {
+            "type": "string",
+            "title": "Branch",
+            "default": ""
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "master": {
+            "type": "string",
+            "title": "Master",
+            "default": ""
+          },
+          "master_running": {
+            "type": "boolean",
+            "title": "Master Running",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug",
+          "name",
+          "status",
+          "path"
+        ],
+        "title": "TaskSummary",
+        "description": "A task as the orchestrator sees it."
+      },
       "Theme": {
         "properties": {
           "name": {
@@ -3036,7 +3588,8 @@
                 "type": "string",
                 "enum": [
                   "workspace",
-                  "inbox"
+                  "inbox",
+                  "orchestrator"
                 ]
               },
               {
@@ -3071,7 +3624,8 @@
             "type": "string",
             "enum": [
               "workspace",
-              "inbox"
+              "inbox",
+              "orchestrator"
             ],
             "title": "View",
             "default": "workspace"

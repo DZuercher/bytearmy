@@ -38,8 +38,10 @@ def test_every_route_requires_the_token(client, authorization):
     ]
     assert ("GET", "/api/state") in routes
     # The routes outside /api serve the files and logs of the tasks under a key of their
-    # own; the routes under /agent take the key of a pane (test_agents.py).
-    assert [path for path in paths if not path.startswith(("/api/", "/agent/"))] == [
+    # own; the routes under /agent take the key of a pane (test_agents.py), those under
+    # /orchestrator the key of the orchestrator (test_orchestrator.py).
+    prefixes = ("/api/", "/agent/", "/orchestrator/")
+    assert [path for path in paths if not path.startswith(prefixes)] == [
         "/files/{key}/{project}/{task}/{path}",
         "/log/{key}/{project}/{task}",
     ]
