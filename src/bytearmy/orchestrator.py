@@ -18,13 +18,13 @@ import uuid
 from collections.abc import Callable, Sequence
 
 from bytearmy.agents import ORCHESTRATOR, write_orchestrator_instructions
+from bytearmy.config import ACCOUNTS, ORCHESTRATOR_COMMANDS, OrchestratorSettings, config_of
 from bytearmy.models import Message, OrchestratorFile, OrchestratorState, Pane
 from bytearmy.ptys import Pty
 from bytearmy.store import METADATA_DIR, Store, _write_json
-from bytearmy.tools import command_line, load_tools
+from bytearmy.tools import as_configured, command_line, load_tools
 from bytearmy.workspaces import COULD_NOT_START, SPAWNING_TOOL, Workspaces, pane_env
 
-QUIET_SECONDS = 30.0  # a note waits until the user has typed nothing in the terminal this long
 SUBMIT_PAUSE_SECONDS = 0.5  # between a note and its Enter: typed at once, Enter would be pasted
 MAX_LISTED = 10  # messages named in one note; the rest are counted
 
@@ -50,10 +50,11 @@ class Orchestrator:
         workspaces: Workspaces,
         shell: Sequence[str] | None = None,
         autostart: bool = False,
-        quiet_seconds: float = QUIET_SECONDS,
+        quiet_seconds: float | None = None,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
-        """Without `autostart`, the program starts only when the window first shows it."""
+        """Without `autostart`, or with `autostart = false` in the config, the program starts
+        only when the window first shows it. `quiet_seconds` defaults to the config's."""
         self._store = store
         self._workspaces = workspaces
         self._shell = list(shell or [os.environ.get("SHELL", "/bin/sh"), "-l", "-i"])
@@ -94,6 +95,17 @@ class Orchestrator:
                 exit_code=self._load().exit_code,
             )
 
+    def _config(self) -> OrchestratorSettings:
+        return config_of(self._store.root).orchestrator
+
+    @property
+    def _quiet_seconds(self) -> float:
+        return self._quiet if self._quiet is not None else self._config().quiet_seconds
+
+    def allows(self, command: str) -> bool:
+        """Whether config.toml lets the orchestrator call a `bytearmy` command."""
+        return self._config().allows(command)
+
     def caller_ok(self, key: str) -> bool:
         """Whether a call comes from the orchestrator's program."""
         with self._lock:
@@ -103,7 +115,7 @@ class Orchestrator:
 
     def start(self) -> None:
         """Start the program when bytearmy starts, unless it ended with an error before."""
-        if not self._autostart:
+        if not (self._autostart and self._config().autostart):
             return
         with self._lock:
             if self._pty is None and self._load().exit_code is None:
@@ -155,7 +167,9 @@ class Orchestrator:
         restoring = bool(file.session)
         if not file.session:
             file.session = str(uuid.uuid4())
-        tool = load_tools(self._store.root).get(SPAWNING_TOOL)
+        config = config_of(self._store.root)
+        settings = config.orchestrator
+        tool = load_tools(self._store.root, settings=config.tools).get(SPAWNING_TOOL)
         if tool is None or not tool.agent:
             file.exit_code = COULD_NOT_START
             self._save(file)
@@ -169,9 +183,13 @@ class Orchestrator:
             agent=ORCHESTRATOR,
         )
         instructions = write_orchestrator_instructions(
-            self._store.root, self._store.root / METADATA_DIR / "agents"
+            self._store.root,
+            self._store.root / METADATA_DIR / "agents",
+            settings.denied(ORCHESTRATOR_COMMANDS),
         )
-        line = command_line(tool, pane, restoring, instructions)
+        line = command_line(
+            as_configured(tool, settings), pane, restoring, instructions, settings.flags()
+        )
         argv = [*self._shell, "-c", line] if line else self._shell
         self._key = secrets.token_urlsafe(24)
         env = pane_env(os.environ, sys.prefix)
@@ -181,6 +199,7 @@ class Orchestrator:
             BYTEARMY_TOKEN=self._key,
             BYTEARMY_ROLE=ORCHESTRATOR,
         )
+        env.update(ACCOUNTS.env(config.github))
         env.pop("BYTEARMY_TASK", None)
         env.pop("BYTEARMY_PANE", None)
         started: list[Pty] = []
@@ -225,7 +244,7 @@ class Orchestrator:
 
     def announce(self, messages: Sequence[Message]) -> None:
         """Tell the orchestrator about new messages of the inbox."""
-        if messages:
+        if messages and self._config().announce_inbox:
             self.notify(describe(messages))
 
     def notify(self, text: str) -> None:
@@ -248,9 +267,10 @@ class Orchestrator:
                 return
             pty = self._pty
             waited = self._clock() - self._typed_at
-            if pty is None or pty.exit_code is not None or waited < self._quiet:
+            quiet = self._quiet_seconds
+            if pty is None or pty.exit_code is not None or waited < quiet:
                 # Try again later: once the user paused, or once the program runs.
-                delay = max(self._quiet - waited, 1.0) if pty is not None else self._quiet
+                delay = max(quiet - waited, 1.0) if pty is not None else max(quiet, 1.0)
                 if self._timer is None:
                     self._timer = threading.Timer(delay, self._retry)
                     self._timer.daemon = True

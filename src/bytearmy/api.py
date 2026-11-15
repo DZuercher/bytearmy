@@ -17,6 +17,7 @@ from fastapi.staticfiles import StaticFiles
 
 from bytearmy.agents import ORCHESTRATOR
 from bytearmy.clones import AlreadyCloning, Cloner
+from bytearmy.config import ACCOUNTS, load_config
 from bytearmy.inbox import Inbox, MessageNotFound
 from bytearmy.logpage import render
 from bytearmy.models import (
@@ -75,6 +76,7 @@ from bytearmy.themes import load_theme, stamp
 from bytearmy.tools import ToolFailed
 from bytearmy.workspaces import (
     SPAWNING_TOOL,
+    CommandNotAllowed,
     InvalidLayout,
     InvalidValues,
     Key,
@@ -110,6 +112,33 @@ def calling_orchestrator(request: Request) -> None:
     supplied = request.headers.get("authorization", "").removeprefix("Bearer ").strip()
     if not request.app.state.orchestrator.caller_ok(supplied):
         raise HTTPException(status_code=401, detail="only the orchestrator may call this")
+
+
+def not_allowed(command: str, key: str) -> str:
+    return (
+        f"`bytearmy {command.replace('.', ' ')}` is not allowed to you: `allow` in [{key}]"
+        " of config.toml lacks it. Ask the user."
+    )
+
+
+def orchestrator_may(*commands: str):
+    """A dependency: config.toml must let the orchestrator run one of these commands."""
+
+    def check(request: Request) -> None:
+        orchestrator = request.app.state.orchestrator
+        if not any(orchestrator.allows(command) for command in commands):
+            raise HTTPException(status_code=403, detail=not_allowed(commands[0], "orchestrator"))
+
+    return Depends(check)
+
+
+def agent_may(command: str):
+    """A dependency: config.toml must let the calling agent run this command."""
+
+    def check(request: Request, caller: Caller) -> None:
+        request.app.state.workspaces.check_allowed(caller, command)
+
+    return Depends(check)
 
 
 async def pump(
@@ -191,6 +220,14 @@ def create_app(
             focused.slug if focused else None, task if task in started else None
         )
         whole.theme = load_theme(store.root)
+        # What is wrong with the config files that hold where the user looks.
+        project_dir = Path(focused.path) if focused else None
+        task_dir = None
+        if focused and task in started:
+            task_dir = Path(next(t.path for t in focused.tasks if t.slug == task))
+        whole.config_errors = load_config(store.root, project_dir, task_dir)[1] + (
+            ACCOUNTS.problems()
+        )
         whole.inbox = inbox.state()
         whole.orchestrator = orchestrator.state()
         return whole
@@ -445,23 +482,29 @@ def create_app(
             tasks=[summary(project.slug, task) for task in project.tasks],
         )
 
-    @above.get("/projects")
+    @above.get("/projects", dependencies=[orchestrator_may("project.list", "tasks.list")])
     def above_projects() -> list[ProjectSummary]:
         return [project_summary(project) for project in store.app_state().projects]
 
-    @above.post("/projects", status_code=201)
+    @above.post("/projects", status_code=201, dependencies=[orchestrator_may("project.create")])
     def above_create_project(meta: ProjectMeta) -> ProjectSummary:
         return project_summary(new_project(meta))
 
-    @above.delete("/projects/{project}")
+    @above.delete("/projects/{project}", dependencies=[orchestrator_may("project.delete")])
     def above_delete_project(project: str) -> None:
         drop_project(project)
 
-    @above.post("/projects/{project}/tasks", status_code=201)
+    @above.post(
+        "/projects/{project}/tasks",
+        status_code=201,
+        dependencies=[orchestrator_may("tasks.create")],
+    )
     def above_create_task(project: str, new: TaskCreate) -> TaskSummary:
         return summary(project, new_task(project, new))
 
-    @above.post("/projects/{project}/tasks/{task}/start")
+    @above.post(
+        "/projects/{project}/tasks/{task}/start", dependencies=[orchestrator_may("tasks.start")]
+    )
     def above_start_task(project: str, task: str, start: TaskStart) -> TaskSummary:
         """Move the task into the task bar; with a prompt, start its master with it."""
         found = store.task(project, task)
@@ -476,19 +519,21 @@ def create_app(
             workspaces.start_master(project, task, start.prompt, spawned_by=ORCHESTRATOR)
         return summary(project, store.task(project, task))
 
-    @above.delete("/projects/{project}/tasks/{task}")
+    @above.delete(
+        "/projects/{project}/tasks/{task}", dependencies=[orchestrator_may("tasks.delete")]
+    )
     def above_delete_task(project: str, task: str) -> None:
         drop_task(project, task)
 
-    @above.get("/inbox")
+    @above.get("/inbox", dependencies=[orchestrator_may("inbox.list")])
     def above_inbox() -> InboxState:
         return inbox.state()
 
-    @above.post("/inbox/{message}/read")
+    @above.post("/inbox/{message}/read", dependencies=[orchestrator_may("inbox.read")])
     def above_mark_message(message: str, change: ReadChange) -> None:
         inbox.mark(message, change.unread)
 
-    @above.post("/inbox/{message}/dismiss")
+    @above.post("/inbox/{message}/dismiss", dependencies=[orchestrator_may("inbox.dismiss")])
     def above_dismiss_message(message: str) -> None:
         inbox.dismiss(message)
 
@@ -497,7 +542,7 @@ def create_app(
 
     agent = APIRouter(prefix="/agent")
 
-    @agent.get("/panes")
+    @agent.get("/panes", dependencies=[agent_may("pane.list")])
     def agent_panes(caller: Caller) -> Workspace:
         return store.task(*caller[:2]).workspace
 
@@ -508,45 +553,47 @@ def create_app(
             return Opened(pane="", logged=True)
         return Opened(pane=opened.id if opened else "")
 
-    @agent.delete("/panes/{pane}")
+    @agent.delete("/panes/{pane}", dependencies=[agent_may("pane.close")])
     def agent_close_pane(caller: Caller, pane: str) -> None:
         workspaces.close_pane(*caller[:2], pane)
 
-    @agent.put("/maximized")
+    @agent.put("/maximized", dependencies=[agent_may("pane.maximize")])
     def agent_maximize(caller: Caller, body: Focus) -> None:
         workspaces.maximize(*caller[:2], body.slug)
 
-    @agent.put("/panes/{pane}/highlight")
+    @agent.put("/panes/{pane}/highlight", dependencies=[agent_may("pane.highlight")])
     def agent_highlight(caller: Caller, pane: str, body: Highlight) -> None:
         workspaces.highlight(*caller[:2], pane, body.on, beside=caller[2])
 
-    @agent.put("/panes/{pane}/hidden")
+    @agent.put("/panes/{pane}/hidden", dependencies=[agent_may("pane.hide")])
     def agent_hide(caller: Caller, pane: str, body: Visibility) -> None:
         workspaces.set_hidden(*caller[:2], pane, body.hidden, body.beside or caller[2])
 
-    @agent.put("/panes/{pane}/move")
+    @agent.put("/panes/{pane}/move", dependencies=[agent_may("pane.move")])
     def agent_move(caller: Caller, pane: str, body: PaneMove) -> None:
         workspaces.move(*caller[:2], pane, body.beside)
 
-    @agent.get("/task")
+    @agent.get("/task", dependencies=[agent_may("task.show")])
     def agent_task(caller: Caller) -> Task:
         return store.task(*caller[:2])
 
     @agent.patch("/task")
     def agent_change_task(caller: Caller, change: TaskChange) -> Task:
+        for field in sorted(change.model_fields_set):
+            workspaces.check_allowed(caller, f"task.set-{field}")
         store.change_task(*caller[:2], change)
         return store.task(*caller[:2])
 
-    @agent.get("/agents")
+    @agent.get("/agents", dependencies=[agent_may("agent.list")])
     def agent_list(caller: Caller) -> list[Agent]:
         return workspaces.agents(*caller[:2])
 
-    @agent.post("/agents", status_code=201)
+    @agent.post("/agents", status_code=201, dependencies=[agent_may("agent.spawn")])
     def agent_spawn(caller: Caller, spawn: AgentSpawn) -> Opened:
         opened = workspaces.spawn(caller, spawn)
         return Opened(pane=opened.id, agent=opened.agent)
 
-    @agent.post("/reviews", status_code=201)
+    @agent.post("/reviews", status_code=201, dependencies=[agent_may("review")])
     def agent_request_review(caller: Caller, request: ReviewRequest) -> Opened:
         return Opened(pane=workspaces.request_review(caller, request).id)
 
@@ -554,10 +601,10 @@ def create_app(
     def agent_review_state(caller: Caller, pane: str) -> ReviewState:
         return workspaces.review_state(caller, pane)
 
-    @agent.get("/tools")
+    @agent.get("/tools", dependencies=[agent_may("tool.list")])
     def agent_tools(caller: Caller) -> list[Tool]:
         """The tools an agent may open, as its project has them."""
-        return [tool for tool in workspaces.tools(caller[0]) if "agent" in tool.callers]
+        return [tool for tool in workspaces.tools(*caller[:2]) if "agent" in tool.callers]
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
@@ -711,6 +758,10 @@ def create_app(
     @app.exception_handler(NoMaster)
     def no_master(_request: Request, _error: NoMaster) -> JSONResponse:
         return answer(409, "The task has no running master agent to send the review to.")
+
+    @app.exception_handler(CommandNotAllowed)
+    def command_not_allowed(_request: Request, error: CommandNotAllowed) -> JSONResponse:
+        return answer(403, not_allowed(*error.args))
 
     @app.exception_handler(NotForAgents)
     def not_for_agents(_request: Request, error: NotForAgents) -> JSONResponse:

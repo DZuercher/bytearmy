@@ -945,6 +945,11 @@ export interface components {
              *     }
              */
             orchestrator: components["schemas"]["OrchestratorState"];
+            /**
+             * Config Errors
+             * @default []
+             */
+            config_errors: string[];
         };
         /**
          * Diff

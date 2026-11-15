@@ -15,6 +15,7 @@ from urllib.parse import quote
 
 from pydantic import ValidationError
 
+from bytearmy.config import ClaudeSettings, ToolSettings
 from bytearmy.models import Pane, Parameter, Tool
 
 log = logging.getLogger(__name__)
@@ -36,8 +37,9 @@ HEADER = """\
 #               {session} is replaced by an id that stays the same across restarts,
 #               {<parameter>} by what was entered for that parameter.
 #   resume      run instead of `command` when the pane is restored after a restart
-#   agent       true: the program is an agent. It gets a name, {agent}, and a file with
-#               bytearmy's instructions, {instructions}.
+#   agent       true: the program is an agent. It gets a name, {agent}, a file with
+#               bytearmy's instructions, {instructions}, and Claude's permission flags
+#               from config.toml, {permissions}.
 #   spawn       agent: run instead of `command` when another agent starts this one;
 #               {prompt} is what it asks the new agent to do
 #   url         web: the page. Besides the parameters it can hold {directory},
@@ -62,7 +64,7 @@ VSCODE = f"\"$(command -v code || echo '{VSCODE_IN_APP}')\"" if MACOS else "code
 FILE_MANAGER = "open" if MACOS else "xdg-open"
 PYCHARM = "open -a PyCharm" if MACOS else "pycharm"
 SCHEME = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*://")
-CLAUDE_FLAGS = "--name {agent} --append-system-prompt-file {instructions}"
+CLAUDE_FLAGS = "--name {agent} --append-system-prompt-file {instructions} {permissions}"
 
 PREMADE = {
     "terminal": 'name = "Terminal"\n',
@@ -145,6 +147,7 @@ EARLIER = {
         "d61c2c4d0afa8f80fd86edeceba6c3cc5eb310fe42ef75669ec27acf18b0d0bf",
         "ae0b3a3911d6f8fc710c47da0e4e0eea85c193b47232b23413f36e81313df5a4",
         "660c111d8f09c6687459da6c5745eabf6996a5d53546d0e8c178c8bdac8d9787",
+        "1b6b70a1079a6a47a095943fc174f57108f803c014d459e26c875458ca85df21",
     },
     "vim": {
         "eb5b624575842e280a1f807756a723dc74be432b0c4e479d9718d7911b516114",
@@ -226,16 +229,27 @@ def ensure_premade(root: Path) -> None:
         write_premade(root / TOOLS_DIR / f"{tool_id}.toml", HEADER + text, EARLIER[tool_id])
 
 
-def load_tools(root: Path, project: Path | None = None) -> dict[str, Tool]:
+def load_tools(
+    root: Path, project: Path | None = None, settings: Mapping[str, ToolSettings] | None = None
+) -> dict[str, Tool]:
     """The tools by id; a file that cannot be read as a tool is skipped.
 
     In a `project`, its own tool files replace those of the root with the same name.
+    `settings` (the `[tools]` of config.toml) leave out tools and replace fields of others.
     """
+    settings = settings or {}
     tools = {}
     for directory in [root, project] if project else [root]:
         for file in sorted((directory / TOOLS_DIR).glob("*.toml")):
+            setting = settings.get(file.stem)
+            if setting is not None and not setting.enabled:
+                tools.pop(file.stem, None)
+                continue
             try:
-                tools[file.stem] = Tool(**tomllib.loads(file.read_text()), id=file.stem)
+                fields = tomllib.loads(file.read_text())
+                if setting is not None:
+                    fields.update(setting.fields())
+                tools[file.stem] = Tool(**fields, id=file.stem)
             except (OSError, tomllib.TOMLDecodeError, ValidationError, TypeError) as error:
                 log.warning("Skipping tool %s: %s", file, error)
     return tools
@@ -246,11 +260,18 @@ def fill(template: str, values: Mapping[str, str]) -> str:
     return re.sub(r"\{(\w+)\}", lambda match: values.get(match[1], match[0]), template)
 
 
-def command_line(tool: Tool, pane: Pane, restoring: bool, instructions: Path | None = None) -> str:
+def command_line(
+    tool: Tool,
+    pane: Pane,
+    restoring: bool,
+    instructions: Path | None = None,
+    permissions: str = "",
+) -> str:
     """The shell command of a pane, with the session id and the parameters filled in.
 
-    An agent's command also gets its name and the file with its instructions; one that
-    another agent started gets that agent's prompt the first time.
+    An agent's command also gets its name, the file with its instructions and Claude's
+    permission flags (already quoted); one that another agent started gets that agent's
+    prompt the first time.
     """
     if restoring and tool.resume:
         line = tool.resume
@@ -261,7 +282,10 @@ def command_line(tool: Tool, pane: Pane, restoring: bool, instructions: Path | N
     values = {"session": pane.session, **pane.values}
     if tool.agent:
         values.update(agent=pane.agent, instructions=str(instructions), prompt=pane.prompt)
-    return fill(line, {name: shlex.quote(value) for name, value in values.items()})
+    quoted = {name: shlex.quote(value) for name, value in values.items()}
+    if tool.agent:
+        quoted["permissions"] = permissions
+    return fill(line, quoted)
 
 
 def external_command(tool: Tool, values: Mapping[str, str]) -> str:
@@ -298,3 +322,11 @@ def page_url(
     if not url.startswith(("http://", "https://")):
         raise ValueError(f"{url} is not a web page.")
     return url
+
+
+def as_configured(tool: Tool, settings: ClaudeSettings) -> Tool:
+    """An agent tool with the command, resume and spawn line that config.toml sets for the
+    agent instead, if it sets them."""
+    lines = {"command": settings.command, "resume": settings.resume}
+    lines["spawn"] = getattr(settings, "spawn", "")
+    return tool.model_copy(update={name: line for name, line in lines.items() if line})

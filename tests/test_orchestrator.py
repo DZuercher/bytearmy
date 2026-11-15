@@ -373,3 +373,64 @@ def test_the_window_shows_the_orchestrators_terminal_and_starts_it_again(core):
 def test_the_orchestrator_view_is_part_of_the_ui_state(core):
     changed = core.http.patch("/api/ui", json={"view": "orchestrator"})
     assert changed.json()["ui"]["view"] == "orchestrator"
+
+
+# -- what config.toml says about it ---------------------------------------------------
+
+
+def configure(store: Store, text: str) -> None:
+    (store.root / ".bytearmy" / "config.toml").write_text(text)
+
+
+def test_the_config_says_which_commands_the_orchestrator_may_call(store, workspaces):
+    configure(store, '[orchestrator]\nallow = ["project.*", "inbox.list"]\n')
+    made = Orchestrator(store, workspaces, shell=["/bin/sh"], autostart=True)
+    with serving(store, workspaces, orchestrator=made, inbox=Inbox(store)) as live:
+        made.start()
+        orchestrator = {"Authorization": f"Bearer {key(store)['BYTEARMY_TOKEN']}"}
+        assert live.http.get("/orchestrator/projects", headers=orchestrator).status_code == 200
+        live.http.post("/orchestrator/projects", headers=orchestrator, json={"name": "Alpha"})
+        refused = live.http.post(
+            "/orchestrator/projects/alpha/tasks", headers=orchestrator, json={"name": "Work"}
+        )
+        assert refused.status_code == 403
+        assert "[orchestrator]" in refused.json()["detail"]
+        assert live.http.get("/orchestrator/inbox", headers=orchestrator).status_code == 200
+        dismissed = live.http.post("/orchestrator/inbox/github:1/dismiss", headers=orchestrator)
+        assert dismissed.status_code == 403
+        told = (store.root / ".bytearmy" / "agents" / "orchestrator.md").read_text()
+        assert "`tasks.create`" in told and "`project.create`" not in told
+        made.shutdown()
+
+
+def test_the_config_can_keep_the_orchestrator_from_starting_with_bytearmy(store, workspaces):
+    configure(store, "[orchestrator]\nautostart = false\n")
+    made = Orchestrator(store, workspaces, shell=["/bin/sh"], autostart=True)
+    try:
+        made.start()
+        assert not made.state().running
+        assert made.attach(24, 80) is not None  # shown, it starts
+    finally:
+        made.shutdown()
+
+
+def test_the_config_gives_the_orchestrator_its_command(store, workspaces):
+    configure(
+        store,
+        "[orchestrator]\n"
+        'command = "echo mine {agent} {permissions}.; sleep 60"\n'
+        'permission_mode = "acceptEdits"\n',
+    )
+    made = Orchestrator(store, workspaces, shell=["/bin/sh"], autostart=True)
+    try:
+        made.start()
+        said = output_until(made.attach(24, 80), rb"acceptEdits\.")
+        assert "mine orchestrator --permission-mode acceptEdits." in said
+    finally:
+        made.shutdown()
+
+
+def test_the_config_can_keep_the_inbox_from_the_orchestrator(store, orchestrator):
+    configure(store, "[orchestrator]\nannounce_inbox = false\n")
+    orchestrator.announce([Message(id="github:1", source="github", title="t", updated_at="x")])
+    assert orchestrator._notes == []

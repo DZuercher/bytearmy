@@ -14,7 +14,9 @@ import subprocess
 import threading
 import time
 from collections.abc import Callable, Sequence
+from pathlib import Path
 
+from bytearmy.config import project_github_env
 from bytearmy.models import Project, Task
 from bytearmy.store import Store
 
@@ -71,13 +73,13 @@ class PullRequests:
             if fresh or (key in self._looking and not wait):
                 return page
             self._looking.add(key)
-        arguments = (key, project.github_url, project.github_page, task.branch)
+        arguments = (key, project.github_url, project.github_page, task.branch, project.path)
         if wait:
             return self._look_up(*arguments)
         threading.Thread(target=self._look_up, args=arguments, daemon=True).start()
         return page
 
-    def _look_up(self, key: Key, url: str, github_page: str, branch: str) -> str:
+    def _look_up(self, key: Key, url: str, github_page: str, branch: str, project_path: str) -> str:
         try:
             listing = subprocess.run(
                 [*self._git, "ls-remote", "--", url, f"refs/heads/{branch}", "refs/pull/*/head"],
@@ -86,7 +88,11 @@ class PullRequests:
                 text=True,
                 timeout=TIMEOUT_SECONDS,
                 check=True,
-                env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},  # fail instead of asking
+                env={  # fail instead of asking; as the GitHub account of the project
+                    **os.environ,
+                    **project_github_env(self._store.root, Path(project_path)),
+                    "GIT_TERMINAL_PROMPT": "0",
+                },
             ).stdout
             number = pull_request_number(listing, branch)
             page = f"{github_page}/pull/{number}" if number else ""

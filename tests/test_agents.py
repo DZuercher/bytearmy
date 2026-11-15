@@ -734,3 +734,70 @@ def test_an_agent_pane_trusts_its_directory_for_claude(core, claude_config):
     directory = str(Path(core.store.task("demo", "work").path).resolve())
     projects = json.loads(claude_config.read_text())["projects"]
     assert projects == {directory: {"hasTrustDialogAccepted": True}}
+
+
+# -- what config.toml allows --------------------------------------------------------
+
+
+def configure(store: Store, text: str, directory: Path | None = None) -> None:
+    file = (directory or store.root) / ".bytearmy" / "config.toml"
+    file.parent.mkdir(parents=True, exist_ok=True)
+    file.write_text(text)
+
+
+def test_the_config_says_which_commands_an_agent_may_call(core, bytearmy):
+    tool(core.store, "bot", **BOT)
+    configure(core.store, '[master]\nallow = ["pane.*", "task.show"]\n')
+    me = calling_pane(core)
+    assert bytearmy(me, "pane", "open", "bot") == (0, "opened p2")
+    master = key_of(core, "p2")
+
+    assert bytearmy(master, "pane", "list")[0] == 0
+    assert bytearmy(master, "agent", "spawn", "helper", "Help.") == (
+        1,
+        (
+            "bytearmy: `bytearmy agent spawn` is not allowed to you: `allow` in [master] of "
+            "config.toml lacks it. Ask the user."
+        ),
+    )
+    assert bytearmy(master, "task", "set-status", "Busy")[0] == 1
+    assert bytearmy(master, "log", "hi")[0] == 1
+    assert core.store.task("demo", "work").status == "New"
+    told_master = told(core.store, ("demo", "work"), "p2")
+    assert "## Not allowed by the config" in told_master and "`agent.spawn`" in told_master
+    # A pane without an agent is the user's: the config does not bind it.
+    assert bytearmy(me, "task", "set-status", "Busy")[0] == 0
+
+    # A project's config overrides the root's.
+    configure(core.store, '[master]\nallow = ["*"]\n', Path(core.store.project("demo").path))
+    assert bytearmy(master, "task", "set-status", "Working")[0] == 0
+
+
+def test_the_config_gives_agents_their_command_and_claudes_permissions(core, bytearmy):
+    tool(core.store, "bot", **{**BOT, "command": f"{KEEP_ENV}; echo {{permissions}}.; {WAIT}"})
+    configure(
+        core.store,
+        "[master]\n"
+        'permission_mode = "plan"\n'
+        'allowed_tools = ["Bash(git *)"]\n'
+        "[agents]\n"
+        f"spawn = '{KEEP_ENV}; echo configured {{agent}} {{permissions}}.; {WAIT}'\n"
+        'disallowed_tools = ["WebFetch"]\n',
+    )
+    me = calling_pane(core)
+    bytearmy(me, "pane", "open", "bot")
+    said = output_until(core.workspaces.attach("demo", "work", "p2", 24, 80), rb"Bash\(git \*\)")
+    assert "--permission-mode plan --allowedTools Bash(git *)" in said
+
+    master = key_of(core, "p2")
+    assert bytearmy(master, "agent", "spawn", "helper", "Help.")[0] == 0
+    said = output_until(core.workspaces.attach("demo", "work", "p3", 24, 80), rb"WebFetch\.")
+    assert "configured demo-work-helper --disallowedTools WebFetch." in said
+
+
+def test_a_tool_the_config_disables_is_not_offered(core, bytearmy):
+    tool(core.store, "bot", **BOT)
+    me = calling_pane(core)
+    configure(core.store, "[tools.bot]\nenabled = false\n")
+    assert "bot" not in {listed.id for listed in core.workspaces.tools("demo", "work")}
+    assert bytearmy(me, "pane", "open", "bot")[0] == 1

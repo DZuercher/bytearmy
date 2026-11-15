@@ -15,6 +15,7 @@ from typing import IO
 import uvicorn
 
 from bytearmy.api import create_app, schema
+from bytearmy.config import Config, config_of, ensure_config
 from bytearmy.inbox import GitHubSource, Inbox
 from bytearmy.orchestrator import Orchestrator
 from bytearmy.services import free_port
@@ -81,7 +82,14 @@ async def run(root: Path) -> None:
     store = Store(root)
     workspaces = Workspaces(store)
     orchestrator = Orchestrator(store, workspaces, autostart=True)
-    inbox = Inbox(store, [GitHubSource()], on_new=orchestrator.announce)
+    ensure_config(root)
+
+    def settings() -> Config:
+        return config_of(root)
+
+    inbox = Inbox(
+        store, [GitHubSource(settings=settings)], on_new=orchestrator.announce, settings=settings
+    )
     app = create_app(
         store,
         token,

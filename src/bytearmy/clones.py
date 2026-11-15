@@ -16,8 +16,9 @@ import threading
 from collections.abc import Callable, Iterator, Sequence
 from pathlib import Path
 
+from bytearmy.config import project_github_env
 from bytearmy.models import Task
-from bytearmy.store import METADATA_DIR, Store
+from bytearmy.store import METADATA_DIR, ProjectNotFound, Store
 
 ERROR_CHARACTERS = 500  # how much of git's complaint is kept
 MIRROR = "mirror.git"
@@ -166,6 +167,13 @@ class Cloner:
             raise
         return mirror
 
+    def _github_env(self, project: str) -> dict[str, str]:
+        try:
+            directory = Path(self._store.project(project).path)
+        except ProjectNotFound:
+            directory = None
+        return project_github_env(self._store.root, directory)
+
     def _run(self, key: tuple[str, str], *arguments: str, check: bool = True) -> int:
         with self._lock:
             process = subprocess.Popen(
@@ -174,7 +182,8 @@ class Cloner:
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.PIPE,
                 text=True,
-                env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},  # fail instead of asking
+                # Fail instead of asking; as the GitHub account the project's config names.
+                env={**os.environ, **self._github_env(key[0]), "GIT_TERMINAL_PROMPT": "0"},
                 start_new_session=True,
             )
             self._processes[key] = process

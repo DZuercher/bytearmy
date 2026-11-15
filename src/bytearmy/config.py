@@ -1,0 +1,406 @@
+"""The settings of bytearmy: one `config.toml` at the root, optionally one per project and task.
+
+    <root>/.bytearmy/config.toml                  always there; written from the defaults
+    <project>/.bytearmy/config.toml               optional; overrides the root's
+    <project>/<task>/.bytearmy/config.toml        optional; overrides the project's
+
+Tables merge key by key, anything else is replaced by the lower file. What belongs to no
+project (the color scheme, the orchestrator and the inbox) is only read from the root's file.
+The files are read again whenever a setting is needed, so an edit counts from then on.
+"""
+
+from __future__ import annotations
+
+import fnmatch
+import logging
+import shlex
+import subprocess
+import threading
+import time
+import tomllib
+from collections.abc import Callable, Mapping, Sequence
+from pathlib import Path
+from typing import Any, Literal
+
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
+
+log = logging.getLogger(__name__)
+
+CONFIG_FILE = Path(".bytearmy") / "config.toml"  # below the root, a project or a task
+ROOT_ONLY = ("color_scheme", "orchestrator", "inbox")
+MIN_POLL_SECONDS = 60.0  # GitHub asks clients to ask for notifications no more than once a minute
+TOKEN_SECONDS = 300.0  # how long a token gh gave is used before gh is asked again
+
+# The commands of the `bytearmy` command line tool, as `allow` names them.
+ORCHESTRATOR_COMMANDS = (
+    "project.list",
+    "project.create",
+    "project.delete",
+    "tasks.list",
+    "tasks.create",
+    "tasks.start",
+    "tasks.delete",
+    "inbox.list",
+    "inbox.read",
+    "inbox.dismiss",
+)
+AGENT_COMMANDS = (
+    "pane.list",
+    "pane.open",
+    "pane.close",
+    "pane.maximize",
+    "pane.hide",
+    "pane.highlight",
+    "pane.move",
+    "tool.list",
+    "task.show",
+    "task.set-status",
+    "task.set-color",
+    "task.set-description",
+    "task.set-reminder",
+    "agent.list",
+    "agent.spawn",
+    "review",
+    "log",
+)
+
+
+class Section(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class ClaudeSettings(Section):
+    """How an agent is started and what it may do."""
+
+    command: str = ""  # "" = the claude tool's
+    resume: str = ""
+    allow: list[str] = []
+    permission_mode: str = ""
+    allowed_tools: list[str] = []
+    disallowed_tools: list[str] = []
+
+    def allows(self, command: str) -> bool:
+        return any(fnmatch.fnmatchcase(command, pattern) for pattern in self.allow)
+
+    def denied(self, commands: Sequence[str]) -> list[str]:
+        return [command for command in commands if not self.allows(command)]
+
+    def flags(self) -> str:
+        """Claude's own permission flags, for {permissions} in a command."""
+        parts: list[str] = []
+        if self.permission_mode:
+            parts += ["--permission-mode", self.permission_mode]
+        if self.allowed_tools:
+            parts += ["--allowedTools", *self.allowed_tools]
+        if self.disallowed_tools:
+            parts += ["--disallowedTools", *self.disallowed_tools]
+        return shlex.join(parts)
+
+
+class OrchestratorSettings(ClaudeSettings):
+    autostart: bool = True
+    allow: list[str] = ["project.*", "tasks.*", "inbox.*"]
+    announce_inbox: bool = True
+    quiet_seconds: float = Field(30.0, ge=0)
+
+
+class MasterSettings(ClaudeSettings):
+    spawn: str = ""  # "" = the claude tool's
+    allow: list[str] = ["*"]
+
+
+class AgentSettings(MasterSettings):
+    pass
+
+
+class ToolSettings(Section):
+    """Overrides of the fields of a tool file."""
+
+    enabled: bool = True
+    name: str | None = None
+    callers: list[Literal["user", "agent"]] | None = None
+    command: str | None = None
+    resume: str | None = None
+    spawn: str | None = None
+    url: str | None = None
+    directory: Literal["task", "repo"] | None = None
+
+    def fields(self) -> dict[str, Any]:
+        return self.model_dump(exclude={"enabled"}, exclude_none=True)
+
+
+class GitHubInbox(Section):
+    enabled: bool = True
+    reasons: list[str] = []
+    repositories: list[str] = []
+
+    def wants(self, reason: str, repository: str) -> bool:
+        return (not self.reasons or reason in self.reasons) and (
+            not self.repositories or repository in self.repositories
+        )
+
+
+class InboxSettings(Section):
+    enabled: bool = True
+    poll_seconds: float = Field(60.0, ge=MIN_POLL_SECONDS)
+    github: GitHubInbox = GitHubInbox()
+
+
+class GitHubSettings(Section):
+    user: str = ""
+    host: str = "github.com"
+
+
+class Config(Section):
+    color_scheme: str = "light"
+    orchestrator: OrchestratorSettings = OrchestratorSettings()
+    master: MasterSettings = MasterSettings()
+    agents: AgentSettings = AgentSettings()
+    tools: dict[str, ToolSettings] = {}
+    inbox: InboxSettings = InboxSettings()
+    github: GitHubSettings = GitHubSettings()
+
+
+DEFAULT_TEXT = """\
+# The settings of bytearmy. This file holds those of all projects and tasks.
+# <project>/.bytearmy/config.toml and <project>/<task>/.bytearmy/config.toml may set any of
+# them again for one project or task; tables merge key by key, other values are replaced.
+# color_scheme, [orchestrator] and [inbox] belong to no project: they count only here.
+# Edits count from then on; agents that run already keep how they were started.
+
+# The colors of the window: a file in .bytearmy/themes, without .toml.
+color_scheme = "light"
+
+# The one agent above all tasks.
+[orchestrator]
+# Start it with bytearmy; otherwise it starts when its tab is first shown.
+autostart = true
+# Its command, and the one that resumes it after a restart; "" takes those of the claude tool.
+# {session}, {agent}, {instructions} and {permissions} are filled in.
+command = ""
+resume = ""
+# The `bytearmy` commands it may call, as patterns: project.list, project.create,
+# project.delete, tasks.list, tasks.create, tasks.start, tasks.delete, inbox.list,
+# inbox.read, inbox.dismiss. E.g. ["project.list", "tasks.*", "inbox.*"].
+allow = ["project.*", "tasks.*", "inbox.*"]
+# Claude's own permissions, passed as {permissions}: --permission-mode (default,
+# acceptEdits, plan, bypassPermissions), --allowedTools and --disallowedTools.
+permission_mode = ""
+allowed_tools = []
+disallowed_tools = []
+# Type a note into its terminal when new messages reach the inbox ...
+announce_inbox = true
+# ... once the user has typed nothing into it for this many seconds.
+quiet_seconds = 30
+
+# The master agent of a task: the first agent in it.
+[master]
+# "" takes the command, resume and spawn line of the claude tool. spawn is used when it
+# starts with a prompt (e.g. from the orchestrator), and may hold {prompt}.
+command = ""
+resume = ""
+spawn = ""
+# The `bytearmy` commands it may call, as patterns: pane.list, pane.open, pane.close,
+# pane.maximize, pane.hide, pane.highlight, pane.move, tool.list, task.show,
+# task.set-status, task.set-color, task.set-description, task.set-reminder, agent.list,
+# agent.spawn, review, log.
+allow = ["*"]
+permission_mode = ""
+allowed_tools = []
+disallowed_tools = []
+
+# Every other agent of a task: the ones agents spawn and the ones the user opens.
+[agents]
+command = ""
+resume = ""
+spawn = ""
+allow = ["*"]
+permission_mode = ""
+allowed_tools = []
+disallowed_tools = []
+
+# Settings of single tools, by the name of their file in .tools. A tool that is not
+# enabled is not offered. name, callers, command, resume, spawn, url and directory replace
+# what the tool file says. E.g.
+# [tools.pycharm]
+# enabled = false
+# [tools.vim]
+# command = "nvim {file}"
+
+# Messages for the user from outside bytearmy.
+[inbox]
+enabled = true
+# How often the sources are asked; at least 60.
+poll_seconds = 60
+
+[inbox.github]
+enabled = true
+# Only notifications for these reasons (review_requested, assign, mention, author,
+# comment, ci_activity, state_change, subscribed, team_mention, ...); [] takes all.
+reasons = []
+# Only notifications of these repositories, as "owner/name"; [] takes all.
+repositories = []
+
+# The GitHub account of gh and git: for the inbox, for clones and in the panes.
+[github]
+# One of the accounts `gh auth status` lists; "" takes gh's active account.
+user = ""
+host = "github.com"
+"""
+
+
+def ensure_config(root: Path) -> None:
+    """Write the root's config from the defaults if it has none."""
+    file = root / CONFIG_FILE
+    if not file.exists():
+        file.parent.mkdir(parents=True, exist_ok=True)
+        file.write_text(DEFAULT_TEXT)
+
+
+def merge(base: dict[str, Any], over: Mapping[str, Any]) -> dict[str, Any]:
+    """`base` with `over` laid on it: tables merge key by key, anything else is replaced."""
+    merged = dict(base)
+    for key, value in over.items():
+        if isinstance(value, Mapping) and isinstance(merged.get(key), Mapping):
+            merged[key] = merge(merged[key], value)
+        else:
+            merged[key] = value
+    return merged
+
+
+def _layer(file: Path, root_level: bool, errors: list[str]) -> dict[str, Any]:
+    """The settings of one file; nothing if it is missing or cannot be read."""
+    if not file.is_file():
+        return {}
+    try:
+        data = tomllib.loads(file.read_text())
+        Config.model_validate(data)
+    except (OSError, tomllib.TOMLDecodeError) as error:
+        errors.append(f"{file} cannot be read: {error}")
+        return {}
+    except ValidationError as error:
+        problems = "; ".join(
+            f"{'.'.join(str(part) for part in problem['loc'])}: {problem['msg']}"
+            for problem in error.errors()
+        )
+        errors.append(f"{file} is ignored: {problems}")
+        return {}
+    if not root_level:
+        for key in ROOT_ONLY:
+            if key in data:
+                errors.append(f"{file}: {key} counts only in the root's config.toml")
+                del data[key]
+    return data
+
+
+_logged: set[str] = set()
+_logged_lock = threading.Lock()
+
+
+def load_config(
+    root: Path, project: Path | None = None, task: Path | None = None
+) -> tuple[Config, list[str]]:
+    """The settings that hold in a task, a project or (without either) the whole root,
+    and what was wrong with the files."""
+    errors: list[str] = []
+    merged = _layer(root / CONFIG_FILE, True, errors)
+    for directory in (project, task):
+        if directory is not None:
+            merged = merge(merged, _layer(directory / CONFIG_FILE, False, errors))
+    try:
+        config = Config.model_validate(merged)
+    except ValidationError as error:  # each layer was valid, together they are not
+        errors.append(f"The config files do not fit together, the defaults hold: {error}")
+        config = Config()
+    with _logged_lock:
+        for error in errors:
+            if error not in _logged:  # the files are read often: say each problem once
+                _logged.add(error)
+                log.warning("%s", error)
+    return config, errors
+
+
+def config_of(root: Path, project: Path | None = None, task: Path | None = None) -> Config:
+    return load_config(root, project, task)[0]
+
+
+# -- the GitHub account ---------------------------------------------------------
+
+Runner = Callable[[Sequence[str]], str]
+
+
+def run_gh(command: Sequence[str]) -> str:
+    done = subprocess.run(list(command), capture_output=True, text=True, timeout=20, check=False)
+    if done.returncode != 0:
+        raise RuntimeError((done.stderr or done.stdout).strip()[:300] or "gh failed")
+    return done.stdout
+
+
+class GitHubAccounts:
+    """The environment that makes gh and git act as the account the config names."""
+
+    def __init__(
+        self,
+        run: Runner = run_gh,
+        clock: Callable[[], float] = time.monotonic,
+        max_age: float = TOKEN_SECONDS,
+    ) -> None:
+        self._run = run
+        self._clock = clock
+        self._max_age = max_age
+        self._lock = threading.Lock()
+        self._tokens: dict[tuple[str, str], tuple[float, str]] = {}
+        self.errors: dict[tuple[str, str], str] = {}  # accounts gh did not know, and why
+
+    def env(self, settings: GitHubSettings) -> dict[str, str]:
+        """GH_TOKEN and git's credential helper for the account; nothing if no account is
+        named or gh does not know it: then gh's active account is used."""
+        if not settings.user:
+            return {}
+        account = (settings.host, settings.user)
+        with self._lock:
+            checked, token = self._tokens.get(account, (None, ""))
+            fresh = checked is not None and self._clock() - checked < self._max_age
+        if not fresh:
+            command = ["gh", "auth", "token", "--hostname", settings.host, "--user", settings.user]
+            try:
+                token = self._run(command).strip()
+                error = "" if token else "gh gave no token"
+            except (OSError, RuntimeError, subprocess.SubprocessError) as failure:
+                token, error = "", str(failure)
+            with self._lock:
+                self._tokens[account] = (self._clock(), token)
+                if error:
+                    message = (
+                        f"GitHub account {settings.user} on {settings.host} is not known to gh"
+                        f" ({error}); gh's active account is used."
+                    )
+                    if self.errors.get(account) != message:
+                        log.warning("%s", message)
+                    self.errors[account] = message
+                else:
+                    self.errors.pop(account, None)
+        if not token:
+            return {}
+        return {
+            "GH_TOKEN": token,
+            "GH_HOST": settings.host,
+            # git asks gh for credentials, and gh answers with GH_TOKEN.
+            "GIT_CONFIG_COUNT": "2",
+            "GIT_CONFIG_KEY_0": f"credential.https://{settings.host}.helper",
+            "GIT_CONFIG_VALUE_0": "",
+            "GIT_CONFIG_KEY_1": f"credential.https://{settings.host}.helper",
+            "GIT_CONFIG_VALUE_1": "!gh auth git-credential",
+        }
+
+    def problems(self) -> list[str]:
+        with self._lock:
+            return list(self.errors.values())
+
+
+ACCOUNTS = GitHubAccounts()  # shared by everything that runs gh or git
+
+
+def project_github_env(root: Path, project: Path | None) -> dict[str, str]:
+    """The GitHub environment that holds in a project (or the root, without one)."""
+    return ACCOUNTS.env(config_of(root, project).github)
