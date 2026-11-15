@@ -15,6 +15,7 @@ from typing import IO
 import uvicorn
 
 from bytearmy.api import create_app, schema
+from bytearmy.inbox import GitHubSource, Inbox
 from bytearmy.services import free_port
 from bytearmy.store import METADATA_DIR, Store
 
@@ -75,7 +76,9 @@ async def run(root: Path) -> None:
     token = secrets.token_urlsafe(24)
     port = free_port()
     url = f"http://127.0.0.1:{port}"
-    app = create_app(Store(root), token, ui_dist=UI_DIR / "dist", url=url)
+    store = Store(root)
+    inbox = Inbox(store, [GitHubSource()])
+    app = create_app(store, token, ui_dist=UI_DIR / "dist", url=url, inbox=inbox)
     server = uvicorn.Server(
         uvicorn.Config(
             app, host="127.0.0.1", port=port, log_level="warning", timeout_graceful_shutdown=3

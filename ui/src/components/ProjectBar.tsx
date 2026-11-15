@@ -36,7 +36,7 @@ export function ProjectBar({ open, onToggle, projects, focused, onFocus, onCreat
 
   if (!open) {
     return (
-      <nav aria-label="Projects (collapsed)" className="flex w-12 shrink-0 flex-col items-center gap-3 border-r py-3">
+      <nav aria-label="Projects (collapsed)" className="flex min-h-0 w-12 flex-1 flex-col items-center gap-3 border-r py-3">
         <Button variant="ghost" size="icon-sm" aria-label="Expand projects bar" onClick={onToggle}>
           <ChevronRight />
         </Button>
@@ -46,7 +46,7 @@ export function ProjectBar({ open, onToggle, projects, focused, onFocus, onCreat
   }
 
   return (
-    <nav aria-label="Projects" className="flex w-56 shrink-0 flex-col gap-2 border-r p-4">
+    <nav aria-label="Projects" className="flex min-h-0 w-56 flex-1 flex-col gap-2 border-r p-4">
       <div className="flex items-center gap-1">
         <div className="grow">
           <BarHeading>Projects</BarHeading>

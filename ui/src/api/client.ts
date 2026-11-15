@@ -17,6 +17,8 @@ export type PaneOpen = Schemas['PaneOpen']
 export type Tool = Schemas['Tool']
 export type Workspace = Schemas['Workspace']
 export type Tree = Schemas['Layout']['tree']
+export type Message = Schemas['Message']
+export type Inbox = Schemas['InboxState']
 
 const routes = {
   state: '/api/state',
@@ -40,6 +42,9 @@ const routes = {
   paneHidden: '/api/projects/{project}/tasks/{task}/panes/{pane}/hidden',
   panePage: '/api/projects/{project}/tasks/{task}/panes/{pane}/page',
   panePageVersion: '/api/projects/{project}/tasks/{task}/panes/{pane}/page/version',
+  inboxRefresh: '/api/inbox/refresh',
+  inboxRead: '/api/inbox/{message}/read',
+  inboxDismiss: '/api/inbox/{message}/dismiss',
 } as const satisfies Record<string, keyof paths>
 
 function fill(route: string, parts: { project: string; task?: string; pane?: string }): string {
@@ -124,6 +129,14 @@ export const api = {
     } satisfies Schemas['Visibility']),
   listHidden: (project: string, task: string, open: boolean) =>
     request('PUT', fill(routes.hiddenOpen, { project, task }), { open } satisfies Schemas['Unfold']),
+
+  refreshInbox: () => request('POST', routes.inboxRefresh),
+  markMessage: (message: string, unread: boolean) =>
+    request('POST', routes.inboxRead.replace('{message}', encodeURIComponent(message)), {
+      unread,
+    } satisfies Schemas['ReadChange']),
+  dismissMessage: (message: string) =>
+    request('POST', routes.inboxDismiss.replace('{message}', encodeURIComponent(message))),
 }
 
 // Calls `onChange` whenever the core's data changed, also by a program in a pane, so the
