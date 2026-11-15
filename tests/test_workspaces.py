@@ -595,7 +595,7 @@ def test_a_pane_whose_tool_is_gone_is_kept_as_failed(store, task):
 
 
 def editor(store: Store, fake_service, before: str = "") -> None:
-    """A web tool like the IDE: it shows a service in the clone or the task directory."""
+    """A web tool like VSCode: it shows a service in the clone or the task directory."""
     (store.root / ".tools").mkdir(exist_ok=True)
     (store.root / ".tools" / "editor.toml").write_text(
         'name = "Editor"\nkind = "web"\ndirectory = "repo"\n'

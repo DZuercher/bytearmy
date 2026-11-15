@@ -23,7 +23,7 @@ type Props = {
 }
 
 // A browser view showing the page of one pane. The core says which page; for a tool with
-// a service, such as the IDE, it answers once the service runs.
+// a service, such as VSCode, it answers once the service runs.
 export function WebPane({ place, onBrowser, onOpenWindow }: Props) {
   const { project, task, pane } = place
   const [page, setPage] = useState<{ url?: string; error?: string }>({})
