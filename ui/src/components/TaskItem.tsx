@@ -14,11 +14,11 @@ import { cn } from '@/lib/utils'
 
 // The colors an agent can give a task to get the user's attention.
 const COLORS: Record<string, string> = {
-  red: 'border-l-red-500 bg-red-50',
-  amber: 'border-l-amber-500 bg-amber-50',
-  green: 'border-l-green-500 bg-green-50',
-  blue: 'border-l-blue-500 bg-blue-50',
-  purple: 'border-l-purple-500 bg-purple-50',
+  red: 'border-l-task-red-mark bg-task-red',
+  amber: 'border-l-task-amber-mark bg-task-amber',
+  green: 'border-l-task-green-mark bg-task-green',
+  blue: 'border-l-task-blue-mark bg-task-blue',
+  purple: 'border-l-task-purple-mark bg-task-purple',
 }
 
 // A task in the backlog or in the task bar: click acts, right-click shows its data.
@@ -54,7 +54,7 @@ export function TaskItem({
           aria-current={highlighted}
           className={cn(
             'flex w-full flex-col items-start gap-1 rounded-md px-3 py-1.5 text-left outline-none focus-visible:ring-2',
-            !highlighted && 'text-muted-foreground hover:bg-zinc-100 hover:text-foreground',
+            !highlighted && 'text-muted-foreground hover:bg-hover hover:text-foreground',
             task.color && cn('border-l-4 text-foreground', COLORS[task.color]),
             // After the color, so that a focused task stays dark; it keeps its colored left border.
             highlighted && 'bg-primary font-medium text-primary-foreground shadow-sm',

@@ -613,6 +613,14 @@ export interface components {
              * @default []
              */
             tools: components["schemas"]["Tool"][];
+            /**
+             * @default {
+             *       "name": "light",
+             *       "appearance": "light",
+             *       "colors": {}
+             *     }
+             */
+            theme: components["schemas"]["Theme"];
         };
         /** Focus */
         Focus: {
@@ -1017,6 +1025,30 @@ export interface components {
             bar: "backlog" | "tasks";
             /** Order */
             order: string[];
+        };
+        /**
+         * Theme
+         * @description A color scheme; one file in `<root>/.bytearmy/themes`.
+         */
+        Theme: {
+            /**
+             * Name
+             * @default light
+             */
+            name: string;
+            /**
+             * Appearance
+             * @default light
+             * @enum {string}
+             */
+            appearance: "light" | "dark";
+            /**
+             * Colors
+             * @default {}
+             */
+            colors: {
+                [key: string]: string;
+            };
         };
         /**
          * Tool

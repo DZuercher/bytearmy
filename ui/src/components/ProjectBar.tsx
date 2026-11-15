@@ -72,7 +72,7 @@ export function ProjectBar({ open, onToggle, projects, focused, onFocus, onCreat
                       'w-full truncate rounded-md px-3 py-1.5 text-left outline-none focus-visible:ring-2',
                       project.slug === focused
                         ? 'bg-primary font-medium text-primary-foreground shadow-sm'
-                        : 'text-muted-foreground hover:bg-zinc-100 hover:text-foreground',
+                        : 'text-muted-foreground hover:bg-hover hover:text-foreground',
                       isDragging && 'relative z-10 cursor-grabbing shadow-md',
                     )}
                     onClick={() => onFocus(project.slug)}

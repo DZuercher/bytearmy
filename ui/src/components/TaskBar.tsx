@@ -90,7 +90,7 @@ export function TaskBar({
                           aria-expanded={unfolded}
                           className={cn(
                             'absolute top-1.5 right-1',
-                            focused && 'text-primary-foreground hover:bg-white/20 hover:text-primary-foreground',
+                            focused && 'text-primary-foreground hover:bg-primary-hover hover:text-primary-foreground',
                           )}
                           onClick={() => onListHidden(task.slug, !unfolded)}
                         >
@@ -104,7 +104,7 @@ export function TaskBar({
                           <li key={pane.id}>
                             <button
                               type="button"
-                              className="w-full truncate rounded-md px-2 py-0.5 text-left text-sm text-muted-foreground hover:bg-zinc-100 hover:text-foreground"
+                              className="w-full truncate rounded-md px-2 py-0.5 text-left text-sm text-muted-foreground hover:bg-hover hover:text-foreground"
                               onClick={() => onShowPane(task.slug, pane.id)}
                             >
                               {pane.title}

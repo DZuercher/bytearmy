@@ -1664,6 +1664,14 @@
             "type": "array",
             "title": "Tools",
             "default": []
+          },
+          "theme": {
+            "$ref": "#/components/schemas/Theme",
+            "default": {
+              "name": "light",
+              "appearance": "light",
+              "colors": {}
+            }
           }
         },
         "type": "object",
@@ -2461,6 +2469,35 @@
           "order"
         ],
         "title": "TaskOrder"
+      },
+      "Theme": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": "light"
+          },
+          "appearance": {
+            "type": "string",
+            "enum": [
+              "light",
+              "dark"
+            ],
+            "title": "Appearance",
+            "default": "light"
+          },
+          "colors": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Colors",
+            "default": {}
+          }
+        },
+        "type": "object",
+        "title": "Theme",
+        "description": "A color scheme; one file in `<root>/.bytearmy/themes`."
       },
       "Tool": {
         "properties": {
