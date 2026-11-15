@@ -105,8 +105,9 @@ export const api = {
   focusProject: (slug: string | null) =>
     request('PUT', routes.focus, { slug } satisfies Schemas['Focus']),
 
-  createTask: (project: string, task: TaskCreate) =>
-    request('POST', fill(routes.tasks, { project }), task),
+  // With `start`, the task starts at once and its master agent gets the description.
+  createTask: (project: string, task: TaskCreate, start = false) =>
+    request('POST', fill(routes.tasks, { project }) + (start ? '?start=true' : ''), task),
   startTask: (project: string, task: string) =>
     request('POST', fill(routes.taskStart, { project, task })),
   cloneAgain: (project: string, task: string) =>

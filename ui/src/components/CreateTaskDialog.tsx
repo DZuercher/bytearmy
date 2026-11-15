@@ -25,7 +25,7 @@ export function CreateTaskDialog({
   project: Project
   open: boolean
   onOpenChange: (open: boolean) => void
-  onCreate: (task: TaskCreate) => Promise<void>
+  onCreate: (task: TaskCreate, start: boolean) => Promise<void>
 }) {
   const [task, setTask] = useState(EMPTY)
   const [error, setError] = useState<string | null>(null)
@@ -37,11 +37,18 @@ export function CreateTaskDialog({
     onOpenChange(false)
   }
 
-  function submit(event: FormEvent) {
-    event.preventDefault()
-    onCreate({ ...task, reminder: task.reminder || null }).then(close, (reason: unknown) =>
+  // A task waiting for one in the backlog cannot start yet.
+  const blocked = project.backlog.some((other) => task.dependencies.includes(other.slug))
+
+  function create(start: boolean) {
+    onCreate({ ...task, reminder: task.reminder || null }, start).then(close, (reason: unknown) =>
       setError(reason instanceof Error ? reason.message : String(reason)),
     )
+  }
+
+  function submit(event: FormEvent) {
+    event.preventDefault()
+    create(false)
   }
 
   function depend(slug: string, checked: boolean) {
@@ -55,7 +62,7 @@ export function CreateTaskDialog({
         <form onSubmit={submit} className="grid gap-4">
           <DialogHeader>
             <DialogTitle>New task in {project.name}</DialogTitle>
-            <DialogDescription>Only the name is required. The task starts in the backlog.</DialogDescription>
+            <DialogDescription>Only the name is required. The task goes to the backlog, or starts at once with its master agent working on the description.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-2">
             <Label htmlFor="task-name">Name</Label>
@@ -115,8 +122,20 @@ export function CreateTaskDialog({
             <Button type="button" variant="outline" onClick={close}>
               Cancel
             </Button>
-            <Button type="submit" disabled={task.name.trim() === ''}>
+            <Button type="submit" variant="outline" disabled={task.name.trim() === ''}>
               Create task
+            </Button>
+            <Button
+              type="button"
+              disabled={task.name.trim() === '' || blocked}
+              title={
+                blocked
+                  ? 'It depends on a task in the backlog'
+                  : 'Start the task and its master agent, which gets the description'
+              }
+              onClick={() => create(true)}
+            >
+              Create and start
             </Button>
           </DialogFooter>
         </form>

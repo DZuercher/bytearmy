@@ -236,7 +236,7 @@ export function App() {
           open={ui.right_open}
           onToggle={() => setUi({ right_open: !ui.right_open })}
           project={project}
-          onCreate={(created) => api.createTask(project!.slug, created).then(setState)}
+          onCreate={(created, start) => api.createTask(project!.slug, created, start).then(setState)}
           onStart={(slug) => run(api.startTask(project!.slug, slug))}
           onCloneAgain={(slug) => run(api.cloneAgain(project!.slug, slug))}
           onEdit={setEditing}

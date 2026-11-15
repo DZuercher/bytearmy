@@ -13,7 +13,7 @@ import shutil
 import signal
 import subprocess
 import threading
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from pathlib import Path
 
 from bytearmy.models import Task
@@ -49,12 +49,15 @@ class Cloner:
         )
         return check.returncode == 0
 
-    def start(self, project: str, task: Task, url: str) -> None:
+    def start(
+        self, project: str, task: Task, url: str, then: Callable[[], None] | None = None
+    ) -> None:
+        """Clone in the background; `then` runs once the clone succeeded."""
         key = (project, task.slug)
         self._store.clone_started(*key)
         thread = threading.Thread(
             target=self._clone,
-            args=(key, url, task.branch, Path(task.path), task.repo),
+            args=(key, url, task.branch, Path(task.path), task.repo, then),
             daemon=True,
         )
         with self._lock:
@@ -90,7 +93,13 @@ class Cloner:
                 pass
 
     def _clone(
-        self, key: tuple[str, str], url: str, branch: str, task_dir: Path, repo: str
+        self,
+        key: tuple[str, str],
+        url: str,
+        branch: str,
+        task_dir: Path,
+        repo: str,
+        then: Callable[[], None] | None,
     ) -> None:
         # Clone beside the final place and rename: a directory named `repo` is always complete.
         temporary = task_dir / f"{repo}.cloning"
@@ -119,6 +128,8 @@ class Cloner:
                 self._threads.pop(key, None)
                 self._cancelled.discard(key)
             self._store.clone_finished(*key, error)
+        if then is not None and not error:
+            then()
 
     @contextlib.contextmanager
     def _mirror_held(self, key: tuple[str, str]) -> Iterator[None]:

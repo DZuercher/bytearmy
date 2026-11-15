@@ -664,3 +664,58 @@ def test_the_command_loads_none_of_the_cores_libraries():
         [sys.executable, "-I", "-c", probe], capture_output=True, text=True, check=True
     )
     assert done.stdout == "[]\n"
+
+
+# -- starting a task at once ---------------------------------------------------
+
+
+def test_a_task_created_to_start_at_once_starts_its_master_with_the_description(store):
+    store.create_project(ProjectMeta(name="Demo"))
+    workspaces = Workspaces(store, shell=["/bin/sh"])
+    tool(store, "claude", **{**BOT, "directory": "repo"})
+    app = create_app(store, TOKEN, workspaces=workspaces)
+    with TestClient(app, headers={"Authorization": f"Bearer {TOKEN}"}) as client:
+        created = client.post(
+            "/api/projects/demo/tasks?start=true",
+            json={"name": "Work", "description": "Fix the 'login' bug."},
+        )
+        assert created.status_code == 201
+        found = store.task("demo", "work")
+        assert found.status == "New"
+        assert created.json()["projects"][0]["focused_task"] == "work"
+        assert found.workspace.panes["p1"].agent == "demo-work-master"
+        output = output_until(workspaces.attach("demo", "work", "p1", 24, 80), rb"\.\r\n")
+        assert "spawn demo-work-master Fix the 'login' bug.." in output
+
+        client.post("/api/projects/demo/tasks", json={"name": "Later"})
+        assert store.task("demo", "later").workspace.panes == {}
+    workspaces.shutdown()
+
+
+def test_a_cloned_task_started_at_once_starts_its_master_in_the_clone(store, remote):
+    store.create_project(ProjectMeta(name="Widgets", github_url=str(remote)))
+    workspaces = Workspaces(store, shell=["/bin/sh"])
+    tool(store, "claude", **{**BOT, "directory": "repo", "spawn": f"{KEEP_ENV}; pwd; {WAIT}"})
+    app = create_app(store, TOKEN, workspaces=workspaces)
+    with TestClient(app, headers={"Authorization": f"Bearer {TOKEN}"}) as client:
+        client.post(
+            "/api/projects/widgets/tasks?start=true", json={"name": "A", "description": "Go."}
+        )
+        wait_until(lambda: "p1" in store.task("widgets", "a").workspace.panes, "the master", 20)
+        found = store.task("widgets", "a")
+        assert found.clone == "ready"
+        output = output_until(workspaces.attach("widgets", "a", "p1", 24, 80), rb"widgets\r\n")
+        assert str(Path(found.path) / "widgets") in output
+    workspaces.shutdown()
+
+
+def test_a_task_waiting_for_one_in_the_backlog_is_not_created_to_start(store):
+    store.create_project(ProjectMeta(name="Demo"))
+    store.create_task("demo", TaskCreate(name="First"))
+    app = create_app(store, TOKEN, workspaces=Workspaces(store, shell=["/bin/sh"]))
+    with TestClient(app, headers={"Authorization": f"Bearer {TOKEN}"}) as client:
+        refused = client.post(
+            "/api/projects/demo/tasks?start=true", json={"name": "Then", "dependencies": ["first"]}
+        )
+        assert refused.status_code == 409
+        assert [task.slug for task in store.project("demo").backlog] == ["first"]
