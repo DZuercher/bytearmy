@@ -414,6 +414,22 @@ def test_the_window_ends_a_highlight(live):
     assert live.http.put(f"{PANES}/p9/highlight", json={"on": False}).status_code == 404
 
 
+def test_the_window_hides_and_shows_panes_and_unfolds_their_list(live):
+    live.http.post(PANES, json={"tool": "terminal"})
+    live.http.post(PANES, json={"tool": "terminal"})
+
+    assert live.http.put(f"{PANES}/p2/hidden", json={"hidden": True}).status_code == 200
+    assert live.workspace()["tree"] == "p1"
+    assert live.http.put(f"{PANES}/p2/hidden", json={"hidden": False}).status_code == 200
+    assert live.workspace()["tree"]["children"] == ["p1", "p2"]
+    assert live.http.put(f"{PANES}/p9/hidden", json={"hidden": True}).status_code == 404
+
+    unfold = "/api/projects/demo/tasks/work/hidden-open"
+    assert live.http.put(unfold, json={"open": True}).status_code == 200
+    assert live.workspace()["hidden_open"] is True
+    assert live.http.put(unfold.replace("work", "none"), json={"open": True}).status_code == 404
+
+
 def test_the_app_restores_the_panes_when_it_starts_and_ends_them_when_it_stops(tmp_path):
     store = Store(tmp_path / "root")
     started_task(store)

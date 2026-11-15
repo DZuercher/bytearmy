@@ -69,8 +69,8 @@ The current layout of a workspace is stored in the tasks metadata.
 A pane closes when its program ends without an error. If the program fails the pane stays and shows the exit code.
 When bytearmy quits, the programs in all panes are stopped. When it starts again the panes of all tasks are restored with their layout and their programs are started again. A Claude pane continues its earlier conversation.
 Each task has one master agent, which is the agent that was created first in the task. If the master's pane is closed, the next Claude pane that is opened becomes the master.
-Agents create, close, highlight, maximize and rearrange panes with the `bytearmy` command line tool, which is available in every terminal pane:
-- `bytearmy pane list|open|close|maximize|restore|highlight|unhighlight|move`, e.g. `bytearmy pane open webpage <url>` or `bytearmy pane maximize <id>`
+Agents create, close, hide, show, highlight, maximize and rearrange panes with the `bytearmy` command line tool, which is available in every terminal pane:
+- `bytearmy pane list|open|close|hide|show|maximize|restore|highlight|unhighlight|move`, e.g. `bytearmy pane open webpage <url>` or `bytearmy pane maximize <id>`
 - `bytearmy tool list`
 - `bytearmy task show|set-status|set-color|set-description|set-reminder`, e.g. `bytearmy task set-status "Needs review" --color amber`
 - `bytearmy agent list|spawn`
@@ -78,9 +78,15 @@ Agents create, close, highlight, maximize and rearrange panes with the `bytearmy
 The command works only on the task of the pane it runs in: bytearmy gives the program of every pane a key of its own. Every pane of the task may run every command; that the master leads the others is said only in its instructions.
 A pane opened with the command appears next to the pane that called it, and its program starts at once, also when the task is not shown.
 A highlighted pane gets an amber frame. The frame goes away when the user clicks into the pane, or when an agent ends the highlight.
+
+A pane can be hidden: it has no place on the workspace, but its program keeps running.
+The title bar of every pane has a button next to the maximize button that hides it. An agent hides a pane with `bytearmy pane hide <id>`, shows it again with `bytearmy pane show <id>`, and opens a pane hidden with `bytearmy pane open <tool> --hidden`.
+The hidden panes of a task are listed below the task in the tasks bar. The list is collapsed by default; a small arrow on the task unfolds it, and whether it is unfolded survives a restart. Clicking a hidden pane in the list shows it on the workspace, next to the pane last used in its task, and shows that task's workspace.
+Hiding the maximized pane ends the maximize; a hidden pane cannot be maximized, nor moved, nor have a pane moved next to it. Highlighting a hidden pane shows it.
+A web pane that was hidden loads its page anew when it is shown again; a terminal pane shows the recent output of its program.
 Whatever an agent changes shows in the window at once.
 
-Subagents are always created in their own pane: `bytearmy agent spawn <role> "<prompt>"` starts a new agent next to the calling pane, in the same directory, with the prompt as its first message. The agent that spawned it closes its pane once it needs nothing more from it.
+Subagents are always created in their own hidden pane: `bytearmy agent spawn <role> "<prompt>"` starts a new agent in a hidden pane, in the same directory, with the prompt as its first message. The agent that spawned it closes its pane once it needs nothing more from it.
 Every agent is a Claude session with its own name (`claude --name <name>`), `<project>-<task>-<role>`. The master has the role `master`, a Claude pane the user opens while there is a master gets `agent-2`, `agent-3` and so on, and a spawned agent gets the role its spawner chose (lower-case letters, digits and dashes, up to 32 characters). No two agents of a task have the same role.
 Every agent starts with the instructions in `<bytearmy_root>/.claude/bytearmy.md`, followed by its name, its pane, who the master is and who spawned it. bytearmy writes these anew at every start, so a restarted agent learns who the master is now.
 The agents talk to each other with the cross-session messaging that is built into Claude Code (`SendMessage`). An idle agent starts a new turn when a message arrives, a busy agent reads it between two tool calls.

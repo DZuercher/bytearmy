@@ -207,12 +207,14 @@ class Workspaces:
                 session=str(uuid.uuid4()),
                 prompt=prompt,
                 spawned_by=spawned_by,
+                hidden=request.hidden,
             )
             if tool.agent:
                 _make_agent(workspace, pane, (project, task), tool, role)
             workspace.next_pane += 1
             workspace.panes[pane.id] = pane
-            workspace.tree = add_leaf(workspace.tree, pane.id, request.beside)
+            if not pane.hidden:
+                workspace.tree = add_leaf(workspace.tree, pane.id, request.beside)
             opened.append(pane)
 
         self._store.change_workspace(project, task, change)
@@ -225,11 +227,14 @@ class Workspaces:
         self._store.change_workspace(project, task, lambda workspace: _drop(workspace, pane))
 
     def set_tree(self, project: str, task: str, tree: Split | str | None) -> None:
-        """Take over a layout the user arranged; it must hold exactly the task's panes."""
+        """Take over a layout the user arranged; it must hold exactly the task's shown panes."""
 
         def change(workspace: Workspace) -> None:
-            if sorted(leaves(tree)) != sorted(workspace.panes):
-                raise InvalidLayout("the layout must hold every pane of the task exactly once")
+            shown = [pane.id for pane in workspace.panes.values() if not pane.hidden]
+            if sorted(leaves(tree)) != sorted(shown):
+                raise InvalidLayout(
+                    "the layout must hold every shown pane of the task exactly once"
+                )
             workspace.tree = tree
 
         self._store.change_workspace(project, task, change)
@@ -238,15 +243,49 @@ class Workspaces:
         def change(workspace: Workspace) -> None:
             if pane is not None and pane not in workspace.panes:
                 raise PaneNotFound(pane)
+            if pane is not None and workspace.panes[pane].hidden:
+                raise InvalidLayout(f"{pane} is hidden; show it before maximizing it")
             workspace.maximized = pane
 
         self._store.change_workspace(project, task, change)
 
-    def highlight(self, project: str, task: str, pane: str, on: bool) -> None:
+    def set_hidden(
+        self, project: str, task: str, pane: str, hidden: bool, beside: str | None = None
+    ) -> None:
+        """Take a pane out of the layout, or put it back beside the pane `beside`.
+
+        A hidden pane's program runs on.
+        """
+
+        def change(workspace: Workspace) -> None:
+            if pane not in workspace.panes:
+                raise PaneNotFound(pane)
+            if hidden:
+                _hide(workspace, pane)
+            else:
+                _show(workspace, pane, beside)
+
+        self._store.change_workspace(project, task, change)
+
+    def list_hidden(self, project: str, task: str, open: bool) -> None:
+        """Unfold or fold the list of the task's hidden panes in the tasks bar."""
+
+        def change(workspace: Workspace) -> None:
+            workspace.hidden_open = open
+
+        self._store.change_workspace(project, task, change)
+
+    def highlight(
+        self, project: str, task: str, pane: str, on: bool, beside: str | None = None
+    ) -> None:
+        """Highlight a pane, or end its highlight. A hidden pane is shown beside `beside`."""
+
         def change(workspace: Workspace) -> None:
             if pane not in workspace.panes:
                 raise PaneNotFound(pane)
             workspace.panes[pane].highlighted = on
+            if on:
+                _show(workspace, pane, beside)
 
         self._store.change_workspace(project, task, change)
 
@@ -259,6 +298,9 @@ class Workspaces:
                     raise PaneNotFound(wanted)
             if pane == beside:
                 raise InvalidLayout("a pane cannot be placed next to itself")
+            for wanted in (pane, beside):
+                if workspace.panes[wanted].hidden:
+                    raise InvalidLayout(f"{wanted} is hidden; show it first")
             workspace.tree = add_leaf(remove_leaf(workspace.tree, pane), pane, beside)
 
         self._store.change_workspace(project, task, change)
@@ -289,7 +331,10 @@ class Workspaces:
         if "agent" not in tool.callers:
             raise NotForAgents(tool.id)
         request = PaneOpen(
-            tool=tool.id, values=values_from_args(tool, call.args), beside=call.beside or pane
+            tool=tool.id,
+            values=values_from_args(tool, call.args),
+            beside=call.beside or pane,
+            hidden=call.hidden,
         )
         calling = self._store.task(project, task).workspace.panes.get(pane)
         author = calling.agent if calling and calling.agent else "user"
@@ -299,7 +344,8 @@ class Workspaces:
         return opened
 
     def spawn(self, caller: Key, request: AgentSpawn) -> Pane:
-        """Start an agent with a prompt, in a pane of its own beside the calling one.
+        """Start an agent with a prompt, in a hidden pane of its own; shown, it goes beside
+        the calling one.
 
         It runs the calling pane's tool if that starts agents, the Claude tool otherwise.
         """
@@ -314,7 +360,7 @@ class Workspaces:
         opened = self.open_pane(
             project,
             task,
-            PaneOpen(tool=tool.id, beside=request.beside or pane),
+            PaneOpen(tool=tool.id, beside=request.beside or pane, hidden=True),
             role=request.role,
             prompt=request.prompt,
             spawned_by=calling.agent if calling else "",
@@ -543,6 +589,20 @@ def _page(
         return page_url(tool, values, _directory(tool, task), files, service, log)
     except ValueError as error:
         raise InvalidValues(str(error)) from error
+
+
+def _hide(workspace: Workspace, pane: str) -> None:
+    workspace.panes[pane].hidden = True
+    workspace.tree = remove_leaf(workspace.tree, pane)
+    if workspace.maximized == pane:
+        workspace.maximized = None
+
+
+def _show(workspace: Workspace, pane: str, beside: str | None) -> None:
+    """Put a hidden pane back into the layout, splitting `beside`; a shown one stays put."""
+    if workspace.panes[pane].hidden:
+        workspace.panes[pane].hidden = False
+        workspace.tree = add_leaf(workspace.tree, pane, beside)
 
 
 def _drop(workspace: Workspace, pane: str) -> None:

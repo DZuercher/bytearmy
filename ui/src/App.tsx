@@ -144,6 +144,13 @@ export function App() {
           onCloneAgain={(slug) => run(api.cloneAgain(project!.slug, slug))}
           onDelete={setDoomed}
           onReorder={(order) => reorderTasks('tasks', order)}
+          onListHidden={(slug, open) => run(api.listHidden(project!.slug, slug, open))}
+          onShowPane={(slug, pane) => {
+            // The pane goes beside the one last used in its task, and that task is shown.
+            if (slug !== project!.focused_task) run(api.focusTask(project!.slug, slug))
+            const beside = activePanes.current[`${project!.slug}/${slug}`] ?? null
+            run(api.hidePane(project!.slug, slug, pane, false, beside))
+          }}
         />
         <main className="flex min-w-0 flex-1 flex-col bg-white">
           <div className="flex items-baseline gap-3 px-4 pt-4 pb-3">
@@ -193,6 +200,7 @@ export function App() {
                 tool,
                 values,
                 beside: activePanes.current[focused] ?? null,
+                hidden: false,
               }),
             )
           }}

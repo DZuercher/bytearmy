@@ -31,9 +31,11 @@ const routes = {
   task: '/api/projects/{project}/tasks/{task}',
   layout: '/api/projects/{project}/tasks/{task}/layout',
   maximized: '/api/projects/{project}/tasks/{task}/maximized',
+  hiddenOpen: '/api/projects/{project}/tasks/{task}/hidden-open',
   panes: '/api/projects/{project}/tasks/{task}/panes',
   pane: '/api/projects/{project}/tasks/{task}/panes/{pane}',
   paneHighlight: '/api/projects/{project}/tasks/{task}/panes/{pane}/highlight',
+  paneHidden: '/api/projects/{project}/tasks/{task}/panes/{pane}/hidden',
   panePage: '/api/projects/{project}/tasks/{task}/panes/{pane}/page',
   panePageVersion: '/api/projects/{project}/tasks/{task}/panes/{pane}/page/version',
 } as const satisfies Record<string, keyof paths>
@@ -108,6 +110,14 @@ export const api = {
     request('PUT', fill(routes.maximized, { project, task }), { slug } satisfies Schemas['Focus']),
   highlightPane: (project: string, task: string, pane: string, on: boolean) =>
     request('PUT', fill(routes.paneHighlight, { project, task, pane }), { on } satisfies Schemas['Highlight']),
+  // A pane is shown beside `beside`, the last pane if that is null.
+  hidePane: (project: string, task: string, pane: string, hidden: boolean, beside: string | null = null) =>
+    request('PUT', fill(routes.paneHidden, { project, task, pane }), {
+      hidden,
+      beside,
+    } satisfies Schemas['Visibility']),
+  listHidden: (project: string, task: string, open: boolean) =>
+    request('PUT', fill(routes.hiddenOpen, { project, task }), { open } satisfies Schemas['Unfold']),
 }
 
 // Calls `onChange` whenever the core's data changed, also by a program in a pane, so the

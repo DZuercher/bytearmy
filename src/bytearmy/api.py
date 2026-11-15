@@ -38,6 +38,8 @@ from bytearmy.models import (
     TaskOrder,
     Tool,
     UiChange,
+    Unfold,
+    Visibility,
     Workspace,
 )
 from bytearmy.store import (
@@ -223,6 +225,16 @@ def create_app(
         workspaces.maximize(project, task, body.slug)
         return state()
 
+    @api.put("/projects/{project}/tasks/{task}/hidden-open")
+    def list_hidden(project: str, task: str, body: Unfold) -> AppState:
+        workspaces.list_hidden(project, task, body.open)
+        return state()
+
+    @api.put(PANES + "/{pane}/hidden")
+    def hide_pane(project: str, task: str, pane: str, body: Visibility) -> AppState:
+        workspaces.set_hidden(project, task, pane, body.hidden, body.beside)
+        return state()
+
     @api.put(PANES + "/{pane}/highlight")
     def highlight_pane(project: str, task: str, pane: str, body: Highlight) -> AppState:
         workspaces.highlight(project, task, pane, body.on)
@@ -254,7 +266,11 @@ def create_app(
 
     @agent.put("/panes/{pane}/highlight")
     def agent_highlight(caller: Caller, pane: str, body: Highlight) -> None:
-        workspaces.highlight(*caller[:2], pane, body.on)
+        workspaces.highlight(*caller[:2], pane, body.on, beside=caller[2])
+
+    @agent.put("/panes/{pane}/hidden")
+    def agent_hide(caller: Caller, pane: str, body: Visibility) -> None:
+        workspaces.set_hidden(*caller[:2], pane, body.hidden, body.beside or caller[2])
 
     @agent.put("/panes/{pane}/move")
     def agent_move(caller: Caller, pane: str, body: PaneMove) -> None:

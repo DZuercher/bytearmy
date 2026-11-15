@@ -853,6 +853,131 @@
         }
       }
     },
+    "/api/projects/{project}/tasks/{task}/hidden-open": {
+      "put": {
+        "summary": "List Hidden",
+        "operationId": "list_hidden_api_projects__project__tasks__task__hidden_open_put",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project"
+            }
+          },
+          {
+            "name": "task",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Unfold"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project}/tasks/{task}/panes/{pane}/hidden": {
+      "put": {
+        "summary": "Hide Pane",
+        "operationId": "hide_pane_api_projects__project__tasks__task__panes__pane__hidden_put",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project"
+            }
+          },
+          {
+            "name": "task",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task"
+            }
+          },
+          {
+            "name": "pane",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pane"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Visibility"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/projects/{project}/tasks/{task}/panes/{pane}/highlight": {
       "put": {
         "summary": "Highlight Pane",
@@ -1068,6 +1193,53 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/Highlight"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agent/panes/{pane}/hidden": {
+      "put": {
+        "summary": "Agent Hide",
+        "operationId": "agent_hide_agent_panes__pane__hidden_put",
+        "parameters": [
+          {
+            "name": "pane",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pane"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Visibility"
               }
             }
           }
@@ -1688,6 +1860,11 @@
             "title": "Highlighted",
             "default": false
           },
+          "hidden": {
+            "type": "boolean",
+            "title": "Hidden",
+            "default": false
+          },
           "rows": {
             "type": "integer",
             "title": "Rows",
@@ -1742,6 +1919,11 @@
               }
             ],
             "title": "Beside"
+          },
+          "hidden": {
+            "type": "boolean",
+            "title": "Hidden",
+            "default": false
           }
         },
         "type": "object",
@@ -1788,6 +1970,11 @@
               }
             ],
             "title": "Beside"
+          },
+          "hidden": {
+            "type": "boolean",
+            "title": "Hidden",
+            "default": false
           }
         },
         "type": "object",
@@ -2433,6 +2620,19 @@
         "type": "object",
         "title": "UiState"
       },
+      "Unfold": {
+        "properties": {
+          "open": {
+            "type": "boolean",
+            "title": "Open"
+          }
+        },
+        "type": "object",
+        "required": [
+          "open"
+        ],
+        "title": "Unfold"
+      },
       "ValidationError": {
         "properties": {
           "loc": {
@@ -2472,6 +2672,30 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "Visibility": {
+        "properties": {
+          "hidden": {
+            "type": "boolean",
+            "title": "Hidden"
+          },
+          "beside": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Beside"
+          }
+        },
+        "type": "object",
+        "required": [
+          "hidden"
+        ],
+        "title": "Visibility"
       },
       "Workspace": {
         "properties": {
@@ -2518,6 +2742,11 @@
               }
             ],
             "title": "Master"
+          },
+          "hidden_open": {
+            "type": "boolean",
+            "title": "Hidden Open",
+            "default": false
           },
           "next_pane": {
             "type": "integer",
