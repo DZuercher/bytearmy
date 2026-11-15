@@ -114,10 +114,14 @@ def create_app(
     def state() -> AppState:
         """Everything the UI shows. Every change answers with it, so the UI never merges."""
         whole = store.app_state()
-        slugs = {project.slug for project in whole.projects}
-        # The command dialogue opens tools in the focused project: its tools are offered.
-        focused = whole.focused_project if whole.focused_project in slugs else None
-        whole.tools = workspaces.tools(focused)
+        # The command dialogue opens tools in the focused task of the focused project: its
+        # tools are offered, with the task's pull request as the default of {task_page}.
+        focused = next((p for p in whole.projects if p.slug == whole.focused_project), None)
+        task = focused.focused_task if focused else None
+        started = {started.slug for started in focused.tasks} if focused else set()
+        whole.tools = workspaces.tools(
+            focused.slug if focused else None, task if task in started else None
+        )
         whole.theme = load_theme(store.root)
         return whole
 

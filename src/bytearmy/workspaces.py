@@ -37,6 +37,7 @@ from bytearmy.models import (
     Workspace,
 )
 from bytearmy.ptys import Pty
+from bytearmy.pulls import PullRequests
 from bytearmy.services import Services, launch
 from bytearmy.store import LOG_FILE, METADATA_DIR, ProjectNotFound, Store, TaskNotFound
 from bytearmy.tools import (
@@ -113,8 +114,15 @@ def pane_command(bin_dir: Path) -> Path:
 
 
 class Workspaces:
-    def __init__(self, store: Store, shell: Sequence[str] | None = None, url: str = "") -> None:
+    def __init__(
+        self,
+        store: Store,
+        shell: Sequence[str] | None = None,
+        url: str = "",
+        pulls: PullRequests | None = None,
+    ) -> None:
         self._store = store
+        self._pulls = pulls or PullRequests(store)
         # A login shell that reads the user's startup files: functions and aliases work.
         self._shell = list(shell or [os.environ.get("SHELL", "/bin/sh"), "-l", "-i"])
         self.url = url  # where the programs in the panes reach the core
@@ -130,15 +138,22 @@ class Workspaces:
         write_premade(store.root / INSTRUCTIONS_FILE, INSTRUCTIONS, EARLIER_INSTRUCTIONS)
         themes.ensure_premade(store.root)
 
-    def tools(self, project: str | None = None) -> list[Tool]:
-        """The tools of a project, each parameter with what it defaults to there."""
-        github_page = self._store.project(project).github_page if project else ""
+    def tools(self, project: str | None = None, task: str | None = None) -> list[Tool]:
+        """The tools of a project, each parameter with what it defaults to there.
+
+        In a `task`, {task_page} is its pull request once one is known.
+        """
+        found = self._store.project(project) if project else None
+        github_page = found.github_page if found else ""
+        pull_request = ""
+        if found and task:
+            pull_request = self._pulls.page(found, self._store.task(found.slug, task))
         return [
             tool.model_copy(
                 update={
                     "parameters": [
                         parameter.model_copy(
-                            update={"default": default_value(parameter, github_page)}
+                            update={"default": default_value(parameter, github_page, pull_request)}
                         )
                         for parameter in tool.parameters
                     ]
@@ -177,8 +192,17 @@ class Workspaces:
         found = self._store.task(project, task)
         if found.status == BACKLOG:
             raise NotStarted(found.name)
-        github_page = self._store.project(project).github_page
-        values = _checked_values(tool, request.values, Path(found.path), github_page)
+        project_found = self._store.project(project)
+        pull_request = ""
+        if any(
+            "{task_page}" in parameter.default
+            and not request.values.get(parameter.name, "").strip()
+            for parameter in tool.parameters
+        ):
+            pull_request = self._pulls.page(project_found, found, wait=True)
+        values = _checked_values(
+            tool, request.values, Path(found.path), project_found.github_page, pull_request
+        )
         if tool.kind == "external":
             launch(
                 tool,
@@ -660,12 +684,14 @@ def values_from_args(tool: Tool, args: Sequence[str]) -> dict[str, str]:
 
 
 def _checked_values(
-    tool: Tool, given: Mapping[str, str], task_dir: Path, github_page: str
+    tool: Tool, given: Mapping[str, str], task_dir: Path, github_page: str, pull_request: str = ""
 ) -> dict[str, str]:
     """The values of the tool's parameters; every parameter needs one."""
     values = {}
     for parameter in tool.parameters:
-        value = given.get(parameter.name, "").strip() or default_value(parameter, github_page)
+        value = given.get(parameter.name, "").strip() or default_value(
+            parameter, github_page, pull_request
+        )
         if not value:
             raise InvalidValues(f"{parameter.label or parameter.name} is required.")
         if parameter.path and not (task_dir / value).resolve().is_relative_to(task_dir.resolve()):

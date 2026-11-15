@@ -141,6 +141,10 @@ class Store:
         with self._lock:
             self.version += 1
 
+    def changed(self) -> None:
+        """Count a change of something the UI shows that the store does not keep."""
+        self._changed()
+
     # -- global state ------------------------------------------------------
 
     @property
