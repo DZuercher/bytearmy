@@ -238,6 +238,7 @@ class UiState(BaseModel):
     left_open: bool = True
     right_open: bool = True
     bottom_open: bool = True
+    view: Literal["workspace", "inbox"] = "workspace"  # what the middle of the window shows
 
 
 class UiChange(BaseModel):
@@ -246,6 +247,34 @@ class UiChange(BaseModel):
     left_open: bool | None = None
     right_open: bool | None = None
     bottom_open: bool | None = None
+    view: Literal["workspace", "inbox"] | None = None
+
+
+class Message(BaseModel):
+    """One message of the inbox, as a source reported it."""
+
+    id: str  # "<source>:<the source's own id>"
+    source: Literal["github"]
+    title: str
+    kind: str = ""  # what the message is about, e.g. "PullRequest" or "Issue"
+    context: str = ""  # where it comes from, e.g. the repository
+    reason: str = ""  # why it reached the user, e.g. "mention" or "review_requested"
+    url: str = ""  # the page a browser shows for it
+    updated_at: str  # ISO 8601, as the source has it
+    unread: bool = True
+    dismissed: bool = False
+
+
+class InboxState(BaseModel):
+    """Contents of `<root>/.bytearmy/inbox.json`, and what the UI shows of the inbox."""
+
+    messages: list[Message] = []  # newest first; dismissed ones are kept, but not shown
+    errors: dict[str, str] = {}  # by source: why it could not be asked the last time
+    last_checked: str | None = None
+
+
+class ReadChange(BaseModel):
+    unread: bool
 
 
 class GlobalState(BaseModel):
@@ -284,6 +313,7 @@ class AppState(BaseModel):
     ui: UiState
     tools: list[Tool] = []
     theme: Theme = Theme()
+    inbox: InboxState = InboxState()
 
 
 class ProjectOrder(BaseModel):

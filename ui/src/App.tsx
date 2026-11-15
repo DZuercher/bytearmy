@@ -3,6 +3,8 @@ import { type AppState, type Bar, type Tree, type UiChange, api, listenForChange
 import { BacklogBar } from '@/components/BacklogBar'
 import { DeleteDialog, type Doomed } from '@/components/DeleteDialog'
 import { EditTaskDialog } from '@/components/EditTaskDialog'
+import { InboxTab } from '@/components/InboxTab'
+import { InboxView } from '@/components/InboxView'
 import { Palette } from '@/components/Palette'
 import { ProjectBar } from '@/components/ProjectBar'
 import { TaskBar } from '@/components/TaskBar'
@@ -85,6 +87,12 @@ export function App() {
 
   const { ui, projects } = state
   const setUi = (change: UiChange) => run(api.updateUi(change))
+  const inboxShown = ui.view === 'inbox'
+  const unread = state.inbox.messages.filter((message) => message.unread && !message.dismissed).length
+  // Choosing a project, a task or a pane leaves the inbox.
+  const showWorkspace = () => {
+    if (inboxShown) setUi({ view: 'workspace' })
+  }
 
   function reorderProjects(order: string[]) {
     // Show the new order at once; the answer of the core replaces it.
@@ -144,22 +152,36 @@ export function App() {
         </button>
       )}
       <div className="flex min-h-0 flex-1">
-        <ProjectBar
-          open={ui.left_open}
-          onToggle={() => setUi({ left_open: !ui.left_open })}
-          projects={projects}
-          focused={state.focused_project}
-          onFocus={(slug) => run(api.focusProject(slug))}
-          onCreate={(meta) => api.createProject(meta).then(setState)}
-          onEdit={(slug, edit) => api.editProject(slug, edit).then(setState)}
-          onDelete={setDoomed}
-          onReorder={reorderProjects}
-        />
+        <div className="flex shrink-0 flex-col">
+          <InboxTab
+            open={ui.left_open}
+            active={inboxShown}
+            unread={unread}
+            onClick={() => setUi({ view: 'inbox' })}
+          />
+          <ProjectBar
+            open={ui.left_open}
+            onToggle={() => setUi({ left_open: !ui.left_open })}
+            projects={projects}
+            focused={inboxShown ? null : state.focused_project}
+            onFocus={(slug) => {
+              showWorkspace()
+              run(api.focusProject(slug))
+            }}
+            onCreate={(meta) => api.createProject(meta).then(setState)}
+            onEdit={(slug, edit) => api.editProject(slug, edit).then(setState)}
+            onDelete={setDoomed}
+            onReorder={reorderProjects}
+          />
+        </div>
         <TaskBar
           open={ui.bottom_open}
           onToggle={() => setUi({ bottom_open: !ui.bottom_open })}
           project={project}
-          onFocus={(slug) => run(api.focusTask(project!.slug, slug))}
+          onFocus={(slug) => {
+            showWorkspace()
+            run(api.focusTask(project!.slug, slug))
+          }}
           onCloneAgain={(slug) => run(api.cloneAgain(project!.slug, slug))}
           onEdit={setEditing}
           onDelete={setDoomed}
@@ -167,6 +189,7 @@ export function App() {
           onListHidden={(slug, open) => run(api.listHidden(project!.slug, slug, open))}
           onShowPane={(slug, pane) => {
             // The pane goes beside the one last used in its task, and that task is shown.
+            showWorkspace()
             if (slug !== project!.focused_task) run(api.focusTask(project!.slug, slug))
             const beside = activePanes.current[`${project!.slug}/${slug}`] ?? null
             run(api.hidePane(project!.slug, slug, pane, false, beside))
@@ -174,9 +197,13 @@ export function App() {
         />
         <main className="flex min-w-0 flex-1 flex-col bg-background">
           <div className="flex items-baseline gap-3 px-4 pt-4 pb-3">
-            <h1 className="text-lg font-semibold">Workspace</h1>
+            <h1 className="text-lg font-semibold">{inboxShown ? 'Inbox' : 'Workspace'}</h1>
             <p className="text-muted-foreground">
-              {task && project
+              {inboxShown
+                ? unread
+                  ? `${unread} unread`
+                  : 'Everything read.'
+                : task && project
                 ? `${project.name} / ${task.name}`
                 : project
                   ? `${project.name}: no task is open.`
@@ -188,7 +215,7 @@ export function App() {
               key={shown.key}
               project={shown.project}
               task={shown.task}
-              visible={shown.key === focused}
+              visible={!inboxShown && shown.key === focused}
               run={run}
               onArrange={(tree) => arrange(shown.project.slug, shown.task.slug, tree)}
               onActivePane={(pane) => {
@@ -196,6 +223,14 @@ export function App() {
               }}
             />
           ))}
+          {inboxShown && (
+            <InboxView
+              inbox={state.inbox}
+              onRead={(message, unread) => run(api.markMessage(message, unread))}
+              onDismiss={(message) => run(api.dismissMessage(message))}
+              onRefresh={() => run(api.refreshInbox())}
+            />
+          )}
         </main>
         <BacklogBar
           open={ui.right_open}

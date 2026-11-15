@@ -70,7 +70,12 @@ def test_project_lifecycle_over_http(client):
     assert focused.json()["focused_project"] == "project-1"
 
     ui = client.patch("/api/ui", json={"left_open": False})
-    assert ui.json()["ui"] == {"left_open": False, "right_open": True, "bottom_open": True}
+    assert ui.json()["ui"] == {
+        "left_open": False,
+        "right_open": True,
+        "bottom_open": True,
+        "view": "workspace",
+    }
 
     deleted = client.delete("/api/projects/second")
     assert slugs(deleted) == ["project-1"]
