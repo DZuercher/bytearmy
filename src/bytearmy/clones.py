@@ -1,19 +1,26 @@
-"""Cloning a project's repository into a task directory, in the background."""
+"""Cloning a project's repository into a task directory, in the background.
+
+The repository is downloaded once per project, into a bare mirror in the project's metadata
+directory. A task clones from the mirror after fetching into it: git hard-links the objects of
+a local clone, so a task costs no download and hardly any disk, yet is a repository of its own.
+"""
 
 from __future__ import annotations
 
+import contextlib
 import os
 import shutil
 import signal
 import subprocess
 import threading
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from pathlib import Path
 
 from bytearmy.models import Task
-from bytearmy.store import Store
+from bytearmy.store import METADATA_DIR, Store
 
 ERROR_CHARACTERS = 500  # how much of git's complaint is kept
+MIRROR = "mirror.git"
 
 
 class CloneFailed(Exception):
@@ -34,6 +41,7 @@ class Cloner:
         self._threads: dict[tuple[str, str], threading.Thread] = {}
         self._processes: dict[tuple[str, str], subprocess.Popen] = {}
         self._cancelled: set[tuple[str, str]] = set()
+        self._mirror_locks: dict[str, threading.Lock] = {}  # per project: one writer at a time
 
     def valid_branch(self, name: str) -> bool:
         check = subprocess.run(
@@ -89,7 +97,10 @@ class Cloner:
         error = ""
         try:
             shutil.rmtree(temporary, ignore_errors=True)
-            self._run(key, "clone", "--", url, str(temporary))
+            with self._mirror_held(key):
+                mirror = self._update_mirror(key, url, task_dir.parent / METADATA_DIR / MIRROR)
+                self._run(key, "clone", "--", str(mirror), str(temporary))
+            self._run(key, "-C", str(temporary), "remote", "set-url", "origin", url)
             if branch:
                 on_remote = self._run(
                     key,
@@ -108,6 +119,41 @@ class Cloner:
                 self._threads.pop(key, None)
                 self._cancelled.discard(key)
             self._store.clone_finished(*key, error)
+
+    @contextlib.contextmanager
+    def _mirror_held(self, key: tuple[str, str]) -> Iterator[None]:
+        """Hold the project's mirror; a task cancelled while it waits for it gives up."""
+        with self._lock:
+            lock = self._mirror_locks.setdefault(key[0], threading.Lock())
+        while not lock.acquire(timeout=0.05):
+            with self._lock:
+                if key in self._cancelled:
+                    raise CloneFailed("The clone was cancelled.")
+        try:
+            yield
+        finally:
+            lock.release()
+
+    def _update_mirror(self, key: tuple[str, str], url: str, mirror: Path) -> Path:
+        """Create the project's mirror of `url`, or bring the one there up to date."""
+        if mirror.exists():
+            self._run(key, "-C", str(mirror), "fetch", "--prune", "origin")
+            return mirror
+        temporary = mirror.with_name(f"{MIRROR}.cloning")
+        shutil.rmtree(temporary, ignore_errors=True)
+        try:
+            self._run(key, "clone", "--bare", "--", url, str(temporary))
+            # Branches only (their tags follow): every ref would take GitHub's pull requests too.
+            self._run(
+                key,
+                *("-C", str(temporary)),
+                *("config", "remote.origin.fetch", "+refs/heads/*:refs/heads/*"),
+            )
+            temporary.rename(mirror)
+        except (CloneFailed, OSError):
+            shutil.rmtree(temporary, ignore_errors=True)
+            raise
+        return mirror
 
     def _run(self, key: tuple[str, str], *arguments: str, check: bool = True) -> int:
         with self._lock:

@@ -4,6 +4,7 @@ Layout below the root:
 
     .bytearmy/state.json                   project order, focused project, UI state
     <project>/.bytearmy/project.json       name, description, GitHub URL, task order, focused task
+    <project>/.bytearmy/mirror.git/        mirror of the GitHub URL, which the tasks clone from
     <project>/<task>/.bytearmy/task.json   name, description, status, branch, reminder, dependencies
     <project>/<task>/.bytearmy/log.jsonl   the task's log, one entry per line
     <project>/<task>/<repo>/               clone of the project's GitHub URL, if it has one
