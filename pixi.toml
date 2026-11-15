@@ -12,6 +12,7 @@ websockets = "*"
 httpx = "*"
 pytest = "*"
 ruff = "*"
+git-lfs = ">=3.8.1,<4"
 
 [pypi-dependencies]
 bytearmy = { path = ".", editable = true }
