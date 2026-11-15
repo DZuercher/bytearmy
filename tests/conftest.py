@@ -1,11 +1,13 @@
 """Helpers shared by the checks: reading terminals, a repository to clone from, a git on hold,
-a stand-in for the service of a web tool."""
+a stand-in for the service of a web tool, an end to the programs a failing check left running."""
 
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import os
 import re
+import signal
 import subprocess
 import sys
 import time
@@ -17,6 +19,59 @@ import pytest
 
 # The fixture repositories must not depend on the git configuration of the machine.
 ISOLATED = {**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_SYSTEM": os.devnull}
+
+FAILED = pytest.StashKey[bool]()
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_makereport(item, call):
+    report = yield
+    if report.failed:
+        item.stash[FAILED] = True
+    return report
+
+
+@pytest.fixture(autouse=True)
+def end_leftover_programs(request, monkeypatch):
+    """When a check fails, end the programs it started that still run, and their children.
+
+    A failing check skips the part that would have stopped them. A program that moved into
+    a process group of its own, like a job of an interactive shell, is not found.
+    """
+    started: list[int] = []
+    create = subprocess.Popen.__init__
+
+    def recording(self, *args, **kwargs):
+        create(self, *args, **kwargs)
+        started.append(self.pid)
+
+    monkeypatch.setattr(subprocess.Popen, "__init__", recording)
+    yield
+    if request.node.stash.get(FAILED, False):
+        leftover = leftover_programs(set(started))
+        for pid in leftover:
+            with contextlib.suppress(ProcessLookupError):
+                os.kill(pid, signal.SIGKILL)
+        if leftover:
+            print("ended what the check left running:", *leftover.values(), sep="\n  ")
+
+
+def leftover_programs(started: set[int]) -> dict[int, str]:
+    """The live processes started by the check, or in a process group one of them leads."""
+    listing = subprocess.run(
+        ["ps", "-A", "-o", "pid=,pgid=,stat=,command="],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    found = {}
+    for line in listing.stdout.splitlines():
+        pid, group, stat, *command = line.split(None, 3)
+        if stat.startswith("Z") or int(pid) == os.getpid():
+            continue  # ended and not yet collected, or this process
+        if int(pid) in started or int(group) in started:
+            found[int(pid)] = " ".join(command)
+    return found
 
 
 def git(*arguments: str, cwd: Path) -> str:

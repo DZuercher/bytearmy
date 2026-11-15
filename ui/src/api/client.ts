@@ -27,12 +27,14 @@ const routes = {
   taskOrder: '/api/projects/{project}/tasks/order',
   taskFocus: '/api/projects/{project}/tasks/focus',
   taskStart: '/api/projects/{project}/tasks/{task}/start',
+  taskClone: '/api/projects/{project}/tasks/{task}/clone',
   task: '/api/projects/{project}/tasks/{task}',
   layout: '/api/projects/{project}/tasks/{task}/layout',
   maximized: '/api/projects/{project}/tasks/{task}/maximized',
   panes: '/api/projects/{project}/tasks/{task}/panes',
   pane: '/api/projects/{project}/tasks/{task}/panes/{pane}',
   panePage: '/api/projects/{project}/tasks/{task}/panes/{pane}/page',
+  panePageVersion: '/api/projects/{project}/tasks/{task}/panes/{pane}/page/version',
 } as const satisfies Record<string, keyof paths>
 
 function fill(route: string, parts: { project: string; task?: string; pane?: string }): string {
@@ -86,6 +88,8 @@ export const api = {
     request('POST', fill(routes.tasks, { project }), task),
   startTask: (project: string, task: string) =>
     request('POST', fill(routes.taskStart, { project, task })),
+  cloneAgain: (project: string, task: string) =>
+    request('POST', fill(routes.taskClone, { project, task })),
   deleteTask: (project: string, task: string) =>
     request('DELETE', fill(routes.task, { project, task })),
   reorderTasks: (project: string, bar: Bar, order: string[]) =>
@@ -107,6 +111,17 @@ export const api = {
 // is not the state, and it can take minutes while the service of a tool starts.
 export function panePage(place: { project: string; task: string; pane: string }): Promise<string> {
   return send<Schemas['Page']>('GET', fill(routes.panePage, place)).then((page) => page.url)
+}
+
+// A text that changes when a file the web pane shows changes; null if it shows no file.
+export function panePageVersion(place: {
+  project: string
+  task: string
+  pane: string
+}): Promise<string | null> {
+  return send<Schemas['PageVersion']>('GET', fill(routes.panePageVersion, place)).then(
+    (answer) => answer.version ?? null,
+  )
 }
 
 // The terminal of a pane. WebSocket routes are not part of the schema, so this path is

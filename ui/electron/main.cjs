@@ -56,6 +56,14 @@ app.on('web-contents-created', (_event, contents) => {
     webPreferences.nodeIntegration = false
     webPreferences.contextIsolation = true
   })
+  // A web pane opens no windows: the page is told what the window would have shown, and
+  // opens it as a new pane.
+  if (contents.getType() === 'webview') {
+    contents.setWindowOpenHandler(({ url }) => {
+      if (win && !win.isDestroyed()) win.webContents.send('webview:open', { from: contents.id, url })
+      return { action: 'deny' }
+    })
+  }
 })
 
 app.whenReady().then(() => {

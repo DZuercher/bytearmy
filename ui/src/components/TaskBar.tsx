@@ -12,12 +12,13 @@ type Props = {
   onToggle: () => void
   project: Project | undefined // the focused project
   onFocus: (slug: string) => void
+  onCloneAgain: (slug: string) => void
   onDelete: (doomed: Doomed) => void
   onReorder: (order: string[]) => void
 }
 
 // Bottom bar: the started tasks of the focused project.
-export function TaskBar({ open, onToggle, project, onFocus, onDelete, onReorder }: Props) {
+export function TaskBar({ open, onToggle, project, onFocus, onCloneAgain, onDelete, onReorder }: Props) {
   if (!open) {
     return (
       <footer className="flex h-9 shrink-0 items-center gap-4 border-t px-4">
@@ -51,6 +52,7 @@ export function TaskBar({ open, onToggle, project, onFocus, onDelete, onReorder 
                     handle={handle}
                     isDragging={isDragging}
                     onClick={() => onFocus(task.slug)}
+                    onCloneAgain={() => onCloneAgain(task.slug)}
                     onDelete={onDelete}
                   >
                     <Badge variant="secondary">{task.status}</Badge>

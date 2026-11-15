@@ -578,6 +578,44 @@ def test_the_html_tool_shows_a_file_of_the_task(workspaces, task):
         open_pane(workspaces, task, "html", values={"file": "../other/report.html"})
 
 
+def test_the_version_of_a_page_changes_when_its_file_is_written_again(store, workspaces, task):
+    report = Path(store.task(*task).path) / "report.html"
+    open_pane(workspaces, task, "html", values={"file": "report.html"})
+
+    def version_after(text: str, seconds: int) -> str | None:
+        report.write_text(text)
+        os.utime(report, (seconds, seconds))
+        return workspaces.page_version(*task, "p1")
+
+    missing = workspaces.page_version(*task, "p1")
+    written = version_after("one", seconds=1000)
+    longer = version_after("three", seconds=1000)  # another size at the same time
+    later = version_after("three", seconds=2000)  # the same size at another time
+
+    assert len({missing, written, longer, later}) == 4
+    assert None not in (missing, written, longer, later)
+    assert workspaces.page_version(*task, "p1") == later
+
+
+def test_only_a_web_pane_that_shows_a_file_has_a_version(store, workspaces, task):
+    open_pane(workspaces, task, "webpage", values={"url": "example.org"})
+    open_pane(workspaces, task, "terminal")
+    open_pane(workspaces, task, "html", values={"file": "report.html"})
+
+    assert workspaces.page_version(*task, "p1") is None
+    for pane in ("p2", "p9"):
+        with pytest.raises(PaneNotFound):
+            workspaces.page_version(*task, pane)
+    (store.root / ".tools" / "html.toml").write_text(
+        'name = "HTML"\nkind = "web"\nurl = "{files}/{file}"\n\n'
+        '[[parameters]]\nname = "file"\npath = true\n\n'
+        '[[parameters]]\nname = "style"\npath = true\n'
+    )
+    assert workspaces.page_version(*task, "p3") is not None  # a parameter added later
+    (store.root / ".tools" / "html.toml").unlink()
+    assert workspaces.page_version(*task, "p3") is None  # its tool is gone
+
+
 def test_a_tool_with_a_service_shows_it_in_the_clone_or_else_in_the_task_directory(
     store, workspaces, fake_service
 ):

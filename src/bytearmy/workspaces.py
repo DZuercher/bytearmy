@@ -233,6 +233,23 @@ class Workspaces:
             service = self._services.url(tool, pane_env(os.environ, sys.prefix))
         return _page(tool, shown.values, found, files, service)
 
+    def page_version(self, project: str, task: str, pane: str) -> str | None:
+        """A text that changes when a file the web pane shows changes; None if it shows none.
+
+        The files a pane shows are the values of its tool's path parameters.
+        """
+        found = self._store.task(project, task)
+        shown = found.workspace.panes.get(pane)
+        if shown is None or shown.kind != "web":
+            raise PaneNotFound(pane)
+        tool = load_tools(self._store.root).get(shown.tool)
+        files = [
+            Path(found.path) / shown.values[parameter.name]
+            for parameter in (tool.parameters if tool else [])
+            if parameter.path and parameter.name in shown.values
+        ]
+        return " ".join(_stamp(file) for file in files) if files else None
+
     def _ended(self, key: Key, code: int) -> None:
         """A program ended by itself: close its pane if all went well, keep it otherwise."""
         project, task, pane = key
@@ -287,6 +304,15 @@ def _directory(tool: Tool, task: Task) -> Path:
     if tool.directory == "repo" and task.clone == "ready":
         directory /= task.repo
     return directory
+
+
+def _stamp(file: Path) -> str:
+    """Differs after the file was written again; time and size, as either can stay the same."""
+    try:
+        status = file.stat()
+    except OSError:
+        return "missing"
+    return f"{status.st_mtime_ns}-{status.st_size}"
 
 
 def _page(tool: Tool, values: Mapping[str, str], task: Task, files: str, service: str) -> str:

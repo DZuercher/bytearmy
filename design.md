@@ -77,22 +77,32 @@ The names are visible to every Claude session of the user on the machine, so the
 ## Tools
 Calling a tool opens a new pane on the workspace.
 The tools are found in .tools. Ideally these just open already existing programs but within the panes in bytearmy.
-Every tool is one file `<bytearmy_root>/.tools/<tool>.toml` holding its name, its command and its parameters. bytearmy writes the files of the premade tools if they are missing and never overwrites them, so the user can change them.
+Every tool is one file `<bytearmy_root>/.tools/<tool>.toml` holding its name, its kind, its command or page and its parameters. bytearmy writes the files of the premade tools if they are missing and never overwrites them, so the user can change them.
+A tool file also says who may call the tool (the user, agents or both), what a parameter is set to if nothing is entered (e.g. the projects GitHub page), and which background program the tool needs (e.g. the VS Code server of the IDE).
 A program can run inside a pane if it is a terminal program or if it serves a web UI. Windows of native programs (Finder, Ghostty, the VS Code desktop app) cannot be placed inside a pane.
 Every tool therefore has one of three kinds:
 - terminal: the program runs in a terminal emulator inside the pane (xterm.js connected to a pseudo-terminal).
 - web: the pane is an embedded browser view (Electron `<webview>`) showing a URL or a file.
 - external: the program opens in its own window outside of bytearmy, no pane is created.
 
+Web panes:
+- A web pane shows only http and https pages. An address without `http://` or `https://` is opened with `https://`.
+- The title bar of a web pane has buttons to go back, go forward and load the page again.
+- A link or script in a web pane that wants a new window opens the page as a new Webpage pane next to it instead.
+- All web panes share one browser session that is kept in `<bytearmy_root>/.bytearmy/electron`, so a login survives a restart. Every root has its own.
+- After a restart a web pane shows the page it was opened with, not the last page that was visited in it.
+
 The user calls a tool from the command dialogue, an agent calls it with the `bytearmy` command line tool.
 Tools can be added by the user or agents but the following tools should come premade with bytearmy.
 - Terminal [terminal. Opens the users default shell in the embedded terminal emulator. The systems terminal application itself cannot be embedded.]
 - Claude [terminal. Same as Terminal but directly executes `claude` to spawn a claude agent. if this is currently the only agent running in the task it becomes the master agent. The command runs through the users interactive shell, so a shell function or alias named `claude` works. It starts in the clone of the repository if the task has one, otherwise in the tasks working directory.]
 - Vim [terminal. Opens the vim editor. Needs to be pointed to a specific file in the workspace.]
-- HTML [web. Renders a static html file in the workspace. Can only be invoked by the agent.]
-- Webpage [web. Shows a specific webpage. Eg github page associaated with the projects github url.]
-- IDE [web. Opens the web UI of vscode (`code serve-web`) in the repository in the task, if there is one. The vscode desktop app cannot be embedded.]
-- Explorer [external. Opens systems file explorer in the tasks working directory, in its own window.]
+- HTML [web. Renders a static html file in the workspace. Can only be invoked by the agent, so the command dialogue does not list it. The file must lie inside the tasks working directory; bytearmy serves it to the pane under a random key, not under the token of its API. When the file changes the pane loads it again.]
+- Webpage [web. Shows a specific webpage. Eg github page associaated with the projects github url. The command dialogue offers the projects GitHub page; an address can be typed instead.]
+- IDE [web. Opens the web UI of vscode (`code serve-web`) in the repository in the task, if there is one, otherwise in the tasks working directory. The vscode desktop app cannot be embedded. One VS Code server serves all IDE panes; it starts with the first IDE pane and ends when bytearmy quits. It is started with `--accept-server-license-terms`, which stands in the tool file.]
+- Explorer [external. Opens systems file explorer in the tasks working directory, in its own window. If it fails within two seconds, the command dialogue shows why.]
+
+What a program without a pane (an external tool, the VS Code server) prints goes to `<bytearmy_root>/.bytearmy/logs/<tool>.log`.
 
 
 ## Directory structure
@@ -102,7 +112,7 @@ Each task is assigned to a project and has its own working directory.
 bytearmy_root
 |- .tools [contains tools]
 |- .claude [contains the explanation for claude about how bytearmy works and how claude can interact with it. It is passed to every Claude pane when it starts]
-|- .bytearmy [contains global metadata]
+|- .bytearmy [contains global metadata, the logs of programs without a pane and the browser session of the web panes]
 |-- project-1
     |- .bytearmy [contains bytearmy project level metadata, like name and Github URL]
     |- .claude [contains project specific claude configurations like CLAUDE.md etc. Claude loads this CLAUDE.md by itself in every task of the project]

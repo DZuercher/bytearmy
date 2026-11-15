@@ -14,12 +14,22 @@ type Props = {
   project: Project | undefined // the focused project
   onCreate: (task: TaskCreate) => Promise<void>
   onStart: (slug: string) => void
+  onCloneAgain: (slug: string) => void
   onDelete: (doomed: Doomed) => void
   onReorder: (order: string[]) => void
 }
 
 // Right-hand bar: the tasks of the focused project that have not been started.
-export function BacklogBar({ open, onToggle, project, onCreate, onStart, onDelete, onReorder }: Props) {
+export function BacklogBar({
+  open,
+  onToggle,
+  project,
+  onCreate,
+  onStart,
+  onCloneAgain,
+  onDelete,
+  onReorder,
+}: Props) {
   const [creating, setCreating] = useState(false)
 
   if (!open) {
@@ -65,6 +75,7 @@ export function BacklogBar({ open, onToggle, project, onCreate, onStart, onDelet
                     handle={handle}
                     isDragging={isDragging}
                     onClick={() => onStart(task.slug)}
+                    onCloneAgain={() => onCloneAgain(task.slug)}
                     onDelete={onDelete}
                   >
                     {task.blocked_by.length > 0 && (

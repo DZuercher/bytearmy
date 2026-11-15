@@ -1,10 +1,11 @@
 import 'react-mosaic-component/react-mosaic-component.css'
 import { Maximize2, Minimize2, X } from 'lucide-react'
+import { useState } from 'react'
 import { Mosaic, type MosaicNode, MosaicWindow } from 'react-mosaic-component'
 import { type AppState, type Project, type Task, type Tree, api } from '@/api/client'
 import { TerminalPane } from '@/components/TerminalPane'
 import { Button } from '@/components/ui/button'
-import { WebPane } from '@/components/WebPane'
+import { type Browser, WebControls, WebPane } from '@/components/WebPane'
 import { cn } from '@/lib/utils'
 
 type Props = {
@@ -22,6 +23,12 @@ export function Workspace({ project, task, visible, run, onArrange, onActivePane
   const { workspace } = task
   const key = `${project.slug}/${task.slug}`
   const place = { project: project.slug, task: task.slug }
+  // The browser views of the web panes, for the buttons in their title bars.
+  const [browsers, setBrowsers] = useState<Record<string, Browser>>({})
+
+  function setBrowser(pane: string, browser: Browser | null) {
+    setBrowsers(({ [pane]: _old, ...others }) => (browser ? { ...others, [pane]: browser } : others))
+  }
 
   return (
     <div data-workspace={key} className={cn('relative min-h-0 flex-1', !visible && 'hidden')}>
@@ -48,6 +55,7 @@ export function Workspace({ project, task, visible, run, onArrange, onActivePane
               path={path}
               title={pane.title + ended}
               toolbarControls={[
+                pane.kind === 'web' && <WebControls key="web" browser={browsers[id]} />,
                 <Button
                   key="maximize"
                   variant="ghost"
@@ -70,7 +78,20 @@ export function Workspace({ project, task, visible, run, onArrange, onActivePane
             >
               <div data-pane={id} className="size-full" onFocusCapture={() => onActivePane(id)}>
                 {pane.kind === 'web' ? (
-                  <WebPane place={{ ...place, pane: id }} />
+                  <WebPane
+                    place={{ ...place, pane: id }}
+                    onBrowser={(browser) => setBrowser(id, browser)}
+                    // A link that wants a new window opens as a new web pane beside this one.
+                    onOpenWindow={(url) =>
+                      run(
+                        api.openPane(place.project, place.task, {
+                          tool: 'webpage',
+                          values: { url },
+                          beside: id,
+                        }),
+                      )
+                    }
+                  />
                 ) : (
                   <TerminalPane
                     place={{ ...place, pane: id }}

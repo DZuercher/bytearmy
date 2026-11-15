@@ -217,3 +217,9 @@ class Page(BaseModel):
     """What a web pane shows."""
 
     url: str
+
+
+class PageVersion(BaseModel):
+    """Tells a web pane when to load its page again."""
+
+    version: str | None  # changes with the files the page shows; None if it shows none

@@ -174,6 +174,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{project}/tasks/{task}/clone": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Clone Again
+         * @description Try a failed clone of the project's repository again.
+         */
+        post: operations["clone_again_api_projects__project__tasks__task__clone_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects/{project}/tasks/{task}": {
         parameters: {
             query?: never;
@@ -237,6 +257,26 @@ export interface paths {
          * @description What a web pane shows. Answers only once the tool's service runs.
          */
         get: operations["pane_page_api_projects__project__tasks__task__panes__pane__page_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project}/tasks/{task}/panes/{pane}/page/version": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Pane Page Version
+         * @description Asked again and again by a web pane, which loads its page anew on a change.
+         */
+        get: operations["pane_page_version_api_projects__project__tasks__task__panes__pane__page_version_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -343,6 +383,14 @@ export interface components {
         Page: {
             /** Url */
             url: string;
+        };
+        /**
+         * PageVersion
+         * @description Tells a web pane when to load its page again.
+         */
+        PageVersion: {
+            /** Version */
+            version: string | null;
         };
         /** Pane */
         Pane: {
@@ -1050,6 +1098,38 @@ export interface operations {
             };
         };
     };
+    clone_again_api_projects__project__tasks__task__clone_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project: string;
+                task: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     delete_task_api_projects__project__tasks__task__delete: {
         parameters: {
             query?: never;
@@ -1171,6 +1251,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Page"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    pane_page_version_api_projects__project__tasks__task__panes__pane__page_version_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project: string;
+                task: string;
+                pane: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageVersion"];
                 };
             };
             /** @description Validation Error */

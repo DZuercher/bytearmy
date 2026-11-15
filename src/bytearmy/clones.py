@@ -20,6 +20,10 @@ class CloneFailed(Exception):
     pass
 
 
+class AlreadyCloning(Exception):
+    """args: the name of the task."""
+
+
 class Cloner:
     """Runs `git clone` for new tasks; the store learns when a clone starts and how it ends."""
 
@@ -46,6 +50,9 @@ class Cloner:
             daemon=True,
         )
         with self._lock:
+            # A second clone into the same place would spoil the first.
+            if key in self._threads:
+                raise AlreadyCloning(task.name)
             self._threads[key] = thread
         thread.start()
 

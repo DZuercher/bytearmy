@@ -220,6 +220,24 @@ def test_the_page_of_an_html_pane_is_a_file_of_the_task_served_without_the_token
     assert served.headers["content-type"].startswith("text/html")
 
 
+def test_a_web_pane_can_ask_whether_its_file_changed(live):
+    report = live.store.root / "demo" / "work" / "report.html"
+    report.write_text("one")
+    live.http.post(PANES, json={"tool": "html", "values": {"file": "report.html"}})
+    live.http.post(PANES, json={"tool": "webpage", "values": {"url": "example.org"}})
+
+    def version(pane: str) -> httpx.Response:
+        return live.http.get(f"{PANES}/{pane}/page/version")
+
+    before = version("p1").json()["version"]
+    report.write_text("another text")
+
+    assert isinstance(before, str)
+    assert version("p1").json()["version"] != before
+    assert (version("p2").status_code, version("p2").json()) == (200, {"version": None})
+    assert version("p9").status_code == 404
+
+
 def test_only_files_inside_the_task_directory_are_served_and_only_with_the_key(live, tmp_path):
     task_dir = live.store.root / "demo" / "work"
     (task_dir / "page.html").write_text("inside")

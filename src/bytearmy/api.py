@@ -13,12 +13,13 @@ from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, WebSock
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from bytearmy.clones import Cloner
+from bytearmy.clones import AlreadyCloning, Cloner
 from bytearmy.models import (
     AppState,
     Focus,
     Layout,
     Page,
+    PageVersion,
     PaneOpen,
     ProjectMeta,
     ProjectOrder,
@@ -136,6 +137,17 @@ def create_app(
         store.start_task(project, task)
         return state()
 
+    @api.post("/projects/{project}/tasks/{task}/clone")
+    def clone_again(project: str, task: str) -> AppState:
+        """Try a failed clone of the project's repository again."""
+        found = store.task(project, task)
+        if found.clone != "failed":
+            raise HTTPException(
+                status_code=409, detail=f'"{found.name}" has no failed clone to try again.'
+            )
+        cloner.start(project, found, store.project(project).github_url)
+        return state()
+
     @api.delete("/projects/{project}/tasks/{task}")
     def delete_task(project: str, task: str) -> AppState:
         cloner.cancel(project, task)
@@ -158,6 +170,11 @@ def create_app(
         """What a web pane shows. Answers only once the tool's service runs."""
         files = f"{str(request.base_url).rstrip('/')}/files/{files_key}/{project}/{task}"
         return Page(url=workspaces.page(project, task, pane, files))
+
+    @api.get(PANES + "/{pane}/page/version")
+    def pane_page_version(project: str, task: str, pane: str) -> PageVersion:
+        """Asked again and again by a web pane, which loads its page anew on a change."""
+        return PageVersion(version=workspaces.page_version(project, task, pane))
 
     @api.put("/projects/{project}/tasks/{task}/layout")
     def set_layout(project: str, task: str, layout: Layout) -> AppState:
@@ -270,6 +287,10 @@ def create_app(
     @app.exception_handler(NotStarted)
     def not_started(_request: Request, error: NotStarted) -> JSONResponse:
         return answer(409, f'"{error.args[0]}" is still in the backlog.')
+
+    @app.exception_handler(AlreadyCloning)
+    def already_cloning(_request: Request, error: AlreadyCloning) -> JSONResponse:
+        return answer(409, f'"{error.args[0]}" is being cloned already.')
 
     @app.exception_handler(UnknownDependency)
     def unknown_dependency(_request: Request, error: UnknownDependency) -> JSONResponse:

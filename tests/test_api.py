@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 import time
 from pathlib import Path
 
@@ -176,6 +177,51 @@ def test_creating_a_task_clones_the_repository_of_its_project(client, remote):
     assert (cloned["clone"], cloned["repo"]) == ("ready", "widgets")
     assert (Path(cloned["path"]) / "widgets" / "feature.txt").exists()
     assert task(client, "a", "plain")["clone"] == "none"
+
+
+def test_a_failed_clone_can_be_tried_again(client, remote, tmp_path):
+    later = tmp_path / "later.git"
+    client.post("/api/projects", json={"name": "Widgets", "github_url": str(later)})
+    client.post("/api/projects", json={"name": "Plain"})
+    client.post("/api/projects/widgets/tasks", json={"name": "A", "branch": "feature"})
+    client.post("/api/projects/plain/tasks", json={"name": "A"})
+    assert wait_while_cloning(client, "a", "widgets")["clone"] == "failed"
+
+    shutil.copytree(remote, later)
+    assert client.post("/api/projects/widgets/tasks/a/clone").status_code == 200
+    cloned = wait_while_cloning(client, "a", "widgets")
+    assert (cloned["clone"], cloned["clone_error"]) == ("ready", "")
+    assert (Path(cloned["path"]) / "later" / "feature.txt").exists()
+
+    for project in ("widgets", "plain"):  # cloned, or nothing to clone
+        refused = client.post(f"/api/projects/{project}/tasks/a/clone")
+        assert (refused.status_code, refused.json()["detail"]) == (
+            409,
+            '"A" has no failed clone to try again.',
+        )
+    assert client.post("/api/projects/widgets/tasks/ghost/clone").status_code == 404
+
+
+def test_a_clone_that_still_runs_is_not_started_again(tmp_path, remote, gated_git):
+    store = Store(tmp_path / "root")
+    app = create_app(store, token=TOKEN, cloner=Cloner(store, git=gated_git.command))
+    with TestClient(app, headers={"Authorization": f"Bearer {TOKEN}"}) as client:
+        client.post("/api/projects", json={"name": "Widgets", "github_url": str(remote)})
+        client.post("/api/projects/widgets/tasks", json={"name": "A"})
+        gated_git.wait_until_running()
+        assert client.post("/api/projects/widgets/tasks/a/clone").status_code == 409
+
+        # Two requests to try again cross: the first has started the clone, the second
+        # was told the clone had failed before that.
+        store.clone_finished("widgets", "a", "failed before")
+        refused = client.post("/api/projects/widgets/tasks/a/clone")
+
+        assert (refused.status_code, refused.json()["detail"]) == (
+            409,
+            '"A" is being cloned already.',
+        )
+        gated_git.release()
+        assert wait_while_cloning(client, "a", "widgets")["clone"] == "ready"
 
 
 @pytest.mark.parametrize("target", ["/api/projects/widgets/tasks/a", "/api/projects/widgets"])

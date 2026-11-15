@@ -13,7 +13,13 @@ const REFRESH_WHILE_CLONING_MS = 1_000
 declare global {
   interface Window {
     // Provided by the Electron shell; absent when the page runs in a plain browser.
-    shell?: { onPaletteToggle: (callback: () => void) => () => void }
+    // Each method takes a callback and returns the function that unsubscribes it.
+    shell?: {
+      onPaletteToggle: (callback: () => void) => () => void
+      // A page in a web pane asked for a new window. `from` is the id of that pane's
+      // browser view (`getWebContentsId()`), `url` the page the window would show.
+      onOpenWindow: (callback: (request: { from: number; url: string }) => void) => () => void
+    }
   }
 }
 
@@ -159,6 +165,7 @@ export function App() {
           project={project}
           onCreate={(created) => api.createTask(project!.slug, created).then(setState)}
           onStart={(slug) => run(api.startTask(project!.slug, slug))}
+          onCloneAgain={(slug) => run(api.cloneAgain(project!.slug, slug))}
           onDelete={setDoomed}
           onReorder={(order) => reorderTasks('backlog', order)}
         />
@@ -168,6 +175,7 @@ export function App() {
         onToggle={() => setUi({ bottom_open: !ui.bottom_open })}
         project={project}
         onFocus={(slug) => run(api.focusTask(project!.slug, slug))}
+        onCloneAgain={(slug) => run(api.cloneAgain(project!.slug, slug))}
         onDelete={setDoomed}
         onReorder={(order) => reorderTasks('tasks', order)}
       />
