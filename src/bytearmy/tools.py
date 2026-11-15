@@ -45,7 +45,8 @@ HEADER = """\
 #   callers     who may open the tool: ["user", "agent"] (default)
 #   [[parameters]] with name, label, path = true for a file below the task directory
 #               and default = what is used if nothing is entered ({github_page}: the
-#               page of the project)
+#               page of the project; {task_page}: the pull request of the task's branch,
+#               or the page of the project if there is none)
 #   [service]   web: a program that all panes of the tool share, started when a pane
 #               first needs it. `command` is run by /bin/sh with a free {port} and a
 #               random {token}; `url` is where it then answers, and what {service} in
@@ -91,7 +92,7 @@ PREMADE = {
         "[[parameters]]\n"
         'name = "url"\n'
         'label = "URL"\n'
-        'default = "{github_page}"\n'
+        'default = "{task_page}"\n'
     ),
     "html": (
         'name = "HTML"\n'
@@ -124,7 +125,7 @@ PREMADE = {
 }
 
 
-# Fingerprints of the files earlier versions wrote (m3, m4, m5, #10; macOS and Linux). A file that
+# Fingerprints of the files earlier versions wrote (m3, m4, m5, #10, #11; macOS and Linux). A file that
 # still has one was never edited, and is replaced by the current version.
 EARLIER = {
     "terminal": {
@@ -132,32 +133,39 @@ EARLIER = {
         "878e8097727c2ffc5dd4ad05345e2aae2cddceecfb192416c890cabd383e648b",
         "f79a0a7e2bfc39caed7cf655e2f2afff5e08cb51612eb087c100b2a61fdee0d2",
         "10d3a02ae7e257a83dde8466d06cb3aa69ce5b16be7cad6cf95fc9c10105cbc2",
+        "e519a0f5ab5e0e24aaee9889ce46b645a6e726a0068b327e59a85dfe529110e5",
     },
     "claude": {
         "853e7b4147fdd6c899fcc0cbf62bebd01e0584797ee836d31067558760cce5c1",
         "28e17bf121edfed84b4486e018d1564072c3aa2454b1cc64b148f46e1ed6d556",
         "d61c2c4d0afa8f80fd86edeceba6c3cc5eb310fe42ef75669ec27acf18b0d0bf",
         "ae0b3a3911d6f8fc710c47da0e4e0eea85c193b47232b23413f36e81313df5a4",
+        "660c111d8f09c6687459da6c5745eabf6996a5d53546d0e8c178c8bdac8d9787",
     },
     "vim": {
         "eb5b624575842e280a1f807756a723dc74be432b0c4e479d9718d7911b516114",
         "f8ef1b57eddbe2f97dfb76f747bc34f23620de28200cc8cbf7fdbd7b7015d9b8",
         "1cf2de368f083b1ed2a52273d87684787474bb64e395a12bd642ac0e4cbc4a87",
         "3d8b8bc452a96af36ec005c125cc86f671b2f932df1c16b13048b29501597522",
+        "65b58ecd3483cc13ab771275d5bc661ac59dcd6fe7aea9ec7ba37484a4b983be",
     },
     "webpage": {
         "8140c3ef66b8e098021dbbb777d41a480fc9673a0765c76029cdd835e92e0665",
         "1816f0a2cefbb056add28f57963762ab4804b0c5e4bc8dd5bb87f3e594110320",
         "705df4429ae7deffa29983a004841598fc886ff21c157afecc6fabc464b6492c",
+        "3b1880380bb2a7a2ef15b8aaa2bb27d2ab2ca5272647b872fa0cfbf130bdc776",
     },
     "html": {
         "67cb2d82c4660e7d4ae9e26fcb960b8ba456b5cbf92878a1729730619e785539",
         "d217fb7bf52bd6ae49d63d17ec884c537f36b7fe6ed07f0a4a593b96b78b0d09",
         "b3a6dbbbcd40fbc127ecf5d48983bbbc9b9afa92fbb0d64c618d69b46002a5ba",
+        "55f0d657abf889e40c6ed4fd8d79cf9ce336783d40ace731b70b9cc2758c5cf8",
     },
     "vscode": {
         "33ffe7931183a4c7e00e7b2e1600d0a4d36e6167d0a8005c6fad486621570a27",
         "63c610bb9ea549a1643c589dabe3b2818c24c30b9971b70d46e0d0052c51ec29",
+        "1ac2c4a738ebfb09e4bb57114c6f036c3abfa1605321518d2d0271c5c6767fa4",
+        "8834054b8f1d2b2232c93cfa8480a66bd73f1a919a66d207bacadedb75bc738a",
     },
     "explorer": {
         "123b6b37c169a431418c0fe6dc96e168679d22a32fc3d7ca402df9f6afaab07a",
@@ -166,16 +174,22 @@ EARLIER = {
         "541ded652a49c8b3fd9cdbc780ea1dbcbbaa2a2233cea9bd0c3e0dc56468a6b4",
         "0363df229c06ae2f15c65b23869d0c93e4c856c82cf2a99432d0acd65bbfb67c",
         "af6d09d53d4e4facf797c227b693da0ac2664f7409575c435137dc80c1074178",
+        "0cbec5d11aa66ca9d59e64942e2bfea276f913b4994a50add6afbf2847f8e9e5",
+        "6a43a59f5a7d7b492e14fdabacc86b19008bb117714cf7e92a879e2ffa130843",
     },
     "pycharm": {
         "cb020c375e6e205f6ebb51a1766ddca5bed54766562d7dc1ddf604d6b4aec07c",
         "a0f17e51939b00abc61572445d19330f4d38d4128d36ee20e4a10827991491d5",
+        "731fec50f27c0a4b9066b4459a3fe71d964b31fc1cb9f124c2bfaa740250135b",
+        "80c05a6a8f27735365cc0ab7c5f33a07302cbac121af36ef959c590fd6e3453d",
     },
     "log": {
         "f947639546c1d58bdddaf494b2b7017cb132524079a62d440659d0c1f922dd8d",
+        "5fdb16949044ebe125eb23d23a746daa0fa40e16884ef87515b4247033312aaf",
     },
     "show-log": {
         "5b21bc617bacd2b99831b5b03ec168c5d1abca8c77256182093a8ffcf3eafc6e",
+        "1a91372c6576af6afc7f321584a93074a9690c7c88583ccfa97d181bce51a0b0",
     },
 }
 
@@ -249,11 +263,16 @@ def external_command(tool: Tool, values: Mapping[str, str]) -> str:
     return fill(tool.command, {name: shlex.quote(value) for name, value in values.items()})
 
 
-def default_value(parameter: Parameter, github_page: str) -> str:
-    """What a parameter is taken to be if nothing is entered for it."""
-    if "{github_page}" in parameter.default and not github_page:
+def default_value(parameter: Parameter, github_page: str, pull_request: str = "") -> str:
+    """What a parameter is taken to be if nothing is entered for it.
+
+    {task_page} is the task's pull request, or the project's page if it has none.
+    """
+    task_page = pull_request or github_page
+    pages = {"github_page": github_page, "task_page": task_page}
+    if any(f"{{{name}}}" in parameter.default and not page for name, page in pages.items()):
         return ""  # the project has no page: there is nothing to offer
-    return fill(parameter.default, {"github_page": github_page})
+    return fill(parameter.default, pages)
 
 
 def page_url(
