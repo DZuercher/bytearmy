@@ -60,7 +60,7 @@ export function TaskBar({
         <SortableList
           ids={project.tasks.map((task) => task.slug)}
           onReorder={onReorder}
-          className="flex min-h-0 flex-col gap-1 overflow-y-auto"
+          className="flex min-h-0 flex-col gap-1 overflow-x-hidden overflow-y-auto"
         >
           {project.tasks.map((task) => {
             const hidden = hiddenPanes(task)
