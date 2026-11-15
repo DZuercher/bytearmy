@@ -37,6 +37,7 @@ def test_the_premade_tools_are_written_once_and_never_overwritten(tmp_path):
         "diff.toml",
         "explorer.toml",
         "html.toml",
+        "lazygit.toml",
         "log.toml",
         "pycharm.toml",
         "show-log.toml",

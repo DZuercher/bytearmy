@@ -86,6 +86,7 @@ PREMADE = {
         'label = "File, relative to the task directory"\n'
         "path = true\n"
     ),
+    "lazygit": 'name = "Lazygit"\ndirectory = "repo"\ncommand = "lazygit"\n',
     "webpage": (
         'name = "Webpage"\n'
         'kind = "web"\n'
@@ -195,6 +196,7 @@ EARLIER = {
         "1a91372c6576af6afc7f321584a93074a9690c7c88583ccfa97d181bce51a0b0",
     },
     "diff": set(),
+    "lazygit": set(),
 }
 
 

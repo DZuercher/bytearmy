@@ -121,6 +121,7 @@ def test_pane_lifecycle_over_http(live):
         "diff",
         "explorer",
         "html",
+        "lazygit",
         "log",
         "pycharm",
         "show-log",
