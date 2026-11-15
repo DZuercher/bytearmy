@@ -20,6 +20,7 @@ EARLIER_INSTRUCTIONS = {
     "75400f6d42471783dd12939ab458350e54dd7a6809b4112f5b36cb9562a8c3ec",
     "4ea89da126237af99b51e14cc1992b07ec5d81b70850bc2b5604ebf878f70376",
     "27cc28f29d94da91a13c943fc41a133bb23e8ac9df0132d61c1aabc82761d78b",
+    "fd9f4c1e41be73b132fa252d56f9d623ab9cc7a45507b56c6e0ea80b38668e61",
 }
 EARLIER_ORCHESTRATOR_INSTRUCTIONS: set[str] = set()
 
@@ -72,6 +73,15 @@ of your own task; it cannot reach other tasks.
   pane with `bytearmy pane close <pane>`. Its pane is in `bytearmy agent list`.
 - Talk to the agents of your task with the SendMessage tool, by their names. Do not message
   sessions that `bytearmy agent list` does not name: they belong to other work.
+
+## Reviews
+
+- When you want the user to review your changes, run `bytearmy review` in the background
+  (Bash with `run_in_background`); add `--note "<what to look at>"`, and `--uncommitted` to
+  show only what changed since the last commit. It opens the changes in a pane and ends when
+  the user finishes the review; its output holds their comments. Act on them.
+- The user can also review the changes on their own. The master then gets their comments
+  as a message that starts with "Review comments from the user"; act on them likewise.
 
 ## Status and log of the master
 

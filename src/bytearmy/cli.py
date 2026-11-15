@@ -8,11 +8,13 @@ import argparse
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
 
 COLORS = ("red", "amber", "green", "blue", "purple", "none")
+REVIEW_POLL_SECONDS = 2.0
 
 
 class Failed(Exception):
@@ -326,6 +328,18 @@ def inbox_dismiss(args: argparse.Namespace) -> str:
     return f"dismissed {args.id}"
 
 
+def review(args: argparse.Namespace) -> str:
+    """Ask the user to review the changes; waits until they finish, then prints the review."""
+    mode = "uncommitted" if args.uncommitted else "branch"
+    opened = call("POST", "/reviews", {"mode": mode, "note": args.note or ""})
+    print(f"opened the review in pane {opened['pane']}; waiting for the user", flush=True)
+    while True:
+        state = call("GET", f"/reviews/{opened['pane']}")
+        if state["done"]:
+            return state["text"].rstrip("\n")
+        time.sleep(REVIEW_POLL_SECONDS)
+
+
 # -- command line --------------------------------------------------------------
 
 
@@ -334,7 +348,9 @@ def parser() -> argparse.ArgumentParser:
         prog="bytearmy", description="Steer the workspace of this pane's task in bytearmy."
     )
     groups = main.add_subparsers(
-        dest="group", required=True, metavar="{pane,tool,task,agent,log,project,tasks,inbox}"
+        dest="group",
+        required=True,
+        metavar="{pane,tool,task,agent,log,review,project,tasks,inbox}",
     )
 
     def command(group, name: str, run, help: str):
@@ -450,6 +466,20 @@ def parser() -> argparse.ArgumentParser:
     command(inbox, "read", inbox_read, "mark a message read").add_argument("id")
     command(inbox, "unread", inbox_unread, "mark a message unread").add_argument("id")
     command(inbox, "dismiss", inbox_dismiss, "dismiss a message").add_argument("id")
+
+    reviewing = groups.add_parser(
+        "review",
+        help="ask the user to review the changes; prints their comments when they finish",
+        description="Open the changes of the task's clone for the user to review, wait until "
+        "they finish, and print their comments.",
+    )
+    reviewing.set_defaults(run=review)
+    reviewing.add_argument(
+        "--uncommitted",
+        action="store_true",
+        help="show only what changed since the last commit, not all since the default branch",
+    )
+    reviewing.add_argument("--note", help="what the user should look at")
     return main
 
 

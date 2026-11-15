@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, WebSock
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from bytearmy.agents import ORCHESTRATOR
 from bytearmy.clones import AlreadyCloning, Cloner
 from bytearmy.inbox import Inbox, MessageNotFound
 from bytearmy.logpage import render
@@ -22,6 +23,8 @@ from bytearmy.models import (
     Agent,
     AgentSpawn,
     AppState,
+    Diff,
+    DiffMode,
     Focus,
     Highlight,
     InboxState,
@@ -40,6 +43,9 @@ from bytearmy.models import (
     ProjectOrder,
     ProjectSummary,
     ReadChange,
+    Review,
+    ReviewRequest,
+    ReviewState,
     Task,
     TaskChange,
     TaskCreate,
@@ -73,6 +79,8 @@ from bytearmy.workspaces import (
     InvalidValues,
     Key,
     NoAgentTool,
+    NoDiffTool,
+    NoMaster,
     NotForAgents,
     NotStarted,
     PaneNotFound,
@@ -264,8 +272,34 @@ def create_app(
         return state()
 
     @api.post("/projects/{project}/tasks", status_code=201)
-    def create_task(project: str, new: TaskCreate) -> AppState:
-        new_task(project, new)
+    def create_task(project: str, new: TaskCreate, start: bool = False) -> AppState:
+        """Create a task in the backlog. With `start`, start it and its master agent at once,
+        with the description as the agent's first message; with a clone, after the clone."""
+        if new.branch and not cloner.valid_branch(new.branch):
+            raise HTTPException(
+                status_code=400, detail=f'"{new.branch}" is not a valid branch name.'
+            )
+        if start:
+            waiting = [
+                other.name
+                for other in store.project(project).backlog
+                if other.slug in new.dependencies
+            ]
+            if waiting:
+                raise Blocked(new.name, waiting)
+        task = store.create_task(project, new)
+        then = None
+        if start:
+            store.start_task(project, task.slug)
+            store.focus_task(project, task.slug)
+
+            def then() -> None:
+                workspaces.start_master(project, task.slug)
+
+        if task.repo:
+            cloner.start(project, task, store.project(project).github_url, then)
+        elif then is not None:
+            then()
         return state()
 
     @api.put("/projects/{project}/tasks/order")
@@ -326,6 +360,26 @@ def create_app(
     def pane_page_version(project: str, task: str, pane: str) -> PageVersion:
         """Asked again and again by a web pane, which loads its page anew on a change."""
         return PageVersion(version=workspaces.page_version(project, task, pane))
+
+    @api.get(PANES + "/{pane}/diff")
+    def pane_diff(project: str, task: str, pane: str, mode: DiffMode = "branch") -> Diff:
+        """The changes a diff pane shows."""
+        return workspaces.diff(project, task, pane, mode)
+
+    @api.get(PANES + "/{pane}/review")
+    def pane_review(project: str, task: str, pane: str) -> Review:
+        """The comments written in a diff pane so far."""
+        return workspaces.draft(project, task, pane)
+
+    @api.put(PANES + "/{pane}/review")
+    def save_review(project: str, task: str, pane: str, review: Review) -> None:
+        workspaces.save_draft(project, task, pane, review)
+
+    @api.post(PANES + "/{pane}/review")
+    def submit_review(project: str, task: str, pane: str, review: Review) -> AppState:
+        """Finish a review: its comments go to the agent that asked for it, or the master."""
+        workspaces.submit_review(project, task, pane, review)
+        return state()
 
     @api.put("/projects/{project}/tasks/{task}/layout")
     def set_layout(project: str, task: str, layout: Layout) -> AppState:
@@ -410,9 +464,16 @@ def create_app(
     @above.post("/projects/{project}/tasks/{task}/start")
     def above_start_task(project: str, task: str, start: TaskStart) -> TaskSummary:
         """Move the task into the task bar; with a prompt, start its master with it."""
+        found = store.task(project, task)
+        if start.prompt and found.clone == "cloning":
+            # Its master would start outside the clone.
+            raise HTTPException(
+                status_code=409,
+                detail=f'"{found.name}" is still being cloned; start it once the clone is ready.',
+            )
         store.start_task(project, task)
         if start.prompt and start.prompt.strip():
-            workspaces.start_master(project, task, start.prompt)
+            workspaces.start_master(project, task, start.prompt, spawned_by=ORCHESTRATOR)
         return summary(project, store.task(project, task))
 
     @above.delete("/projects/{project}/tasks/{task}")
@@ -484,6 +545,14 @@ def create_app(
     def agent_spawn(caller: Caller, spawn: AgentSpawn) -> Opened:
         opened = workspaces.spawn(caller, spawn)
         return Opened(pane=opened.id, agent=opened.agent)
+
+    @agent.post("/reviews", status_code=201)
+    def agent_request_review(caller: Caller, request: ReviewRequest) -> Opened:
+        return Opened(pane=workspaces.request_review(caller, request).id)
+
+    @agent.get("/reviews/{pane}")
+    def agent_review_state(caller: Caller, pane: str) -> ReviewState:
+        return workspaces.review_state(caller, pane)
 
     @agent.get("/tools")
     def agent_tools(caller: Caller) -> list[Tool]:
@@ -634,6 +703,14 @@ def create_app(
             f"no tool starts agents: .tools/{SPAWNING_TOOL}.toml needs `agent = true`"
             " and a `spawn` line",
         )
+
+    @app.exception_handler(NoDiffTool)
+    def no_diff_tool(_request: Request, _error: NoDiffTool) -> JSONResponse:
+        return answer(404, 'no tool shows the changes: a tool in .tools needs `kind = "diff"`')
+
+    @app.exception_handler(NoMaster)
+    def no_master(_request: Request, _error: NoMaster) -> JSONResponse:
+        return answer(409, "The task has no running master agent to send the review to.")
 
     @app.exception_handler(NotForAgents)
     def not_for_agents(_request: Request, error: NotForAgents) -> JSONResponse:

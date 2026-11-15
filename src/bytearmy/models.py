@@ -139,7 +139,8 @@ class Split(BaseModel):
 class Pane(BaseModel):
     id: str
     tool: str
-    kind: Literal["terminal", "web"] = "terminal"  # a program in a terminal, or a page
+    # a program in a terminal, a page, or the changes of the task's clone to review
+    kind: Literal["terminal", "web", "diff"] = "terminal"
     title: str
     values: dict[str, str] = {}  # the tool's parameters, e.g. the file for Vim
     session: str = ""  # stays the same across restarts; lets a tool such as Claude resume
@@ -195,7 +196,8 @@ class Tool(BaseModel):
     # terminal: a program in a terminal pane. web: a page in a browser pane.
     # external: a program with a window of its own, no pane.
     # log: adds its parameter `entry` to the task's log, no pane.
-    kind: Literal["terminal", "web", "external", "log"] = "terminal"
+    # diff: the changes of the task's clone, for the user to review and comment on.
+    kind: Literal["terminal", "web", "external", "log", "diff"] = "terminal"
     command: str = ""  # run by the user's shell; for a terminal, empty means the shell itself
     resume: str = ""  # run instead of `command` when a pane is restored after a restart
     agent: bool = False  # the program is an agent: it gets a name and bytearmy's instructions
@@ -215,6 +217,58 @@ class Tool(BaseModel):
         if self.kind == "log" and "entry" not in {parameter.name for parameter in self.parameters}:
             raise ValueError("a log tool needs a parameter named entry")
         return self
+
+
+DiffMode = Literal["branch", "uncommitted"]  # against the default branch, or against HEAD
+
+
+class DiffLine(BaseModel):
+    kind: Literal["context", "add", "delete"]
+    old: int | None = None  # its number in the old version; None for an added line
+    new: int | None = None  # its number in the new version; None for a deleted line
+    text: str
+
+
+class Hunk(BaseModel):
+    header: str  # the `@@ -a,b +c,d @@` line
+    lines: list[DiffLine]
+
+
+class DiffFile(BaseModel):
+    path: str
+    old_path: str = ""  # set for a renamed file
+    status: Literal["modified", "added", "deleted", "renamed"]
+    binary: bool = False
+    truncated: bool = False  # its diff is too long to show; it has no hunks
+    additions: int = 0
+    deletions: int = 0
+    hunks: list[Hunk] = []
+
+
+class Diff(BaseModel):
+    """The changes a diff pane shows."""
+
+    mode: DiffMode
+    base: str  # what the changes are compared with, e.g. origin/main
+    commit: str  # the commit that is
+    files: list[DiffFile]
+
+
+class ReviewComment(BaseModel):
+    path: str
+    side: Literal["old", "new"] = "new"  # old: the lines are those of the old version
+    start: int = 0  # first line; 0 for a comment on the whole file
+    end: int = 0  # last line
+    quote: str = ""  # the lines commented on
+    body: str
+
+
+class Review(BaseModel):
+    """The comments of a review; kept while the user writes them, sent when finished."""
+
+    mode: DiffMode = "branch"
+    comments: list[ReviewComment] = []
+    summary: str = ""
 
 
 class LogEntry(BaseModel):
@@ -452,6 +506,20 @@ class Agent(BaseModel):
     pane: str
     master: bool
     running: bool  # its program runs; false after it ended with an error
+
+
+class ReviewRequest(BaseModel):
+    """An agent asks the user to review the changes of the task's clone."""
+
+    mode: DiffMode = "branch"
+    note: str = ""  # what the agent wants the user to look at
+
+
+class ReviewState(BaseModel):
+    """Whether the user has finished a review an agent asked for, and what they said."""
+
+    done: bool
+    text: str = ""
 
 
 class Opened(BaseModel):

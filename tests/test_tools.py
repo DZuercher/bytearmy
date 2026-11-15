@@ -34,6 +34,7 @@ def test_the_premade_tools_are_written_once_and_never_overwritten(tmp_path):
     ensure_premade(tmp_path)
     assert sorted(file.name for file in (tmp_path / ".tools").iterdir()) == [
         "claude.toml",
+        "diff.toml",
         "explorer.toml",
         "html.toml",
         "log.toml",

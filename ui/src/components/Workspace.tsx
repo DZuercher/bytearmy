@@ -3,6 +3,7 @@ import { EyeOff, Maximize2, Minimize2, X } from 'lucide-react'
 import { useState } from 'react'
 import { Mosaic, type MosaicNode, MosaicWindow } from 'react-mosaic-component'
 import { type AppState, type Project, type Task, type Tree, api, openTerminal } from '@/api/client'
+import { DiffPane } from '@/components/diff/DiffPane'
 import { TerminalPane } from '@/components/TerminalPane'
 import { Button } from '@/components/ui/button'
 import { type Browser, WebControls, WebPane } from '@/components/WebPane'
@@ -119,6 +120,8 @@ export function Workspace({ project, task, visible, run, onArrange, onActivePane
                       )
                     }
                   />
+                ) : pane.kind === 'diff' ? (
+                  <DiffPane place={{ ...place, pane: id }} pane={pane} run={run} />
                 ) : (
                   <TerminalPane
                     program={`${place.project}/${place.task}/${id}`}

@@ -12,14 +12,13 @@ from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 
-from bytearmy import themes
+from bytearmy import diffs, themes
 from bytearmy.agents import (
     EARLIER_INSTRUCTIONS,
     EARLIER_ORCHESTRATOR_INSTRUCTIONS,
     INSTRUCTIONS,
     INSTRUCTIONS_FILE,
     MASTER,
-    ORCHESTRATOR,
     ORCHESTRATOR_FILE,
     ORCHESTRATOR_INSTRUCTIONS,
     agent_name,
@@ -31,10 +30,15 @@ from bytearmy.models import (
     BACKLOG,
     Agent,
     AgentSpawn,
+    Diff,
+    DiffMode,
     LogEntry,
     Pane,
     PaneCall,
     PaneOpen,
+    Review,
+    ReviewRequest,
+    ReviewState,
     Split,
     Task,
     Tool,
@@ -53,7 +57,12 @@ from bytearmy.tools import (
     page_url,
     write_premade,
 )
+from bytearmy.trust import trust_directory
 
+PASTE_START, PASTE_END = b"\x1b[200~", b"\x1b[201~"  # bracketed paste, as terminals send it
+SUBMIT_DELAY_SECONDS = 0.3  # Claude takes a paste as such only if Enter comes after it
+REVIEWS_DIR = "reviews"  # below a task's metadata: the drafts of its reviews
+CLOSED_REVIEW = "The user closed the review without finishing it."
 COULD_NOT_START = 127  # the exit code a shell gives for a command it cannot find
 SPAWNING_TOOL = "claude"  # starts agents for a pane that is not an agent itself
 
@@ -90,6 +99,14 @@ class InvalidValues(ValueError):
 
 class InvalidLayout(ValueError):
     pass
+
+
+class NoDiffTool(LookupError):
+    """No tool shows the changes of a task."""
+
+
+class NoMaster(LookupError):
+    """The task has no running master agent to send a review to."""
 
 
 def pane_env(environ: Mapping[str, str], prefix: str) -> dict[str, str]:
@@ -134,6 +151,7 @@ class Workspaces:
         self._ptys: dict[Key, Pty] = {}
         self._ending: set[Key] = set()  # panes whose program is being ended on purpose
         self._keys: dict[Key, str] = {}  # the key each pane's program calls the core with
+        self._reviews: dict[Key, str] = {}  # finished reviews an agent asked for, until it reads
         self._stopping = False
         self._logs = store.root / METADATA_DIR / "logs"  # of programs without a terminal
         self._services = Services(self._logs)
@@ -262,8 +280,11 @@ class Workspaces:
         return opened[0]
 
     def close_pane(self, project: str, task: str, pane: str) -> None:
-        if pane not in self._store.task(project, task).workspace.panes:
+        found = self._store.task(project, task)
+        if pane not in found.workspace.panes:
             raise PaneNotFound(pane)
+        if found.workspace.panes[pane].kind == "diff":
+            _draft_file(found, pane).unlink(missing_ok=True)
         self._end([(project, task, pane)])
         self._store.change_workspace(project, task, lambda workspace: _drop(workspace, pane))
 
@@ -410,23 +431,29 @@ class Workspaces:
         self.start(project, task, opened.id)
         return opened
 
-    def start_master(self, project: str, task: str, prompt: str) -> Pane:
-        """Start the master of a task for the orchestrator, with `prompt` as its first message.
+    def start_master(
+        self, project: str, task: str, prompt: str | None = None, spawned_by: str = ""
+    ) -> Pane:
+        """Open the master agent of a task, shown on its workspace, with `prompt` as its first
+        message: by default the task's description; one without either just starts.
 
-        It runs the Claude tool of the project and is shown on the task's workspace.
+        The orchestrator passes its own prompt, and itself as `spawned_by`.
         """
         tool = self._tools(project).get(SPAWNING_TOOL)
-        if tool is None or not (tool.agent and tool.spawn):
+        if tool is None or not tool.agent or (prompt and not tool.spawn):
             raise NoAgentTool()
-        if self._store.task(project, task).workspace.master is not None:
+        found = self._store.task(project, task)
+        if found.workspace.master is not None:
             raise RoleTaken(MASTER)
+        if prompt is None:
+            prompt = found.description
         opened = self.open_pane(
             project,
             task,
             PaneOpen(tool=tool.id),
             role=MASTER,
-            prompt=prompt,
-            spawned_by=ORCHESTRATOR,
+            prompt=prompt if tool.spawn else "",
+            spawned_by=spawned_by,
         )
         assert isinstance(opened, Pane)  # an agent tool is never external, nor a log
         self.start(project, task, opened.id)
@@ -442,6 +469,113 @@ class Workspaces:
     def bin_dir(self) -> Path:
         """Where the `bytearmy` command of the panes lies."""
         return self._bin
+
+    def request_review(self, caller: Key, request: ReviewRequest) -> Pane:
+        """Open a highlighted diff pane beside the calling one; the review the user writes
+        there is kept for the caller instead of being sent to the master."""
+        project, task, pane = caller
+        tools = self._tools(project)
+        tool = tools.get("diff")
+        if tool is None or tool.kind != "diff":
+            tool = next((other for other in tools.values() if other.kind == "diff"), None)
+        if tool is None:
+            raise NoDiffTool()
+        opened = self.open_pane(project, task, PaneOpen(tool=tool.id, beside=pane))
+        assert isinstance(opened, Pane)
+
+        def change(workspace: Workspace) -> None:
+            shown = workspace.panes[opened.id]
+            shown.values = {"requester": pane, "mode": request.mode, "note": request.note}
+            shown.highlighted = True
+
+        self._store.change_workspace(project, task, change)
+        return opened
+
+    def review_state(self, caller: Key, pane: str) -> ReviewState:
+        """Whether the review in a diff pane is finished; a finished one is handed out once."""
+        project, task, _ = caller
+        key = (project, task, pane)
+        with self._lock:
+            if key in self._reviews:
+                return ReviewState(done=True, text=self._reviews.pop(key))
+        if pane in self._store.task(project, task).workspace.panes:
+            return ReviewState(done=False)
+        return ReviewState(done=True, text=CLOSED_REVIEW)
+
+    def diff(self, project: str, task: str, pane: str, mode: DiffMode) -> Diff:
+        """The changes a diff pane shows."""
+        found, _, tool = self._diff_pane(project, task, pane)
+        try:
+            return diffs.diff(_directory(tool, found), mode)
+        except (diffs.GitFailed, OSError) as error:
+            raise InvalidValues(f"The changes cannot be read: {error}") from error
+
+    def draft(self, project: str, task: str, pane: str) -> Review:
+        """The comments the user has written in a diff pane so far."""
+        found, shown, _ = self._diff_pane(project, task, pane)
+        file = _draft_file(found, pane)
+        if file.is_file():
+            try:
+                return Review.model_validate_json(file.read_text())
+            except ValueError:
+                pass  # a damaged draft: start anew
+        return Review(mode=shown.values.get("mode") or "branch")
+
+    def save_draft(self, project: str, task: str, pane: str, review: Review) -> None:
+        found, _, _ = self._diff_pane(project, task, pane)
+        file = _draft_file(found, pane)
+        file.parent.mkdir(parents=True, exist_ok=True)
+        file.write_text(review.model_dump_json(indent=2))
+
+    def submit_review(self, project: str, task: str, pane: str, review: Review) -> None:
+        """Send a finished review: to the agent that asked for it, or else to the master.
+
+        The diff pane closes afterwards.
+        """
+        found, shown, tool = self._diff_pane(project, task, pane)
+        try:
+            _, label = diffs.base(_directory(tool, found), review.mode)
+        except (diffs.GitFailed, OSError):
+            label = "HEAD" if review.mode == "uncommitted" else "the default branch"
+        text = diffs.format_review(label, review.comments, review.summary)
+        requester = shown.values.get("requester")
+        if requester:
+            with self._lock:
+                self._reviews[(project, task, pane)] = text
+        else:
+            self.send_to_master(project, task, text)
+        count = len(review.comments)
+        entry = LogEntry(
+            time=datetime.now(UTC).replace(microsecond=0),
+            author="user",
+            text=f"Finished a review with {count} comment{'s' * (count != 1)}",
+        )
+        self._store.add_log_entry(project, task, entry)
+        _draft_file(found, pane).unlink(missing_ok=True)
+        self.close_pane(project, task, pane)
+
+    def send_to_master(self, project: str, task: str, text: str) -> None:
+        """Type a message into the terminal of the task's master, as if the user wrote it."""
+        master = self._store.task(project, task).workspace.master
+        with self._lock:
+            pty = self._ptys.get((project, task, master)) if master else None
+            if pty is None or pty.exit_code is not None:
+                raise NoMaster()
+        clean = text.replace("\x1b", "").replace("\r\n", "\n").encode()
+        pty.write(PASTE_START + clean + PASTE_END)
+        submit = threading.Timer(SUBMIT_DELAY_SECONDS, pty.write, args=(b"\r",))
+        submit.daemon = True
+        submit.start()
+
+    def _diff_pane(self, project: str, task: str, pane: str) -> tuple[Task, Pane, Tool]:
+        found = self._store.task(project, task)
+        shown = found.workspace.panes.get(pane)
+        if shown is None or shown.kind != "diff":
+            raise PaneNotFound(pane)
+        tool = self._tools(project).get(shown.tool)
+        if tool is None or tool.kind != "diff":
+            raise UnknownTool(shown.tool)
+        return found, shown, tool
 
     def agents(self, project: str, task: str) -> list[Agent]:
         workspace = self._store.task(project, task).workspace
@@ -526,9 +660,12 @@ class Workspaces:
         instructions = write_instructions(self._store.root, found, pane) if tool.agent else None
         line = command_line(tool, pane, restoring, instructions)
         argv = [*self._shell, "-c", line] if line else self._shell
+        directory = _directory(tool, found)
+        if tool.agent:
+            trust_directory(directory)  # Claude would first ask whether to trust it
         self._ptys[key] = Pty(
             argv,
-            _directory(tool, found),
+            directory,
             self._env(key),
             rows,
             cols,
@@ -647,6 +784,10 @@ def _directory(tool: Tool, task: Task) -> Path:
     if tool.directory == "repo" and task.clone == "ready":
         directory /= task.repo
     return directory
+
+
+def _draft_file(task: Task, pane: str) -> Path:
+    return Path(task.path) / METADATA_DIR / REVIEWS_DIR / f"{pane}.json"
 
 
 def _stamp(file: Path) -> str:
