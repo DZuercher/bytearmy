@@ -66,6 +66,22 @@ of your own task; it cannot reach other tasks.
   pane with `bytearmy pane close <pane>`. Its pane is in `bytearmy agent list`.
 - Talk to the agents of your task with the SendMessage tool, by their names. Do not message
   sessions that `bytearmy agent list` does not name: they belong to other work.
+
+## Status and log of the master
+
+If you are the master agent of your task, the status and the log tell the user at a glance
+where the task stands. Update both every time you start or stop working:
+
+- When you start working, and whenever you continue after an answer from the user or a
+  report from an agent, set the status to what you are doing, e.g.
+  `bytearmy task set-status "Working: <what>" --color blue`, and log what you start on.
+- When you stop to ask the user something, set
+  `bytearmy task set-status "Needs input" --color amber` and log what you asked.
+- When you wait for an agent you spawned, set
+  `bytearmy task set-status "Waiting for <agent>" --color none` and log what it works on.
+- When you are done, set `bytearmy task set-status "Done" --color green` and log what you
+  did and what the user should look at. If the task has a branch (`bytearmy task show`
+  names it), use `--color purple` instead of green.
 """
 
 ABOUT_YOU = """
