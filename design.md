@@ -137,6 +137,16 @@ Reviews:
 What a program without a pane (an external tool, the VS Code server) prints goes to `<bytearmy_root>/.bytearmy/logs/<tool>.log`.
 
 
+## Inbox
+The inbox gathers messages for the user from sources outside bytearmy. GitHub is the first source; email, Slack and Webex are to follow.
+A small `Inbox` tab sits just above the project bar. It shows the number of unread messages. Clicking it shows the inbox in place of the workspace; choosing a project, a task or a pane shows the workspace again. Which of the two is shown is kept with the state of the bars.
+The inbox lists the messages of all sources, newest first: title, where it comes from (for GitHub the repository), why it reached the user and when. Unread messages are marked. Selecting a message shows its page beside the list, in a browser view that shares the session of the web panes, and marks it read. A message can be marked read or unread, or dismissed, which hides it until it sees new activity.
+A thread in the core asks every source for new messages once a minute; the refresh button asks at once. What is new shows in the window at once. A source that cannot be asked shows why above the list.
+The messages are kept in `<bytearmy_root>/.bytearmy/inbox.json`.
+
+### GitHub
+The messages from GitHub are the users notifications (what github.com/notifications shows). bytearmy asks for them with `gh`, as the user logged in with `gh auth login`; it keeps no token of its own. Marking a message read marks the notification read on GitHub; dismissing it marks it done. Marking unread stays in bytearmy, as GitHub cannot. A notification read on GitHub turns read in bytearmy.
+
 ## Directory structure
 Each task is assigned to a project and has its own working directory. 
 `bytearmy_root` is `~/bytearmy` by default. It can be changed with the `--root` option or the `BYTEARMY_ROOT` environment variable.
@@ -146,7 +156,7 @@ Only one bytearmy runs on a root at a time: a second one refuses to start and na
 bytearmy_root
 |- .tools [contains tools]
 |- .claude [contains bytearmy.md, the explanation for claude about how bytearmy works and how claude can interact with it. It is passed to every Claude pane when it starts]
-|- .bytearmy [contains global metadata, the logs of programs without a pane, the browser session of the web panes, the `bytearmy` command of the panes and the lock that keeps a second bytearmy off the root]
+|- .bytearmy [contains global metadata, the messages of the inbox, the logs of programs without a pane, the browser session of the web panes, the `bytearmy` command of the panes and the lock that keeps a second bytearmy off the root]
 |-- project-1
     |- .bytearmy [contains bytearmy project level metadata, like name and Github URL, and the mirror of the projects repository the tasks clone from]
     |- .claude [contains project specific claude configurations like CLAUDE.md etc. Claude loads this CLAUDE.md by itself in every task of the project]

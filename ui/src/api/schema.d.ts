@@ -38,6 +38,57 @@ export interface paths {
         patch: operations["update_ui_api_ui_patch"];
         trace?: never;
     };
+    "/api/inbox/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Refresh Inbox */
+        post: operations["refresh_inbox_api_inbox_refresh_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/inbox/{message}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark Message */
+        post: operations["mark_message_api_inbox__message__read_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/inbox/{message}/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Dismiss Message */
+        post: operations["dismiss_message_api_inbox__message__dismiss_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/focus": {
         parameters: {
             query?: never;
@@ -702,6 +753,13 @@ export interface components {
              *     }
              */
             theme: components["schemas"]["Theme"];
+            /**
+             * @default {
+             *       "messages": [],
+             *       "errors": {}
+             *     }
+             */
+            inbox: components["schemas"]["InboxState"];
         };
         /**
          * Diff
@@ -796,10 +854,77 @@ export interface components {
             /** Lines */
             lines: components["schemas"]["DiffLine"][];
         };
+        /**
+         * InboxState
+         * @description Contents of `<root>/.bytearmy/inbox.json`, and what the UI shows of the inbox.
+         */
+        InboxState: {
+            /**
+             * Messages
+             * @default []
+             */
+            messages: components["schemas"]["Message"][];
+            /**
+             * Errors
+             * @default {}
+             */
+            errors: {
+                [key: string]: string;
+            };
+            /** Last Checked */
+            last_checked?: string | null;
+        };
         /** Layout */
         Layout: {
             /** Tree */
             tree: components["schemas"]["Split-Input"] | string | null;
+        };
+        /**
+         * Message
+         * @description One message of the inbox, as a source reported it.
+         */
+        Message: {
+            /** Id */
+            id: string;
+            /**
+             * Source
+             * @constant
+             */
+            source: "github";
+            /** Title */
+            title: string;
+            /**
+             * Kind
+             * @default
+             */
+            kind: string;
+            /**
+             * Context
+             * @default
+             */
+            context: string;
+            /**
+             * Reason
+             * @default
+             */
+            reason: string;
+            /**
+             * Url
+             * @default
+             */
+            url: string;
+            /** Updated At */
+            updated_at: string;
+            /**
+             * Unread
+             * @default true
+             */
+            unread: boolean;
+            /**
+             * Dismissed
+             * @default false
+             */
+            dismissed: boolean;
         };
         /**
          * Opened
@@ -1028,6 +1153,11 @@ export interface components {
         ProjectOrder: {
             /** Order */
             order: string[];
+        };
+        /** ReadChange */
+        ReadChange: {
+            /** Unread */
+            unread: boolean;
         };
         /**
          * Review
@@ -1404,6 +1534,8 @@ export interface components {
             right_open?: boolean | null;
             /** Bottom Open */
             bottom_open?: boolean | null;
+            /** View */
+            view?: ("workspace" | "inbox") | null;
         };
         /** UiState */
         UiState: {
@@ -1422,6 +1554,12 @@ export interface components {
              * @default true
              */
             bottom_open: boolean;
+            /**
+             * View
+             * @default workspace
+             * @enum {string}
+             */
+            view: "workspace" | "inbox";
         };
         /** Unfold */
         Unfold: {
@@ -1518,6 +1656,92 @@ export interface operations {
                 "application/json": components["schemas"]["UiChange"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    refresh_inbox_api_inbox_refresh_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppState"];
+                };
+            };
+        };
+    };
+    mark_message_api_inbox__message__read_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                message: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReadChange"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    dismiss_message_api_inbox__message__dismiss_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                message: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {

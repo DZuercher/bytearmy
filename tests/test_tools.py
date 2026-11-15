@@ -115,7 +115,7 @@ def test_the_premade_web_and_external_tools_say_what_they_show(tmp_path):
         name="Webpage",
         kind="web",
         url="{url}",
-        parameters=[Parameter(name="url", label="URL", default="{github_page}")],
+        parameters=[Parameter(name="url", label="URL", default="{task_page}")],
     )
     assert tools["html"] == Tool(
         id="html",
@@ -301,3 +301,12 @@ def test_only_http_and_https_pages_are_shown(entered):
 
     with pytest.raises(ValueError, match="is not a web page"):
         shown(tool, url=entered)
+
+
+def test_a_default_can_be_the_pull_request_of_the_task_or_else_the_project_page():
+    page, pull = "https://github.com/org/repo", "https://github.com/org/repo/pull/7"
+    parameter = Parameter(name="url", default="{task_page}")
+
+    assert default_value(parameter, page, pull) == pull
+    assert default_value(parameter, page) == page
+    assert default_value(parameter, "") == ""

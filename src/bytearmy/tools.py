@@ -47,7 +47,8 @@ HEADER = """\
 #   callers     who may open the tool: ["user", "agent"] (default)
 #   [[parameters]] with name, label, path = true for a file below the task directory
 #               and default = what is used if nothing is entered ({github_page}: the
-#               page of the project)
+#               page of the project; {task_page}: the pull request of the task's branch,
+#               or the page of the project if there is none)
 #   [service]   web: a program that all panes of the tool share, started when a pane
 #               first needs it. `command` is run by /bin/sh with a free {port} and a
 #               random {token}; `url` is where it then answers, and what {service} in
@@ -93,7 +94,7 @@ PREMADE = {
         "[[parameters]]\n"
         'name = "url"\n'
         'label = "URL"\n'
-        'default = "{github_page}"\n'
+        'default = "{task_page}"\n'
     ),
     "html": (
         'name = "HTML"\n'
@@ -266,11 +267,16 @@ def external_command(tool: Tool, values: Mapping[str, str]) -> str:
     return fill(tool.command, {name: shlex.quote(value) for name, value in values.items()})
 
 
-def default_value(parameter: Parameter, github_page: str) -> str:
-    """What a parameter is taken to be if nothing is entered for it."""
-    if "{github_page}" in parameter.default and not github_page:
+def default_value(parameter: Parameter, github_page: str, pull_request: str = "") -> str:
+    """What a parameter is taken to be if nothing is entered for it.
+
+    {task_page} is the task's pull request, or the project's page if it has none.
+    """
+    task_page = pull_request or github_page
+    pages = {"github_page": github_page, "task_page": task_page}
+    if any(f"{{{name}}}" in parameter.default and not page for name, page in pages.items()):
         return ""  # the project has no page: there is nothing to offer
-    return fill(parameter.default, {"github_page": github_page})
+    return fill(parameter.default, pages)
 
 
 def page_url(

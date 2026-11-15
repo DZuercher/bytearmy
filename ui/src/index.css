@@ -163,3 +163,21 @@
 .dark .hljs-meta, .dark .hljs-meta .hljs-keyword { color: #7ee787; }
 .dark .hljs-name, .dark .hljs-tag, .dark .hljs-selector-pseudo { color: #7ee787; }
 .dark .hljs-deletion { color: #ffdcd7; }
+
+/* react-mosaic paints the pane title bars white and their titles grey, whatever the color
+   scheme; in a dark scheme the buttons in the title bars vanished on the white. These rules
+   are more specific than the library's, which is loaded after this file. */
+.mosaic.mosaic-blueprint-theme :is(.mosaic-window, .mosaic-preview) .mosaic-window-toolbar {
+    background: var(--background);
+    color: var(--foreground);
+    box-shadow: 0 1px 0 var(--border);
+}
+.mosaic.mosaic-blueprint-theme :is(.mosaic-window, .mosaic-preview) .mosaic-window-toolbar .mosaic-window-title {
+    color: var(--foreground);
+}
+.mosaic.mosaic-blueprint-theme .mosaic-tile :is(.mosaic-window, .mosaic-preview) .mosaic-window-body {
+    background: var(--background);
+}
+.mosaic.mosaic-blueprint-theme .mosaic-tile :is(.mosaic-window, .mosaic-preview) {
+    box-shadow: 0 0 0 1px var(--border);
+}

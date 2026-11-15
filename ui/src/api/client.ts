@@ -24,6 +24,8 @@ export type Hunk = Schemas['Hunk']
 export type DiffLine = Schemas['DiffLine']
 export type Review = Schemas['Review']
 export type ReviewComment = Schemas['ReviewComment']
+export type Message = Schemas['Message']
+export type Inbox = Schemas['InboxState']
 
 const routes = {
   state: '/api/state',
@@ -49,6 +51,9 @@ const routes = {
   panePageVersion: '/api/projects/{project}/tasks/{task}/panes/{pane}/page/version',
   paneDiff: '/api/projects/{project}/tasks/{task}/panes/{pane}/diff',
   paneReview: '/api/projects/{project}/tasks/{task}/panes/{pane}/review',
+  inboxRefresh: '/api/inbox/refresh',
+  inboxRead: '/api/inbox/{message}/read',
+  inboxDismiss: '/api/inbox/{message}/dismiss',
 } as const satisfies Record<string, keyof paths>
 
 function fill(route: string, parts: { project: string; task?: string; pane?: string }): string {
@@ -137,6 +142,14 @@ export const api = {
     request('POST', fill(routes.paneReview, { project, task, pane }), review),
   listHidden: (project: string, task: string, open: boolean) =>
     request('PUT', fill(routes.hiddenOpen, { project, task }), { open } satisfies Schemas['Unfold']),
+
+  refreshInbox: () => request('POST', routes.inboxRefresh),
+  markMessage: (message: string, unread: boolean) =>
+    request('POST', routes.inboxRead.replace('{message}', encodeURIComponent(message)), {
+      unread,
+    } satisfies Schemas['ReadChange']),
+  dismissMessage: (message: string) =>
+    request('POST', routes.inboxDismiss.replace('{message}', encodeURIComponent(message))),
 }
 
 // Calls `onChange` whenever the core's data changed, also by a program in a pane, so the

@@ -61,6 +61,112 @@
         }
       }
     },
+    "/api/inbox/refresh": {
+      "post": {
+        "summary": "Refresh Inbox",
+        "operationId": "refresh_inbox_api_inbox_refresh_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppState"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/inbox/{message}/read": {
+      "post": {
+        "summary": "Mark Message",
+        "operationId": "mark_message_api_inbox__message__read_post",
+        "parameters": [
+          {
+            "name": "message",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Message"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReadChange"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/inbox/{message}/dismiss": {
+      "post": {
+        "summary": "Dismiss Message",
+        "operationId": "dismiss_message_api_inbox__message__dismiss_post",
+        "parameters": [
+          {
+            "name": "message",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Message"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/focus": {
       "put": {
         "summary": "Focus Project",
@@ -2111,6 +2217,13 @@
               "appearance": "light",
               "colors": {}
             }
+          },
+          "inbox": {
+            "$ref": "#/components/schemas/InboxState",
+            "default": {
+              "messages": [],
+              "errors": {}
+            }
           }
         },
         "type": "object",
@@ -2328,6 +2441,40 @@
         ],
         "title": "Hunk"
       },
+      "InboxState": {
+        "properties": {
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/Message"
+            },
+            "type": "array",
+            "title": "Messages",
+            "default": []
+          },
+          "errors": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Errors",
+            "default": {}
+          },
+          "last_checked": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Checked"
+          }
+        },
+        "type": "object",
+        "title": "InboxState",
+        "description": "Contents of `<root>/.bytearmy/inbox.json`, and what the UI shows of the inbox."
+      },
       "Layout": {
         "properties": {
           "tree": {
@@ -2350,6 +2497,66 @@
           "tree"
         ],
         "title": "Layout"
+      },
+      "Message": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "source": {
+            "type": "string",
+            "const": "github",
+            "title": "Source"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "default": ""
+          },
+          "context": {
+            "type": "string",
+            "title": "Context",
+            "default": ""
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "default": ""
+          },
+          "url": {
+            "type": "string",
+            "title": "Url",
+            "default": ""
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          },
+          "unread": {
+            "type": "boolean",
+            "title": "Unread",
+            "default": true
+          },
+          "dismissed": {
+            "type": "boolean",
+            "title": "Dismissed",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "source",
+          "title",
+          "updated_at"
+        ],
+        "title": "Message",
+        "description": "One message of the inbox, as a source reported it."
       },
       "Opened": {
         "properties": {
@@ -2742,6 +2949,19 @@
           "order"
         ],
         "title": "ProjectOrder"
+      },
+      "ReadChange": {
+        "properties": {
+          "unread": {
+            "type": "boolean",
+            "title": "Unread"
+          }
+        },
+        "type": "object",
+        "required": [
+          "unread"
+        ],
+        "title": "ReadChange"
       },
       "Review": {
         "properties": {
@@ -3417,6 +3637,21 @@
               }
             ],
             "title": "Bottom Open"
+          },
+          "view": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "workspace",
+                  "inbox"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "View"
           }
         },
         "type": "object",
@@ -3439,6 +3674,15 @@
             "type": "boolean",
             "title": "Bottom Open",
             "default": true
+          },
+          "view": {
+            "type": "string",
+            "enum": [
+              "workspace",
+              "inbox"
+            ],
+            "title": "View",
+            "default": "workspace"
           }
         },
         "type": "object",

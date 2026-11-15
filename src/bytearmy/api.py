@@ -15,6 +15,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from bytearmy.clones import AlreadyCloning, Cloner
+from bytearmy.inbox import Inbox, MessageNotFound
 from bytearmy.logpage import render
 from bytearmy.models import (
     Agent,
@@ -35,6 +36,7 @@ from bytearmy.models import (
     ProjectEdit,
     ProjectMeta,
     ProjectOrder,
+    ReadChange,
     Review,
     ReviewRequest,
     ReviewState,
@@ -100,9 +102,14 @@ def create_app(
     cloner: Cloner | None = None,
     workspaces: Workspaces | None = None,
     url: str = "",
+    inbox: Inbox | None = None,
 ) -> FastAPI:
-    """The core's app. `url` is where it is served: the programs in the panes call it there."""
+    """The core's app. `url` is where it is served: the programs in the panes call it there.
+
+    Without an `inbox`, the inbox asks no source: only the app the user starts asks GitHub.
+    """
     cloner = cloner or Cloner(store)
+    inbox = inbox or Inbox(store)
     workspaces = workspaces or Workspaces(store)
     if url:
         workspaces.url = url
@@ -121,11 +128,16 @@ def create_app(
     def state() -> AppState:
         """Everything the UI shows. Every change answers with it, so the UI never merges."""
         whole = store.app_state()
-        slugs = {project.slug for project in whole.projects}
-        # The command dialogue opens tools in the focused project: its tools are offered.
-        focused = whole.focused_project if whole.focused_project in slugs else None
-        whole.tools = workspaces.tools(focused)
+        # The command dialogue opens tools in the focused task of the focused project: its
+        # tools are offered, with the task's pull request as the default of {task_page}.
+        focused = next((p for p in whole.projects if p.slug == whole.focused_project), None)
+        task = focused.focused_task if focused else None
+        started = {started.slug for started in focused.tasks} if focused else set()
+        whole.tools = workspaces.tools(
+            focused.slug if focused else None, task if task in started else None
+        )
         whole.theme = load_theme(store.root)
+        whole.inbox = inbox.state()
         return whole
 
     api = APIRouter(prefix="/api", dependencies=[Depends(require_token)])
@@ -137,6 +149,21 @@ def create_app(
     @api.patch("/ui")
     def update_ui(change: UiChange) -> AppState:
         store.update_ui(change)
+        return state()
+
+    @api.post("/inbox/refresh")
+    def refresh_inbox() -> AppState:
+        inbox.refresh()
+        return state()
+
+    @api.post("/inbox/{message}/read")
+    def mark_message(message: str, change: ReadChange) -> AppState:
+        inbox.mark(message, change.unread)
+        return state()
+
+    @api.post("/inbox/{message}/dismiss")
+    def dismiss_message(message: str) -> AppState:
+        inbox.dismiss(message)
         return state()
 
     @api.put("/focus")
@@ -353,7 +380,9 @@ def create_app(
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
         workspaces.start_all()
+        inbox.start()
         yield
+        inbox.shutdown()
         cloner.shutdown()
         workspaces.shutdown()
 
@@ -468,6 +497,10 @@ def create_app(
     @app.exception_handler(TaskNotFound)
     def task_not_found(_request: Request, error: TaskNotFound) -> JSONResponse:
         return answer(404, f"no task {error.args[0]!r}")
+
+    @app.exception_handler(MessageNotFound)
+    def message_not_found(_request: Request, error: MessageNotFound) -> JSONResponse:
+        return answer(404, f"no message {error.args[0]!r}")
 
     @app.exception_handler(PaneNotFound)
     def pane_not_found(_request: Request, error: PaneNotFound) -> JSONResponse:
