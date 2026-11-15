@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { Project } from '@/api/client'
 import { BarHeading } from '@/components/BarHeading'
 import type { Doomed } from '@/components/DeleteDialog'
@@ -17,55 +17,56 @@ type Props = {
   onReorder: (order: string[]) => void
 }
 
-// Bottom bar: the started tasks of the focused project.
+// Left-hand bar, right of the projects: the started tasks of the focused project.
 export function TaskBar({ open, onToggle, project, onFocus, onCloneAgain, onDelete, onReorder }: Props) {
   if (!open) {
     return (
-      <footer className="flex h-9 shrink-0 items-center gap-4 border-t px-4">
-        <BarHeading>Tasks</BarHeading>
-        <div className="grow" />
+      <nav aria-label="Tasks (collapsed)" className="flex w-12 shrink-0 flex-col items-center gap-3 border-r py-3">
         <Button variant="ghost" size="icon-sm" aria-label="Expand tasks bar" onClick={onToggle}>
-          <ChevronUp />
+          <ChevronRight />
         </Button>
-      </footer>
+        <BarHeading vertical>Tasks</BarHeading>
+      </nav>
     )
   }
 
   return (
-    <footer aria-label="Tasks" className="flex h-20 shrink-0 items-center gap-4 border-t px-4">
-      <BarHeading>Tasks</BarHeading>
-      <div className="min-w-0 grow overflow-x-auto">
-        {project && (
-          <SortableList
-            ids={project.tasks.map((task) => task.slug)}
-            horizontal
-            onReorder={onReorder}
-            className="flex gap-1 py-1"
-          >
-            {project.tasks.map((task) => (
-              <SortableItem key={task.slug} id={task.slug} className="w-44 shrink-0">
-                {(handle, isDragging) => (
-                  <TaskItem
-                    task={task}
-                    project={project}
-                    highlighted={task.slug === project.focused_task}
-                    handle={handle}
-                    isDragging={isDragging}
-                    onClick={() => onFocus(task.slug)}
-                    onCloneAgain={() => onCloneAgain(task.slug)}
-                    onDelete={onDelete}
-                  >
-                    <Badge variant="secondary">{task.status}</Badge>
-                  </TaskItem>
-                )}
-              </SortableItem>
-            ))}
-          </SortableList>
-        )}
+    <nav aria-label="Tasks" className="flex w-56 shrink-0 flex-col gap-2 border-r p-4">
+      <div className="flex items-center gap-1">
+        <div className="grow">
+          <BarHeading>Tasks</BarHeading>
+        </div>
+        <Button variant="ghost" size="icon-sm" aria-label="Collapse tasks bar" onClick={onToggle}>
+          <ChevronLeft />
+        </Button>
       </div>
-      <Button variant="ghost" size="icon-sm" aria-label="Collapse tasks bar" onClick={onToggle}>
-        <ChevronDown />
-      </Button>
-    </footer>
+
+      {project && (
+        <SortableList
+          ids={project.tasks.map((task) => task.slug)}
+          onReorder={onReorder}
+          className="flex min-h-0 flex-col gap-1 overflow-y-auto"
+        >
+          {project.tasks.map((task) => (
+            <SortableItem key={task.slug} id={task.slug}>
+              {(handle, isDragging) => (
+                <TaskItem
+                  task={task}
+                  project={project}
+                  highlighted={task.slug === project.focused_task}
+                  handle={handle}
+                  isDragging={isDragging}
+                  onClick={() => onFocus(task.slug)}
+                  onCloneAgain={() => onCloneAgain(task.slug)}
+                  onDelete={onDelete}
+                >
+                  <Badge variant="secondary">{task.status}</Badge>
+                </TaskItem>
+              )}
+            </SortableItem>
+          ))}
+        </SortableList>
+      )}
+    </nav>
   )
 }

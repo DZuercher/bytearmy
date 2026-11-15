@@ -136,6 +136,15 @@ export function App() {
           onDelete={setDoomed}
           onReorder={reorderProjects}
         />
+        <TaskBar
+          open={ui.bottom_open}
+          onToggle={() => setUi({ bottom_open: !ui.bottom_open })}
+          project={project}
+          onFocus={(slug) => run(api.focusTask(project!.slug, slug))}
+          onCloneAgain={(slug) => run(api.cloneAgain(project!.slug, slug))}
+          onDelete={setDoomed}
+          onReorder={(order) => reorderTasks('tasks', order)}
+        />
         <main className="flex min-w-0 flex-1 flex-col bg-white">
           <div className="flex items-baseline gap-3 px-4 pt-4 pb-3">
             <h1 className="text-lg font-semibold">Workspace</h1>
@@ -172,15 +181,6 @@ export function App() {
           onReorder={(order) => reorderTasks('backlog', order)}
         />
       </div>
-      <TaskBar
-        open={ui.bottom_open}
-        onToggle={() => setUi({ bottom_open: !ui.bottom_open })}
-        project={project}
-        onFocus={(slug) => run(api.focusTask(project!.slug, slug))}
-        onCloneAgain={(slug) => run(api.cloneAgain(project!.slug, slug))}
-        onDelete={setDoomed}
-        onReorder={(order) => reorderTasks('tasks', order)}
-      />
       <DeleteDialog doomed={doomed} onCancel={() => setDoomed(null)} onConfirm={confirmDelete} />
       {paletteOpen && project && task && focused && (
         <Palette
