@@ -114,9 +114,10 @@ def create_app(
     def state() -> AppState:
         """Everything the UI shows. Every change answers with it, so the UI never merges."""
         whole = store.app_state()
-        pages = {project.slug: project.github_page for project in whole.projects}
-        # The command dialogue opens tools in the focused project: its defaults are offered.
-        whole.tools = workspaces.tools(pages.get(whole.focused_project, ""))
+        slugs = {project.slug for project in whole.projects}
+        # The command dialogue opens tools in the focused project: its tools are offered.
+        focused = whole.focused_project if whole.focused_project in slugs else None
+        whole.tools = workspaces.tools(focused)
         whole.theme = load_theme(store.root)
         return whole
 
@@ -311,9 +312,8 @@ def create_app(
 
     @agent.get("/tools")
     def agent_tools(caller: Caller) -> list[Tool]:
-        """The tools an agent may open, with the defaults of its project."""
-        page = store.project(caller[0]).github_page
-        return [tool for tool in workspaces.tools(page) if "agent" in tool.callers]
+        """The tools an agent may open, as its project has them."""
+        return [tool for tool in workspaces.tools(caller[0]) if "agent" in tool.callers]
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):

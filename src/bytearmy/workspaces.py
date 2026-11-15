@@ -130,8 +130,9 @@ class Workspaces:
         write_premade(store.root / INSTRUCTIONS_FILE, INSTRUCTIONS, EARLIER_INSTRUCTIONS)
         themes.ensure_premade(store.root)
 
-    def tools(self, github_page: str = "") -> list[Tool]:
-        """The tools, each parameter with what it defaults to in a project with that page."""
+    def tools(self, project: str | None = None) -> list[Tool]:
+        """The tools of a project, each parameter with what it defaults to there."""
+        github_page = self._store.project(project).github_page if project else ""
         return [
             tool.model_copy(
                 update={
@@ -143,8 +144,13 @@ class Workspaces:
                     ]
                 }
             )
-            for tool in load_tools(self._store.root).values()
+            for tool in self._tools(project).values()
         ]
+
+    def _tools(self, project: str | None) -> dict[str, Tool]:
+        """The tools by id; a project's own tool files replace those of the root."""
+        directory = Path(self._store.project(project).path) if project else None
+        return load_tools(self._store.root, directory)
 
     # -- panes -------------------------------------------------------------
 
@@ -165,7 +171,7 @@ class Workspaces:
         An agent gets a name with its `role`; without one, the first agent of the task is
         its master. `prompt` and `spawned_by` are for an agent that another one starts.
         """
-        tool = load_tools(self._store.root).get(request.tool)
+        tool = self._tools(project).get(request.tool)
         if tool is None:
             raise UnknownTool(request.tool)
         found = self._store.task(project, task)
@@ -327,7 +333,7 @@ class Workspaces:
         A log entry is written by the pane's agent; a pane without one is used by the user.
         """
         project, task, pane = caller
-        tool = load_tools(self._store.root).get(call.tool)
+        tool = self._tools(project).get(call.tool)
         if tool is None:
             raise UnknownTool(call.tool)
         if "agent" not in tool.callers:
@@ -353,7 +359,7 @@ class Workspaces:
         """
         project, task, pane = caller
         calling = self._store.task(project, task).workspace.panes.get(pane)
-        tools = load_tools(self._store.root)
+        tools = self._tools(project)
         tool = tools.get(calling.tool) if calling else None
         if tool is None or not (tool.agent and tool.spawn):
             tool = tools.get(SPAWNING_TOOL)
@@ -437,7 +443,7 @@ class Workspaces:
 
     def _start(self, key: Key, pane: Pane, rows: int, cols: int, restoring: bool) -> None:
         project, task, pane_id = key
-        tool = load_tools(self._store.root).get(pane.tool)
+        tool = self._tools(project).get(pane.tool)
         if tool is None:
             self._ended(key, COULD_NOT_START)
             return
@@ -490,7 +496,7 @@ class Workspaces:
         shown = found.workspace.panes.get(pane)
         if shown is None or shown.kind != "web":
             raise PaneNotFound(pane)
-        tool = load_tools(self._store.root).get(shown.tool)
+        tool = self._tools(project).get(shown.tool)
         if tool is None or tool.kind != "web":
             raise UnknownTool(shown.tool)
         service = ""
@@ -508,7 +514,7 @@ class Workspaces:
         shown = found.workspace.panes.get(pane)
         if shown is None or shown.kind != "web":
             raise PaneNotFound(pane)
-        tool = load_tools(self._store.root).get(shown.tool)
+        tool = self._tools(project).get(shown.tool)
         files = [
             Path(found.path) / shown.values[parameter.name]
             for parameter in (tool.parameters if tool else [])

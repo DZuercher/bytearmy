@@ -1,4 +1,5 @@
-"""The tools a pane can run. Each tool is one TOML file in `<root>/.tools`."""
+"""The tools a pane can run. Each tool is one TOML file in `<root>/.tools`; a file in
+`<project>/.tools` replaces the one with the same name in that project."""
 
 from __future__ import annotations
 
@@ -21,7 +22,8 @@ log = logging.getLogger(__name__)
 TOOLS_DIR = ".tools"
 
 HEADER = """\
-# A bytearmy tool. The file name is its id.
+# A bytearmy tool. The file name is its id. A file of the same name in
+# <project>/.tools replaces this one in that project.
 #   name        shown in the command dialogue
 #   kind        "terminal" (default): a program in a terminal pane
 #               "web": a page in a browser pane
@@ -122,42 +124,59 @@ PREMADE = {
 }
 
 
-# Fingerprints of the files earlier versions wrote (m3, m4, m5; macOS and Linux). A file that
+# Fingerprints of the files earlier versions wrote (m3, m4, m5, #10; macOS and Linux). A file that
 # still has one was never edited, and is replaced by the current version.
 EARLIER = {
     "terminal": {
         "30b737f89737ed7f1b39205ae4433539e3ea837eebb6b8afd4c0c42c2195b02a",
         "878e8097727c2ffc5dd4ad05345e2aae2cddceecfb192416c890cabd383e648b",
         "f79a0a7e2bfc39caed7cf655e2f2afff5e08cb51612eb087c100b2a61fdee0d2",
+        "10d3a02ae7e257a83dde8466d06cb3aa69ce5b16be7cad6cf95fc9c10105cbc2",
     },
     "claude": {
         "853e7b4147fdd6c899fcc0cbf62bebd01e0584797ee836d31067558760cce5c1",
         "28e17bf121edfed84b4486e018d1564072c3aa2454b1cc64b148f46e1ed6d556",
         "d61c2c4d0afa8f80fd86edeceba6c3cc5eb310fe42ef75669ec27acf18b0d0bf",
+        "ae0b3a3911d6f8fc710c47da0e4e0eea85c193b47232b23413f36e81313df5a4",
     },
     "vim": {
         "eb5b624575842e280a1f807756a723dc74be432b0c4e479d9718d7911b516114",
         "f8ef1b57eddbe2f97dfb76f747bc34f23620de28200cc8cbf7fdbd7b7015d9b8",
         "1cf2de368f083b1ed2a52273d87684787474bb64e395a12bd642ac0e4cbc4a87",
+        "3d8b8bc452a96af36ec005c125cc86f671b2f932df1c16b13048b29501597522",
     },
     "webpage": {
         "8140c3ef66b8e098021dbbb777d41a480fc9673a0765c76029cdd835e92e0665",
         "1816f0a2cefbb056add28f57963762ab4804b0c5e4bc8dd5bb87f3e594110320",
+        "705df4429ae7deffa29983a004841598fc886ff21c157afecc6fabc464b6492c",
     },
     "html": {
         "67cb2d82c4660e7d4ae9e26fcb960b8ba456b5cbf92878a1729730619e785539",
         "d217fb7bf52bd6ae49d63d17ec884c537f36b7fe6ed07f0a4a593b96b78b0d09",
+        "b3a6dbbbcd40fbc127ecf5d48983bbbc9b9afa92fbb0d64c618d69b46002a5ba",
     },
-    "vscode": set(),
+    "vscode": {
+        "33ffe7931183a4c7e00e7b2e1600d0a4d36e6167d0a8005c6fad486621570a27",
+        "63c610bb9ea549a1643c589dabe3b2818c24c30b9971b70d46e0d0052c51ec29",
+    },
     "explorer": {
         "123b6b37c169a431418c0fe6dc96e168679d22a32fc3d7ca402df9f6afaab07a",
         "4bf639b0cf4d8f3d317e04c550495f429af9953a02db66222f9b48b996123e89",
         "440b4ccddb873df3eef96c75b1184c8561ead106d9936a0e3f85fa6e7057444d",
         "541ded652a49c8b3fd9cdbc780ea1dbcbbaa2a2233cea9bd0c3e0dc56468a6b4",
+        "0363df229c06ae2f15c65b23869d0c93e4c856c82cf2a99432d0acd65bbfb67c",
+        "af6d09d53d4e4facf797c227b693da0ac2664f7409575c435137dc80c1074178",
     },
-    "pycharm": set(),
-    "log": set(),
-    "show-log": set(),
+    "pycharm": {
+        "cb020c375e6e205f6ebb51a1766ddca5bed54766562d7dc1ddf604d6b4aec07c",
+        "a0f17e51939b00abc61572445d19330f4d38d4128d36ee20e4a10827991491d5",
+    },
+    "log": {
+        "f947639546c1d58bdddaf494b2b7017cb132524079a62d440659d0c1f922dd8d",
+    },
+    "show-log": {
+        "5b21bc617bacd2b99831b5b03ec168c5d1abca8c77256182093a8ffcf3eafc6e",
+    },
 }
 
 
@@ -187,14 +206,18 @@ def ensure_premade(root: Path) -> None:
         write_premade(root / TOOLS_DIR / f"{tool_id}.toml", HEADER + text, EARLIER[tool_id])
 
 
-def load_tools(root: Path) -> dict[str, Tool]:
-    """The tools by id; a file that cannot be read as a tool is skipped."""
+def load_tools(root: Path, project: Path | None = None) -> dict[str, Tool]:
+    """The tools by id; a file that cannot be read as a tool is skipped.
+
+    In a `project`, its own tool files replace those of the root with the same name.
+    """
     tools = {}
-    for file in sorted((root / TOOLS_DIR).glob("*.toml")):
-        try:
-            tools[file.stem] = Tool(**tomllib.loads(file.read_text()), id=file.stem)
-        except (OSError, tomllib.TOMLDecodeError, ValidationError, TypeError) as error:
-            log.warning("Skipping tool %s: %s", file.name, error)
+    for directory in [root, project] if project else [root]:
+        for file in sorted((directory / TOOLS_DIR).glob("*.toml")):
+            try:
+                tools[file.stem] = Tool(**tomllib.loads(file.read_text()), id=file.stem)
+            except (OSError, tomllib.TOMLDecodeError, ValidationError, TypeError) as error:
+                log.warning("Skipping tool %s: %s", file, error)
     return tools
 
 

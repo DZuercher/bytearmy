@@ -188,7 +188,7 @@ class Service(BaseModel):
 
 
 class Tool(BaseModel):
-    """A tool the palette offers; one file in `<root>/.tools`."""
+    """A tool the palette offers; one file in `<root>/.tools` or `<project>/.tools`."""
 
     id: str
     name: str

@@ -452,6 +452,21 @@ def test_a_pane_reaches_only_its_own_task(core, bytearmy):
     assert bytearmy(there, "task", "show")[1].startswith("name: Other\n")
 
 
+def test_a_project_tool_file_starts_the_agents_of_that_project(core, bytearmy):
+    tool(core.store, "claude", **{**BOT, "spawn": f"{KEEP_ENV}; echo root spawned.; {WAIT}"})
+    project_tools = core.store.root / "demo" / ".tools"
+    project_tools.mkdir()
+    (project_tools / "claude.toml").write_text(
+        (core.store.root / ".tools" / "claude.toml").read_text().replace("root", "project")
+    )
+    me = calling_pane(core)
+
+    assert bytearmy(me, "agent", "spawn", "reviewer", "Review.")[0] == 0
+    assert "project spawned." in output_until(
+        core.workspaces.attach("demo", "work", "p2", 24, 80), rb"spawned\.\r\n"
+    )
+
+
 def test_a_pane_spawns_agents_and_lists_them(core, bytearmy):
     tool(core.store, "bot", **BOT)
     claude = {**BOT, "spawn": f"{KEEP_ENV}; printf 'claude spawned %s.\\n' {{agent}}; {WAIT}"}
