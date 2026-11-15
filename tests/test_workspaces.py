@@ -213,6 +213,89 @@ def test_one_pane_can_be_maximized(store, workspaces, task):
     assert workspace(store, task).maximized is None
 
 
+def test_a_hidden_pane_has_no_place_in_the_layout_until_it_is_shown(store, workspaces, task):
+    open_pane(workspaces, task, "terminal")
+    open_pane(workspaces, task, "terminal")
+    hidden = open_pane(workspaces, task, "terminal", hidden=True)
+
+    assert hidden.hidden
+    assert workspace(store, task).tree == row("p1", "p2")
+
+    workspaces.set_hidden(*task, "p3", False, beside="p1")
+    workspaces.set_hidden(*task, "p3", False, beside="p2")  # a shown pane stays where it is
+    assert workspace(store, task).tree == row(column("p1", "p3"), "p2")
+    assert not workspace(store, task).panes["p3"].hidden
+
+    workspaces.set_hidden(*task, "p1", True)
+    assert Store(store.root).task(*task).workspace.tree == row("p3", "p2")
+    assert workspace(store, task).panes["p1"].hidden
+    with pytest.raises(PaneNotFound):
+        workspaces.set_hidden(*task, "p9", True)
+
+
+def test_the_layout_the_user_arranges_holds_only_the_shown_panes(store, workspaces, task):
+    open_pane(workspaces, task, "terminal")
+    open_pane(workspaces, task, "terminal")
+    open_pane(workspaces, task, "terminal", hidden=True)
+
+    with pytest.raises(InvalidLayout):
+        workspaces.set_tree(*task, row("p1", "p2", "p3"))
+    workspaces.set_tree(*task, row("p2", "p1"))
+    assert workspace(store, task).tree == row("p2", "p1")
+
+
+def test_hiding_the_maximized_pane_ends_the_maximize(store, workspaces, task):
+    open_pane(workspaces, task, "terminal")
+    open_pane(workspaces, task, "terminal")
+    workspaces.maximize(*task, "p2")
+
+    workspaces.set_hidden(*task, "p2", True)
+
+    assert workspace(store, task).maximized is None
+    with pytest.raises(InvalidLayout):
+        workspaces.maximize(*task, "p2")
+    assert workspace(store, task).maximized is None
+
+
+def test_highlighting_a_hidden_pane_shows_it_and_ending_the_highlight_does_not(
+    store, workspaces, task
+):
+    open_pane(workspaces, task, "terminal")
+    open_pane(workspaces, task, "terminal")
+    open_pane(workspaces, task, "terminal", hidden=True)
+    open_pane(workspaces, task, "terminal", hidden=True)
+
+    workspaces.highlight(*task, "p4", False)
+    assert workspace(store, task).panes["p4"].hidden
+
+    workspaces.highlight(*task, "p3", True, beside="p1")
+    assert workspace(store, task).tree == row(column("p1", "p3"), "p2")
+    assert not workspace(store, task).panes["p3"].hidden
+
+
+@pytest.mark.parametrize("moved, beside", [("p3", "p1"), ("p1", "p3")])
+def test_a_hidden_pane_cannot_be_moved_nor_have_one_moved_next_to_it(
+    store, workspaces, task, moved, beside
+):
+    open_pane(workspaces, task, "terminal")
+    open_pane(workspaces, task, "terminal")
+    open_pane(workspaces, task, "terminal", hidden=True)
+
+    with pytest.raises(InvalidLayout):
+        workspaces.move(*task, moved, beside)
+    assert workspace(store, task).tree == row("p1", "p2")
+
+
+def test_the_list_of_hidden_panes_stays_unfolded_after_a_restart(store, workspaces, task):
+    assert not workspace(store, task).hidden_open
+
+    workspaces.list_hidden(*task, True)
+    assert Store(store.root).task(*task).workspace.hidden_open
+
+    workspaces.list_hidden(*task, False)
+    assert not Store(store.root).task(*task).workspace.hidden_open
+
+
 # -- programs ---------------------------------------------------------------
 
 

@@ -95,6 +95,7 @@ class Pane(BaseModel):
     prompt: str = ""  # what the agent that spawned this one asked it to do
     spawned_by: str = ""  # the name of that agent; empty if a person started this one
     highlighted: bool = False  # an agent wants the user to look at the pane
+    hidden: bool = False  # not in the layout; its program runs on, the tasks bar lists it
     rows: int = 24
     cols: int = 80
     exit_code: int | None = None  # set when the program ended with an error
@@ -107,6 +108,7 @@ class Workspace(BaseModel):
     panes: dict[str, Pane] = {}
     maximized: str | None = None
     master: str | None = None  # the pane of the task's master agent
+    hidden_open: bool = False  # the tasks bar lists the hidden panes below the task
     next_pane: int = 1
 
 
@@ -229,6 +231,7 @@ class PaneOpen(BaseModel):
     tool: str
     values: dict[str, str] = {}
     beside: str | None = None  # the pane to split; the last pane if not given
+    hidden: bool = False  # open it without a place in the layout
 
 
 class Layout(BaseModel):
@@ -251,6 +254,15 @@ class Highlight(BaseModel):
     on: bool
 
 
+class Unfold(BaseModel):
+    open: bool
+
+
+class Visibility(BaseModel):
+    hidden: bool
+    beside: str | None = None  # where a shown pane goes; the last pane if not given
+
+
 # -- what the `bytearmy` command in a pane sends and gets ---------------------
 
 
@@ -264,6 +276,7 @@ class PaneCall(BaseModel):
     tool: str
     args: list[str] = []
     beside: str | None = None  # the pane to split; the calling pane if not given
+    hidden: bool = False  # open it without a place in the layout
 
 
 class PaneMove(BaseModel):

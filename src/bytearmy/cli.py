@@ -66,6 +66,7 @@ def pane_list(_args: argparse.Namespace) -> str:
         notes += ["master"] * (pane["id"] == workspace["master"])
         notes += ["maximized"] * (pane["id"] == workspace["maximized"])
         notes += ["highlighted"] * pane["highlighted"]
+        notes += ["hidden"] * pane["hidden"]
         if pane["exit_code"] is not None:
             notes.append(f"ended with code {pane['exit_code']}")
         notes += ["you"] * (pane["id"] == own)
@@ -76,7 +77,7 @@ def pane_list(_args: argparse.Namespace) -> str:
 
 
 def pane_open(args: argparse.Namespace) -> str:
-    body = {"tool": args.tool, "args": args.values, "beside": args.beside}
+    body = {"tool": args.tool, "args": args.values, "beside": args.beside, "hidden": args.hidden}
     opened = call("POST", "/panes", body)
     if opened["logged"]:
         return "added the entry to the task's log"
@@ -104,6 +105,16 @@ def pane_maximize(args: argparse.Namespace) -> str:
 def pane_restore(_args: argparse.Namespace) -> str:
     call("PUT", "/maximized", {"slug": None})
     return "every pane is shown again"
+
+
+def pane_hide(args: argparse.Namespace) -> str:
+    call("PUT", f"/panes/{args.id}/hidden", {"hidden": True})
+    return f"hid {args.id}"
+
+
+def pane_show(args: argparse.Namespace) -> str:
+    call("PUT", f"/panes/{args.id}/hidden", {"hidden": False, "beside": args.beside})
+    return f"showed {args.id}"
 
 
 def pane_highlight(args: argparse.Namespace) -> str:
@@ -221,9 +232,18 @@ def parser() -> argparse.ArgumentParser:
     opening.add_argument("tool", help="see `bytearmy tool list`")
     opening.add_argument("values", nargs="*", help="the tool's values, in order or as name=value")
     opening.add_argument("--beside", help="the pane to open it next to")
+    opening.add_argument(
+        "--hidden", action="store_true", help="open it hidden: listed in the tasks bar only"
+    )
     command(pane, "close", pane_close, "close a pane").add_argument("id")
     command(pane, "maximize", pane_maximize, "let a pane fill the workspace").add_argument("id")
     command(pane, "restore", pane_restore, "show every pane again after maximize")
+    command(
+        pane, "hide", pane_hide, "take a pane off the workspace; it keeps running"
+    ).add_argument("id")
+    showing = command(pane, "show", pane_show, "put a hidden pane back on the workspace")
+    showing.add_argument("id")
+    showing.add_argument("--beside", help="the pane to place it next to")
     command(pane, "highlight", pane_highlight, "draw the user's eye to a pane").add_argument("id")
     command(pane, "unhighlight", pane_unhighlight, "end a highlight").add_argument("id")
     moving = command(pane, "move", pane_move, "place a pane next to another one")

@@ -1,5 +1,5 @@
 import 'react-mosaic-component/react-mosaic-component.css'
-import { Maximize2, Minimize2, X } from 'lucide-react'
+import { EyeOff, Maximize2, Minimize2, X } from 'lucide-react'
 import { useState } from 'react'
 import { Mosaic, type MosaicNode, MosaicWindow } from 'react-mosaic-component'
 import { type AppState, type Project, type Task, type Tree, api } from '@/api/client'
@@ -72,6 +72,15 @@ export function Workspace({ project, task, visible, run, onArrange, onActivePane
                   {maximized ? <Minimize2 /> : <Maximize2 />}
                 </Button>,
                 <Button
+                  key="hide"
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label="Hide pane"
+                  onClick={() => run(api.hidePane(place.project, place.task, id, true))}
+                >
+                  <EyeOff />
+                </Button>,
+                <Button
                   key="close"
                   variant="ghost"
                   size="icon-xs"
@@ -105,6 +114,7 @@ export function Workspace({ project, task, visible, run, onArrange, onActivePane
                           tool: 'webpage',
                           values: { url },
                           beside: id,
+                          hidden: false,
                         }),
                       )
                     }

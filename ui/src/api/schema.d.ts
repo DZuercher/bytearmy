@@ -319,6 +319,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{project}/tasks/{task}/hidden-open": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** List Hidden */
+        put: operations["list_hidden_api_projects__project__tasks__task__hidden_open_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project}/tasks/{task}/panes/{pane}/hidden": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Hide Pane */
+        put: operations["hide_pane_api_projects__project__tasks__task__panes__pane__hidden_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects/{project}/tasks/{task}/panes/{pane}/highlight": {
         parameters: {
             query?: never;
@@ -398,6 +432,23 @@ export interface paths {
         get?: never;
         /** Agent Highlight */
         put: operations["agent_highlight_agent_panes__pane__highlight_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agent/panes/{pane}/hidden": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Agent Hide */
+        put: operations["agent_hide_agent_panes__pane__hidden_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -664,6 +715,11 @@ export interface components {
              */
             highlighted: boolean;
             /**
+             * Hidden
+             * @default false
+             */
+            hidden: boolean;
+            /**
              * Rows
              * @default 24
              */
@@ -693,6 +749,11 @@ export interface components {
             args: string[];
             /** Beside */
             beside?: string | null;
+            /**
+             * Hidden
+             * @default false
+             */
+            hidden: boolean;
         };
         /** PaneMove */
         PaneMove: {
@@ -712,6 +773,11 @@ export interface components {
             };
             /** Beside */
             beside?: string | null;
+            /**
+             * Hidden
+             * @default false
+             */
+            hidden: boolean;
         };
         /** Parameter */
         Parameter: {
@@ -1043,6 +1109,11 @@ export interface components {
              */
             bottom_open: boolean;
         };
+        /** Unfold */
+        Unfold: {
+            /** Open */
+            open: boolean;
+        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -1055,6 +1126,13 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /** Visibility */
+        Visibility: {
+            /** Hidden */
+            hidden: boolean;
+            /** Beside */
+            beside?: string | null;
         };
         /**
          * Workspace
@@ -1074,6 +1152,11 @@ export interface components {
             maximized?: string | null;
             /** Master */
             master?: string | null;
+            /**
+             * Hidden Open
+             * @default false
+             */
+            hidden_open: boolean;
             /**
              * Next Pane
              * @default 1
@@ -1680,6 +1763,79 @@ export interface operations {
             };
         };
     };
+    list_hidden_api_projects__project__tasks__task__hidden_open_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project: string;
+                task: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Unfold"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    hide_pane_api_projects__project__tasks__task__panes__pane__hidden_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project: string;
+                task: string;
+                pane: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Visibility"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     highlight_pane_api_projects__project__tasks__task__panes__pane__highlight_put: {
         parameters: {
             query?: never;
@@ -1846,6 +2002,41 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["Highlight"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_hide_agent_panes__pane__hidden_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pane: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Visibility"];
             };
         };
         responses: {

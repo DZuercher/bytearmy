@@ -14,6 +14,7 @@ INSTRUCTIONS_FILE = Path(".claude") / "bytearmy.md"  # below the root; the user 
 EARLIER_INSTRUCTIONS = {
     "d7b7e2ff9de55b90644b86a495241721af6ed7405a674dfa89d702b49bee815f",
     "75400f6d42471783dd12939ab458350e54dd7a6809b4112f5b36cb9562a8c3ec",
+    "4ea89da126237af99b51e14cc1992b07ec5d81b70850bc2b5604ebf878f70376",
 }
 
 INSTRUCTIONS = """\
@@ -35,6 +36,10 @@ of your own task; it cannot reach other tasks.
   `bytearmy pane open html <file>`. The pane shows every change of the file at once.
 - `bytearmy pane close <id>`, `bytearmy pane maximize <id>`, `bytearmy pane restore`.
 - `bytearmy pane move <id> <other>`: place a pane next to another one.
+- `bytearmy pane open <tool> --hidden [value ...]` opens a pane without a place on the
+  workspace; the user finds it in the tasks bar. `bytearmy pane hide <id>` and
+  `bytearmy pane show <id>` take a pane off the workspace and put it back. A hidden pane's
+  program keeps running.
 - `bytearmy pane highlight <id>`: draw the user's eye to a pane; it ends when the user
   clicks into the pane, or with `bytearmy pane unhighlight <id>`.
 
@@ -53,8 +58,8 @@ of your own task; it cannot reach other tasks.
 ## Other agents
 
 - `bytearmy agent list`: the agents of your task, with their names and panes.
-- `bytearmy agent spawn <role> "<prompt>"`: start a new agent in a pane of its own, in the
-  same directory as you, with the prompt as its first message. Its name is
+- `bytearmy agent spawn <role> "<prompt>"`: start a new agent in a hidden pane of its own,
+  in the same directory as you, with the prompt as its first message. Its name is
   `<project>-<task>-<role>`. Give it everything it needs to know in the prompt, and tell it
   what to report back.
 - Once an agent you spawned has reported back and you need nothing more from it, close its

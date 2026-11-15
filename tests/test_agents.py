@@ -358,6 +358,35 @@ def test_a_pane_opens_closes_and_arranges_the_panes_of_its_task(core, bytearmy):
     assert bytearmy(me, "pane", "open", "nothing") == (1, "bytearmy: no tool 'nothing'")
 
 
+def test_a_pane_hides_and_shows_the_panes_of_its_task(core, bytearmy):
+    me = calling_pane(core)
+    assert bytearmy(me, "pane", "open", "terminal") == (0, "opened p2")
+
+    assert bytearmy(me, "pane", "open", "terminal", "--hidden") == (0, "opened p3")
+    assert ("demo", "work", "p3") in core.workspaces._ptys  # its program starts all the same
+    assert workspace(core.store).tree == row("p1", "p2")
+    assert bytearmy(me, "pane", "list") == (
+        0,
+        "p1  Caller  (you)\np2  Terminal\np3  Terminal  (hidden)",
+    )
+
+    assert bytearmy(me, "pane", "show", "p3") == (0, "showed p3")  # beside the calling pane
+    assert workspace(core.store).tree == row(column("p1", "p3"), "p2")
+    assert bytearmy(me, "pane", "hide", "p3") == (0, "hid p3")
+    assert bytearmy(me, "pane", "show", "p3", "--beside", "p2") == (0, "showed p3")
+    assert workspace(core.store).tree == row("p1", column("p2", "p3"))
+
+    assert bytearmy(me, "pane", "hide", "p2")[0] == 0
+    assert bytearmy(me, "pane", "maximize", "p2") == (
+        1,
+        "bytearmy: p2 is hidden; show it before maximizing it",
+    )
+    assert bytearmy(me, "pane", "move", "p2", "p1") == (1, "bytearmy: p2 is hidden; show it first")
+    assert bytearmy(me, "pane", "highlight", "p2") == (0, "highlighted p2")
+    assert workspace(core.store).tree == row(column("p1", "p2"), "p3")
+    assert bytearmy(me, "pane", "hide", "p9") == (1, "bytearmy: no pane 'p9'")
+
+
 def test_a_pane_may_open_only_the_tools_for_agents(core, bytearmy):
     tool(core.store, "mine", name="Mine", callers=["user"])
     me = calling_pane(core)
@@ -436,7 +465,8 @@ def test_a_pane_spawns_agents_and_lists_them(core, bytearmy):
     assert "claude spawned demo-work-reviewer." in output_until(
         core.workspaces.attach("demo", "work", "p2", 24, 80), rb"reviewer\.\r\n"
     )
-    assert workspace(core.store).tree == row("p1", "p2")
+    assert workspace(core.store).tree == "p1"  # a spawned agent starts hidden
+    assert workspace(core.store).panes["p2"].hidden
 
     assert bytearmy(me, "pane", "open", "bot") == (0, "opened p3")
     master = key_of(core, "p3")
@@ -444,7 +474,8 @@ def test_a_pane_spawns_agents_and_lists_them(core, bytearmy):
         0,
         "spawned demo-work-helper in pane p4",
     )
-    assert workspace(core.store).tree == row(column("p1", row("p3", "p4")), "p2")
+    assert workspace(core.store).tree == row("p1", "p3")
+    assert workspace(core.store).panes["p4"].hidden
     helper = workspace(core.store).panes["p4"]
     assert (helper.tool, helper.prompt, helper.spawned_by) == ("bot", "Help.", "demo-work-master")
     assert workspace(core.store).panes["p2"].spawned_by == ""
@@ -542,7 +573,7 @@ def test_every_agent_route_needs_the_key_of_a_running_pane(tmp_path):
         if path.startswith("/agent/")
         for method in operations
     ]
-    assert len(routes) == 11
+    assert len(routes) == 12
 
     with TestClient(app) as client:
         for key in ("", TOKEN, "made-up"):

@@ -32,6 +32,7 @@ export function TaskItem({
   onClick,
   onCloneAgain,
   onDelete,
+  className,
   children,
 }: {
   task: Task
@@ -42,6 +43,7 @@ export function TaskItem({
   onClick: () => void
   onCloneAgain: () => void
   onDelete: (doomed: Doomed) => void
+  className?: string
   children?: ReactNode
 }) {
   return (
@@ -57,6 +59,7 @@ export function TaskItem({
             // After the color, so that a focused task stays dark; it keeps its colored left border.
             highlighted && 'bg-primary font-medium text-primary-foreground shadow-sm',
             isDragging && 'relative z-10 cursor-grabbing shadow-md',
+            className,
           )}
           onClick={onClick}
           {...handle}
