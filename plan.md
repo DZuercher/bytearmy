@@ -50,7 +50,7 @@ A program fits in a pane if it is a terminal program or serves a web UI. Native 
 | Vim | terminal | `vim <file>` |
 | HTML | web | the file, served by the core from the task directory; agent-only |
 | Webpage | web | any URL; default is the project's GitHub URL |
-| IDE | web | one shared `code serve-web` process, URL `…/?folder=<repo>` |
+| VSCode | web | one shared `code serve-web` process, URL `…/?folder=<repo>` |
 | Explorer | external | `open <dir>` (macOS) or `xdg-open <dir>` (Linux); a separate OS window |
 
 Why Electron and not a browser tab: `github.com` and, since VS Code 1.136, `code serve-web` forbid being shown in an iframe. They need a real embedded browser view.
@@ -131,7 +131,7 @@ You check:
 |---|---|---|
 | Terminal uses the system's default terminal | Embedded emulator running your default shell | Ghostty and Terminal.app windows cannot live inside a pane |
 | Explorer opens a pane | Finder or the Linux file manager opens as its own window | same reason |
-| IDE opens VS Code | VS Code's web UI in a pane | desktop VS Code is a native window |
+| VSCode opens VS Code | VS Code's web UI in a pane | desktop VS Code is a native window |
 | Root `.claude` explains bytearmy to Claude | Same file, passed explicitly at launch | automatic loading of `.claude` above the repo root is undocumented |
 | `git clone` in the task directory | Clone lands in `<task>/<repo>/`, `.bytearmy` stays outside it | literal reading; keeps `git status` clean |
 
@@ -149,7 +149,7 @@ You check:
 | M1 | Projects | Window with the `ui.html` layout; create, delete, reorder projects; survives restart | 1 day |
 | M2 | Tasks | Backlog and task bar, creation dialog, `git clone`, statuses, delete | 1 to 2 days |
 | M3 | Workspace | Tiling panes, double-Shift palette, Terminal / Claude / Vim, layout and session restore | 2 days |
-| M4 | Web tools | HTML, Webpage, IDE, Explorer | 1 day |
+| M4 | Web tools | HTML, Webpage, VSCode, Explorer | 1 day |
 | M5 | Agent control | CLI, master agent, pane and metadata commands, subagents | 2 days |
 
 Estimates are my build time plus your review. Spike results can shift M3 to M5. Real code goes into `src/bytearmy/` (Python package: models, store, tasks, layout, pty, tools, api, cli) and `ui/` (Electron + React).

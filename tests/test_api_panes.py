@@ -120,11 +120,12 @@ def test_pane_lifecycle_over_http(live):
         "claude",
         "explorer",
         "html",
-        "ide",
         "log",
+        "pycharm",
         "show-log",
         "terminal",
         "vim",
+        "vscode",
         "webpage",
     ]
 

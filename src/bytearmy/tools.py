@@ -55,6 +55,7 @@ MACOS = sys.platform == "darwin"
 VSCODE_IN_APP = "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code"
 VSCODE = f"\"$(command -v code || echo '{VSCODE_IN_APP}')\"" if MACOS else "code"
 FILE_MANAGER = "open" if MACOS else "xdg-open"
+PYCHARM = "open -a PyCharm" if MACOS else "pycharm"
 SCHEME = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*://")
 CLAUDE_FLAGS = "--name {agent} --append-system-prompt-file {instructions}"
 
@@ -101,8 +102,8 @@ PREMADE = {
         'label = "HTML file, relative to the task directory"\n'
         "path = true\n"
     ),
-    "ide": (
-        'name = "IDE"\n'
+    "vscode": (
+        'name = "VSCode"\n'
         'kind = "web"\n'
         'directory = "repo"\n'
         'url = "{service}&folder={directory}"\n'
@@ -113,6 +114,9 @@ PREMADE = {
         'url = "http://127.0.0.1:{port}/?tkn={token}"\n'
     ),
     "explorer": f'name = "Explorer"\nkind = "external"\ncommand = "{FILE_MANAGER} ."\n',
+    "pycharm": (
+        f'name = "PyCharm"\nkind = "external"\ndirectory = "repo"\ncommand = "{PYCHARM} ."\n'
+    ),
     "log": ('name = "Log"\nkind = "log"\n\n[[parameters]]\nname = "entry"\nlabel = "Log entry"\n'),
     "show-log": 'name = "Show Log"\nkind = "web"\nurl = "{log}"\n',
 }
@@ -144,18 +148,14 @@ EARLIER = {
         "67cb2d82c4660e7d4ae9e26fcb960b8ba456b5cbf92878a1729730619e785539",
         "d217fb7bf52bd6ae49d63d17ec884c537f36b7fe6ed07f0a4a593b96b78b0d09",
     },
-    "ide": {
-        "4803194c0a2d9eed46b3db8f2631c4be644c0df691dbc776e7662eb30625afe3",
-        "d21a8e27826fb881a6731ba7567a595cfcd8c834f5cc56c93aadcd05cb9a5bc8",
-        "1c94765805033061902e4f4a3df542ad69ddc55b71b6f3c63c7ec6a0d4e6e1dc",
-        "61b1149746319745984b042d91a7366fbc96382ca5029ae47917c6c976cad0b5",
-    },
+    "vscode": set(),
     "explorer": {
         "123b6b37c169a431418c0fe6dc96e168679d22a32fc3d7ca402df9f6afaab07a",
         "4bf639b0cf4d8f3d317e04c550495f429af9953a02db66222f9b48b996123e89",
         "440b4ccddb873df3eef96c75b1184c8561ead106d9936a0e3f85fa6e7057444d",
         "541ded652a49c8b3fd9cdbc780ea1dbcbbaa2a2233cea9bd0c3e0dc56468a6b4",
     },
+    "pycharm": set(),
     "log": set(),
     "show-log": set(),
 }

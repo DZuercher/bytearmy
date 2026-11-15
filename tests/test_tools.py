@@ -36,11 +36,12 @@ def test_the_premade_tools_are_written_once_and_never_overwritten(tmp_path):
         "claude.toml",
         "explorer.toml",
         "html.toml",
-        "ide.toml",
         "log.toml",
+        "pycharm.toml",
         "show-log.toml",
         "terminal.toml",
         "vim.toml",
+        "vscode.toml",
         "webpage.toml",
     ]
 
@@ -126,9 +127,9 @@ def test_the_premade_web_and_external_tools_say_what_they_show(tmp_path):
         ],
     )
     program = f"\"$(command -v code || echo '{VSCODE_IN_APP}')\"" if MACOS else "code"
-    assert tools["ide"] == Tool(
-        id="ide",
-        name="IDE",
+    assert tools["vscode"] == Tool(
+        id="vscode",
+        name="VSCode",
         kind="web",
         directory="repo",
         url="{service}&folder={directory}",
@@ -144,12 +145,19 @@ def test_the_premade_web_and_external_tools_say_what_they_show(tmp_path):
         kind="external",
         command="open ." if MACOS else "xdg-open .",
     )
+    assert tools["pycharm"] == Tool(
+        id="pycharm",
+        name="PyCharm",
+        kind="external",
+        directory="repo",
+        command="open -a PyCharm ." if MACOS else "pycharm .",
+    )
 
 
 @pytest.mark.skipif(not MACOS, reason="only macOS keeps VS Code's command line tool in the app")
-def test_the_ide_takes_vs_code_from_the_path_or_else_from_inside_the_app(tmp_path):
+def test_vscode_takes_vs_code_from_the_path_or_else_from_inside_the_app(tmp_path):
     ensure_premade(tmp_path)
-    program = load_tools(tmp_path)["ide"].service.command.split(" serve-web")[0]
+    program = load_tools(tmp_path)["vscode"].service.command.split(" serve-web")[0]
     on_path = tmp_path / "bin" / "code"
     on_path.parent.mkdir()
     on_path.write_text("#!/bin/sh\n")
