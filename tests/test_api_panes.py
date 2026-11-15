@@ -118,6 +118,7 @@ def test_pane_lifecycle_over_http(live):
     assert opened.json()["projects"][0]["tasks"][0]["workspace"]["tree"] == "p1"
     assert [tool["id"] for tool in opened.json()["tools"]] == [
         "claude",
+        "diff",
         "explorer",
         "html",
         "log",

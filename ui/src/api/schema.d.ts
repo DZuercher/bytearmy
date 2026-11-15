@@ -287,6 +287,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{project}/tasks/{task}/panes/{pane}/diff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Pane Diff
+         * @description The changes a diff pane shows.
+         */
+        get: operations["pane_diff_api_projects__project__tasks__task__panes__pane__diff_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project}/tasks/{task}/panes/{pane}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Pane Review
+         * @description The comments written in a diff pane so far.
+         */
+        get: operations["pane_review_api_projects__project__tasks__task__panes__pane__review_get"];
+        /** Save Review */
+        put: operations["save_review_api_projects__project__tasks__task__panes__pane__review_put"];
+        /**
+         * Submit Review
+         * @description Finish a review: its comments go to the agent that asked for it, or the master.
+         */
+        post: operations["submit_review_api_projects__project__tasks__task__panes__pane__review_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects/{project}/tasks/{task}/layout": {
         parameters: {
             query?: never;
@@ -511,6 +556,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/agent/reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Agent Request Review */
+        post: operations["agent_request_review_agent_reviews_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agent/reviews/{pane}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Agent Review State */
+        get: operations["agent_review_state_agent_reviews__pane__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/agent/tools": {
         parameters: {
             query?: never;
@@ -520,7 +599,7 @@ export interface paths {
         };
         /**
          * Agent Tools
-         * @description The tools an agent may open, with the defaults of its project.
+         * @description The tools an agent may open, as its project has them.
          */
         get: operations["agent_tools_agent_tools_get"];
         put?: never;
@@ -624,6 +703,77 @@ export interface components {
              */
             theme: components["schemas"]["Theme"];
         };
+        /**
+         * Diff
+         * @description The changes a diff pane shows.
+         */
+        Diff: {
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "branch" | "uncommitted";
+            /** Base */
+            base: string;
+            /** Commit */
+            commit: string;
+            /** Files */
+            files: components["schemas"]["DiffFile"][];
+        };
+        /** DiffFile */
+        DiffFile: {
+            /** Path */
+            path: string;
+            /**
+             * Old Path
+             * @default
+             */
+            old_path: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "modified" | "added" | "deleted" | "renamed";
+            /**
+             * Binary
+             * @default false
+             */
+            binary: boolean;
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
+            /**
+             * Additions
+             * @default 0
+             */
+            additions: number;
+            /**
+             * Deletions
+             * @default 0
+             */
+            deletions: number;
+            /**
+             * Hunks
+             * @default []
+             */
+            hunks: components["schemas"]["Hunk"][];
+        };
+        /** DiffLine */
+        DiffLine: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "context" | "add" | "delete";
+            /** Old */
+            old?: number | null;
+            /** New */
+            new?: number | null;
+            /** Text */
+            text: string;
+        };
         /** Focus */
         Focus: {
             /** Slug */
@@ -638,6 +788,13 @@ export interface components {
         Highlight: {
             /** On */
             on: boolean;
+        };
+        /** Hunk */
+        Hunk: {
+            /** Header */
+            header: string;
+            /** Lines */
+            lines: components["schemas"]["DiffLine"][];
         };
         /** Layout */
         Layout: {
@@ -689,7 +846,7 @@ export interface components {
              * @default terminal
              * @enum {string}
              */
-            kind: "terminal" | "web";
+            kind: "terminal" | "web" | "diff";
             /** Title */
             title: string;
             /**
@@ -871,6 +1028,86 @@ export interface components {
         ProjectOrder: {
             /** Order */
             order: string[];
+        };
+        /**
+         * Review
+         * @description The comments of a review; kept while the user writes them, sent when finished.
+         */
+        Review: {
+            /**
+             * Mode
+             * @default branch
+             * @enum {string}
+             */
+            mode: "branch" | "uncommitted";
+            /**
+             * Comments
+             * @default []
+             */
+            comments: components["schemas"]["ReviewComment"][];
+            /**
+             * Summary
+             * @default
+             */
+            summary: string;
+        };
+        /** ReviewComment */
+        ReviewComment: {
+            /** Path */
+            path: string;
+            /**
+             * Side
+             * @default new
+             * @enum {string}
+             */
+            side: "old" | "new";
+            /**
+             * Start
+             * @default 0
+             */
+            start: number;
+            /**
+             * End
+             * @default 0
+             */
+            end: number;
+            /**
+             * Quote
+             * @default
+             */
+            quote: string;
+            /** Body */
+            body: string;
+        };
+        /**
+         * ReviewRequest
+         * @description An agent asks the user to review the changes of the task's clone.
+         */
+        ReviewRequest: {
+            /**
+             * Mode
+             * @default branch
+             * @enum {string}
+             */
+            mode: "branch" | "uncommitted";
+            /**
+             * Note
+             * @default
+             */
+            note: string;
+        };
+        /**
+         * ReviewState
+         * @description Whether the user has finished a review an agent asked for, and what they said.
+         */
+        ReviewState: {
+            /** Done */
+            done: boolean;
+            /**
+             * Text
+             * @default
+             */
+            text: string;
         };
         /**
          * Service
@@ -1097,7 +1334,7 @@ export interface components {
         };
         /**
          * Tool
-         * @description A tool the palette offers; one file in `<root>/.tools`.
+         * @description A tool the palette offers; one file in `<root>/.tools` or `<project>/.tools`.
          */
         Tool: {
             /** Id */
@@ -1109,7 +1346,7 @@ export interface components {
              * @default terminal
              * @enum {string}
              */
-            kind: "terminal" | "web" | "external" | "log";
+            kind: "terminal" | "web" | "external" | "log" | "diff";
             /**
              * Command
              * @default
@@ -1839,6 +2076,148 @@ export interface operations {
             };
         };
     };
+    pane_diff_api_projects__project__tasks__task__panes__pane__diff_get: {
+        parameters: {
+            query?: {
+                mode?: "branch" | "uncommitted";
+            };
+            header?: never;
+            path: {
+                project: string;
+                task: string;
+                pane: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Diff"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    pane_review_api_projects__project__tasks__task__panes__pane__review_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project: string;
+                task: string;
+                pane: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Review"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_review_api_projects__project__tasks__task__panes__pane__review_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project: string;
+                task: string;
+                pane: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Review"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submit_review_api_projects__project__tasks__task__panes__pane__review_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project: string;
+                task: string;
+                pane: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Review"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     set_layout_api_projects__project__tasks__task__layout_put: {
         parameters: {
             query?: never;
@@ -2336,6 +2715,70 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Opened"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_request_review_agent_reviews_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Opened"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_review_state_agent_reviews__pane__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pane: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewState"];
                 };
             };
             /** @description Validation Error */
