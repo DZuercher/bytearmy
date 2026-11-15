@@ -34,6 +34,25 @@ class ProjectMeta(BaseModel):
         return value
 
 
+class ProjectEdit(BaseModel):
+    """What the user may change about a project; its GitHub URL is fixed once its tasks are cloned."""
+
+    name: str
+    description: str = ""
+
+    @field_validator("name", "description")
+    @classmethod
+    def _strip(cls, value: str) -> str:
+        return value.strip()
+
+    @field_validator("name")
+    @classmethod
+    def _name_given(cls, value: str) -> str:
+        if not value:
+            raise ValueError("a project name must be provided")
+        return value
+
+
 class ProjectFile(ProjectMeta):
     """Contents of `<project>/.bytearmy/project.json`."""
 
@@ -61,6 +80,39 @@ class TaskCreate(BaseModel):
     def _name_given(cls, value: str) -> str:
         if not value:
             raise ValueError("a task name must be provided")
+        return value
+
+
+class TaskEdit(BaseModel):
+    """What the user may change about a task; its branch is fixed once it is cloned.
+
+    A task in the backlog keeps the status Backlog, a started one cannot go back there.
+    """
+
+    name: str
+    description: str = ""
+    status: str
+    color: Color = ""
+    reminder: date | None = None
+    dependencies: list[str] = []  # slugs of tasks in the same project
+
+    @field_validator("name", "description", "status")
+    @classmethod
+    def _strip(cls, value: str) -> str:
+        return value.strip()
+
+    @field_validator("name")
+    @classmethod
+    def _name_given(cls, value: str) -> str:
+        if not value:
+            raise ValueError("a task name must be provided")
+        return value
+
+    @field_validator("status")
+    @classmethod
+    def _status_given(cls, value: str) -> str:
+        if not value:
+            raise ValueError("a status must not be empty")
         return value
 
 

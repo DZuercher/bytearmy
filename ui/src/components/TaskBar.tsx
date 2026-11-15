@@ -14,6 +14,7 @@ type Props = {
   project: Project | undefined // the focused project
   onFocus: (slug: string) => void
   onCloneAgain: (slug: string) => void
+  onEdit: (slug: string) => void
   onDelete: (doomed: Doomed) => void
   onReorder: (order: string[]) => void
   onListHidden: (slug: string, open: boolean) => void // unfold or fold a task's hidden panes
@@ -27,6 +28,7 @@ export function TaskBar({
   project,
   onFocus,
   onCloneAgain,
+  onEdit,
   onDelete,
   onReorder,
   onListHidden,
@@ -77,6 +79,7 @@ export function TaskBar({
                         isDragging={isDragging}
                         onClick={() => onFocus(task.slug)}
                         onCloneAgain={() => onCloneAgain(task.slug)}
+                        onEdit={() => onEdit(task.slug)}
                         onDelete={onDelete}
                         className={cn(hidden.length > 0 && 'pr-8')}
                       >

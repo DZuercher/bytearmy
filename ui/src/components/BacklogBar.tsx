@@ -15,6 +15,7 @@ type Props = {
   onCreate: (task: TaskCreate) => Promise<void>
   onStart: (slug: string) => void
   onCloneAgain: (slug: string) => void
+  onEdit: (slug: string) => void
   onDelete: (doomed: Doomed) => void
   onReorder: (order: string[]) => void
 }
@@ -27,6 +28,7 @@ export function BacklogBar({
   onCreate,
   onStart,
   onCloneAgain,
+  onEdit,
   onDelete,
   onReorder,
 }: Props) {
@@ -76,6 +78,7 @@ export function BacklogBar({
                     isDragging={isDragging}
                     onClick={() => onStart(task.slug)}
                     onCloneAgain={() => onCloneAgain(task.slug)}
+                    onEdit={() => onEdit(task.slug)}
                     onDelete={onDelete}
                   >
                     {task.blocked_by.length > 0 && (

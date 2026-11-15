@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { type AppState, type Bar, type Tree, type UiChange, api, listenForChanges } from '@/api/client'
 import { BacklogBar } from '@/components/BacklogBar'
 import { DeleteDialog, type Doomed } from '@/components/DeleteDialog'
+import { EditTaskDialog } from '@/components/EditTaskDialog'
 import { Palette } from '@/components/Palette'
 import { ProjectBar } from '@/components/ProjectBar'
 import { TaskBar } from '@/components/TaskBar'
@@ -27,6 +28,7 @@ export function App() {
   const [state, setState] = useState<AppState | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [doomed, setDoomed] = useState<Doomed | null>(null)
+  const [editing, setEditing] = useState<string | null>(null) // the slug of the task being edited
   const [paletteOpen, setPaletteOpen] = useState(false)
   // Workspaces stay mounted once opened, so their terminals keep their content.
   const [opened, setOpened] = useState<string[]>([])
@@ -59,6 +61,7 @@ export function App() {
   const project = state?.projects.find((candidate) => candidate.slug === state.focused_project)
   const task = project?.tasks.find((candidate) => candidate.slug === project.focused_task)
   const focused = project && task ? `${project.slug}/${task.slug}` : null
+  const edited = project && [...project.backlog, ...project.tasks].find((candidate) => candidate.slug === editing)
   useEffect(() => {
     if (focused) setOpened((keys) => (keys.includes(focused) ? keys : [...keys, focused]))
   }, [focused])
@@ -133,6 +136,7 @@ export function App() {
           focused={state.focused_project}
           onFocus={(slug) => run(api.focusProject(slug))}
           onCreate={(meta) => api.createProject(meta).then(setState)}
+          onEdit={(slug, edit) => api.editProject(slug, edit).then(setState)}
           onDelete={setDoomed}
           onReorder={reorderProjects}
         />
@@ -142,6 +146,7 @@ export function App() {
           project={project}
           onFocus={(slug) => run(api.focusTask(project!.slug, slug))}
           onCloneAgain={(slug) => run(api.cloneAgain(project!.slug, slug))}
+          onEdit={setEditing}
           onDelete={setDoomed}
           onReorder={(order) => reorderTasks('tasks', order)}
           onListHidden={(slug, open) => run(api.listHidden(project!.slug, slug, open))}
@@ -184,11 +189,21 @@ export function App() {
           onCreate={(created) => api.createTask(project!.slug, created).then(setState)}
           onStart={(slug) => run(api.startTask(project!.slug, slug))}
           onCloneAgain={(slug) => run(api.cloneAgain(project!.slug, slug))}
+          onEdit={setEditing}
           onDelete={setDoomed}
           onReorder={(order) => reorderTasks('backlog', order)}
         />
       </div>
       <DeleteDialog doomed={doomed} onCancel={() => setDoomed(null)} onConfirm={confirmDelete} />
+      {project && edited && (
+        <EditTaskDialog
+          key={`${project.slug}/${edited.slug}`}
+          task={edited}
+          project={project}
+          onClose={() => setEditing(null)}
+          onSave={(edit) => api.editTask(project.slug, edited.slug, edit).then(setState)}
+        />
+      )}
       {paletteOpen && project && task && focused && (
         <Palette
           tools={state.tools ?? []}

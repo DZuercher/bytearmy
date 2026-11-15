@@ -97,7 +97,8 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        put?: never;
+        /** Edit Project */
+        put: operations["edit_project_api_projects__project__put"];
         post?: never;
         /** Delete Project */
         delete: operations["delete_project_api_projects__project__delete"];
@@ -202,7 +203,8 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        put?: never;
+        /** Edit Task */
+        put: operations["edit_task_api_projects__project__tasks__task__put"];
         post?: never;
         /** Delete Task */
         delete: operations["delete_task_api_projects__project__tasks__task__delete"];
@@ -827,6 +829,19 @@ export interface components {
             focused_task: string | null;
         };
         /**
+         * ProjectEdit
+         * @description What the user may change about a project; its GitHub URL is fixed once its tasks are cloned.
+         */
+        ProjectEdit: {
+            /** Name */
+            name: string;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+        };
+        /**
          * ProjectMeta
          * @description What the user says about a project.
          */
@@ -1000,6 +1015,36 @@ export interface components {
              * @default
              */
             branch: string;
+            /** Reminder */
+            reminder?: string | null;
+            /**
+             * Dependencies
+             * @default []
+             */
+            dependencies: string[];
+        };
+        /**
+         * TaskEdit
+         * @description What the user may change about a task; its branch is fixed once it is cloned.
+         *
+         *     A task in the backlog keeps the status Backlog, a started one cannot go back there.
+         */
+        TaskEdit: {
+            /** Name */
+            name: string;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /** Status */
+            status: string;
+            /**
+             * Color
+             * @default
+             * @enum {string}
+             */
+            color: "" | "red" | "amber" | "green" | "blue" | "purple";
             /** Reminder */
             reminder?: string | null;
             /**
@@ -1324,6 +1369,41 @@ export interface operations {
             };
         };
     };
+    edit_project_api_projects__project__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectEdit"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     delete_project_api_projects__project__delete: {
         parameters: {
             query?: never;
@@ -1503,6 +1583,42 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    edit_task_api_projects__project__tasks__task__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project: string;
+                task: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TaskEdit"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

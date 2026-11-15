@@ -176,6 +176,53 @@
       }
     },
     "/api/projects/{project}": {
+      "put": {
+        "summary": "Edit Project",
+        "operationId": "edit_project_api_projects__project__put",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectEdit"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
       "delete": {
         "summary": "Delete Project",
         "operationId": "delete_project_api_projects__project__delete",
@@ -459,6 +506,62 @@
       }
     },
     "/api/projects/{project}/tasks/{task}": {
+      "put": {
+        "summary": "Edit Task",
+        "operationId": "edit_task_api_projects__project__tasks__task__put",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project"
+            }
+          },
+          {
+            "name": "task",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskEdit"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
       "delete": {
         "summary": "Delete Task",
         "operationId": "delete_task_api_projects__project__tasks__task__delete",
@@ -2077,6 +2180,25 @@
         ],
         "title": "Project"
       },
+      "ProjectEdit": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "ProjectEdit",
+        "description": "What the user may change about a project; its GitHub URL is fixed once its tasks are cloned."
+      },
       "ProjectMeta": {
         "properties": {
           "name": {
@@ -2436,6 +2558,63 @@
         ],
         "title": "TaskCreate",
         "description": "What the user says about a task."
+      },
+      "TaskEdit": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "color": {
+            "type": "string",
+            "enum": [
+              "",
+              "red",
+              "amber",
+              "green",
+              "blue",
+              "purple"
+            ],
+            "title": "Color",
+            "default": ""
+          },
+          "reminder": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reminder"
+          },
+          "dependencies": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Dependencies",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "status"
+        ],
+        "title": "TaskEdit",
+        "description": "What the user may change about a task; its branch is fixed once it is cloned.\n\nA task in the backlog keeps the status Backlog, a started one cannot go back there."
       },
       "TaskOrder": {
         "properties": {

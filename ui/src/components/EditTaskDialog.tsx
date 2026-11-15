@@ -1,0 +1,149 @@
+import { type FormEvent, useState } from 'react'
+import type { Project, Task, TaskEdit } from '@/api/client'
+import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+
+const COLORS: TaskEdit['color'][] = ['', 'red', 'amber', 'green', 'blue', 'purple']
+
+// Changes what the user may change about a task. Shown while `task` is being edited.
+export function EditTaskDialog({
+  task,
+  project,
+  onClose,
+  onSave,
+}: {
+  task: Task
+  project: Project
+  onClose: () => void
+  onSave: (edit: TaskEdit) => Promise<void>
+}) {
+  const [edit, setEdit] = useState({
+    name: task.name,
+    description: task.description,
+    status: task.status,
+    color: task.color,
+    reminder: task.reminder ?? '',
+    dependencies: task.dependencies,
+  })
+  const [error, setError] = useState<string | null>(null)
+  const others = [...project.backlog, ...project.tasks].filter((other) => other.slug !== task.slug)
+  const inBacklog = project.backlog.some((other) => other.slug === task.slug)
+
+  function submit(event: FormEvent) {
+    event.preventDefault()
+    onSave({ ...edit, reminder: edit.reminder || null }).then(onClose, (reason: unknown) =>
+      setError(reason instanceof Error ? reason.message : String(reason)),
+    )
+  }
+
+  function depend(slug: string, checked: boolean) {
+    const dependencies = edit.dependencies.filter((other) => other !== slug)
+    setEdit({ ...edit, dependencies: checked ? [...dependencies, slug] : dependencies })
+  }
+
+  return (
+    <Dialog open onOpenChange={(next) => !next && onClose()}>
+      <DialogContent>
+        <form onSubmit={submit} className="grid gap-4">
+          <DialogHeader>
+            <DialogTitle>Edit task in {project.name}</DialogTitle>
+            <DialogDescription>The directory keeps its name. The branch cannot be changed.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2">
+            <Label htmlFor="edit-task-name">Name</Label>
+            <Input
+              id="edit-task-name"
+              autoFocus
+              value={edit.name}
+              onChange={(event) => setEdit({ ...edit, name: event.target.value })}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="edit-task-description">Description</Label>
+            <Textarea
+              id="edit-task-description"
+              value={edit.description}
+              onChange={(event) => setEdit({ ...edit, description: event.target.value })}
+            />
+          </div>
+          {project.github_url && (
+            <div className="grid gap-2">
+              <Label htmlFor="edit-task-branch">Branch</Label>
+              <Input id="edit-task-branch" value={task.branch} disabled />
+            </div>
+          )}
+          {!inBacklog && (
+            <div className="grid gap-2">
+              <Label htmlFor="edit-task-status">Status</Label>
+              <Input
+                id="edit-task-status"
+                value={edit.status}
+                onChange={(event) => setEdit({ ...edit, status: event.target.value })}
+              />
+            </div>
+          )}
+          <div className="grid gap-2">
+            <Label htmlFor="edit-task-color">Color</Label>
+            <select
+              id="edit-task-color"
+              className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 md:text-sm"
+              value={edit.color}
+              onChange={(event) => setEdit({ ...edit, color: event.target.value as TaskEdit['color'] })}
+            >
+              {COLORS.map((color) => (
+                <option key={color} value={color}>
+                  {color || 'none'}
+                </option>
+              ))}
+            </select>
+          </div>
+          {others.length > 0 && (
+            <fieldset className="grid gap-2">
+              <legend className="mb-2 text-sm font-medium">Depends on</legend>
+              <div className="grid max-h-32 gap-2 overflow-y-auto">
+                {others.map((other) => (
+                  <Label key={other.slug} className="font-normal">
+                    <Checkbox
+                      checked={edit.dependencies.includes(other.slug)}
+                      onCheckedChange={(checked) => depend(other.slug, checked === true)}
+                    />
+                    {other.name}
+                  </Label>
+                ))}
+              </div>
+            </fieldset>
+          )}
+          <div className="grid gap-2">
+            <Label htmlFor="edit-task-reminder">Reminder date</Label>
+            <Input
+              id="edit-task-reminder"
+              type="date"
+              value={edit.reminder}
+              onChange={(event) => setEdit({ ...edit, reminder: event.target.value })}
+            />
+          </div>
+          {error && <p className="text-destructive">{error}</p>}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={edit.name.trim() === '' || edit.status.trim() === ''}>
+              Save
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}

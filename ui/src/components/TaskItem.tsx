@@ -1,4 +1,4 @@
-import { Bell, LoaderCircle, RotateCw, Trash2, TriangleAlert } from 'lucide-react'
+import { Bell, LoaderCircle, Pencil, RotateCw, Trash2, TriangleAlert } from 'lucide-react'
 import type { HTMLAttributes, ReactNode } from 'react'
 import type { Project, Task } from '@/api/client'
 import { DataList } from '@/components/DataList'
@@ -31,6 +31,7 @@ export function TaskItem({
   isDragging,
   onClick,
   onCloneAgain,
+  onEdit,
   onDelete,
   className,
   children,
@@ -42,6 +43,7 @@ export function TaskItem({
   isDragging: boolean
   onClick: () => void
   onCloneAgain: () => void
+  onEdit: () => void
   onDelete: (doomed: Doomed) => void
   className?: string
   children?: ReactNode
@@ -91,6 +93,10 @@ export function TaskItem({
             Clone again
           </ContextMenuItem>
         )}
+        <ContextMenuItem onSelect={onEdit}>
+          <Pencil />
+          Edit task…
+        </ContextMenuItem>
         <ContextMenuItem variant="destructive" onSelect={() => onDelete({ kind: 'task', ...task })}>
           <Trash2 />
           Delete task…

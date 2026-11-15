@@ -30,11 +30,13 @@ from bytearmy.models import (
     PaneCall,
     PaneMove,
     PaneOpen,
+    ProjectEdit,
     ProjectMeta,
     ProjectOrder,
     Task,
     TaskChange,
     TaskCreate,
+    TaskEdit,
     TaskOrder,
     Tool,
     UiChange,
@@ -45,6 +47,7 @@ from bytearmy.models import (
 from bytearmy.store import (
     Blocked,
     DuplicateName,
+    InvalidEdit,
     InvalidOrder,
     ProjectNotFound,
     Store,
@@ -141,6 +144,11 @@ def create_app(
         store.reorder_projects(body.order)
         return state()
 
+    @api.put("/projects/{project}")
+    def edit_project(project: str, edit: ProjectEdit) -> AppState:
+        store.edit_project(project, edit)
+        return state()
+
     @api.delete("/projects/{project}")
     def delete_project(project: str) -> AppState:
         cloner.cancel(project)
@@ -183,6 +191,11 @@ def create_app(
                 status_code=409, detail=f'"{found.name}" has no failed clone to try again.'
             )
         cloner.start(project, found, store.project(project).github_url)
+        return state()
+
+    @api.put("/projects/{project}/tasks/{task}")
+    def edit_task(project: str, task: str, edit: TaskEdit) -> AppState:
+        store.edit_task(project, task, edit)
         return state()
 
     @api.delete("/projects/{project}/tasks/{task}")
@@ -462,6 +475,10 @@ def create_app(
     @app.exception_handler(UnknownDependency)
     def unknown_dependency(_request: Request, error: UnknownDependency) -> JSONResponse:
         return answer(400, f"no task {error.args[0]!r} to depend on")
+
+    @app.exception_handler(InvalidEdit)
+    def invalid_edit(_request: Request, error: InvalidEdit) -> JSONResponse:
+        return answer(400, str(error))
 
     @app.exception_handler(InvalidOrder)
     def invalid_order(_request: Request, error: InvalidOrder) -> JSONResponse:
