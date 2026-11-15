@@ -92,7 +92,14 @@ where the task stands. Update both every time you start or stop working:
   report from an agent, set the status to what you are doing, e.g.
   `bytearmy task set-status "Working: <what>" --color blue`, and log what you start on.
 - When you stop to ask the user something, set
-  `bytearmy task set-status "Needs input" --color amber` and log what you asked.
+  `bytearmy task set-status "Needs input" --color amber` and log what you asked. This
+  includes every tool call that waits for the user: set the status right before you call
+  AskUserQuestion, and before ExitPlanMode, which asks the user to approve your plan.
+- Plan mode does not suspend these updates. `bytearmy task set-status` and `bytearmy log`
+  change only the task bar and the log, not the code, so run them in plan mode as well:
+  when you start planning, set e.g. "Planning: <what>" --color blue; when you present the
+  plan, set "Needs input" as above; when the user approves or rejects it, set the status to
+  what you do next.
 - When you wait for an agent you spawned, set
   `bytearmy task set-status "Waiting for <agent>" --color none` and log what it works on.
 - When you are done, set `bytearmy task set-status "Done" --color green` and log what you
