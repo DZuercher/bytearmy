@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import os
+import shutil
+import subprocess
 import time
 from pathlib import Path
 
@@ -319,3 +322,46 @@ def test_shutdown_stops_every_clone(store, project, gated_git):
 )
 def test_valid_branch(store, name, valid):
     assert Cloner(store).valid_branch(name) is valid
+
+
+@pytest.fixture
+def lfs_project(store, tmp_path, monkeypatch):
+    """A project whose repository keeps `big.bin` in Git LFS; git-lfs set up as `git lfs install`
+    would, so cloning it smudges."""
+    config = tmp_path / "gitconfig"
+    config.write_text(
+        '[filter "lfs"]\n'
+        "\tclean = git-lfs clean -- %f\n"
+        "\tsmudge = git-lfs smudge -- %f\n"
+        "\tprocess = git-lfs filter-process\n"
+        "\trequired = true\n"
+    )
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(config))
+    environment = {**os.environ, "GIT_CONFIG_SYSTEM": os.devnull}
+    bare = tmp_path / "assets.git"
+    work = tmp_path / "assets"
+    for command, cwd in [
+        (["init", "--bare", "-b", "main", str(bare)], tmp_path),
+        (["init", "-b", "main", str(work)], tmp_path),
+        (["lfs", "track", "*.bin"], work),
+    ]:
+        subprocess.run(["git", *command], cwd=cwd, env=environment, check=True)
+    (work / "big.bin").write_bytes(b"large content\n")
+    for command in [
+        ["add", "."],
+        ["-c", "user.name=Test", "-c", "user.email=t@example.org", "commit", "-m", "lfs"],
+        ["push", f"file://{bare}", "main"],
+    ]:
+        subprocess.run(["git", *command], cwd=work, env=environment, check=True)
+    return store.create_project(ProjectMeta(name="Assets", github_url=f"file://{bare}")).slug
+
+
+@pytest.mark.skipif(shutil.which("git-lfs") is None, reason="git-lfs is not installed")
+def test_files_in_git_lfs_are_downloaded_from_the_url(store, lfs_project):
+    cloner = Cloner(store)
+    for name in ("a", "b"):  # the second task clones from a mirror that exists already
+        start(store, cloner, lfs_project, name=name)
+        task = finished(store, lfs_project, name)
+
+        assert (task.clone, task.clone_error) == ("ready", "")
+        assert (Path(task.path) / "assets" / "big.bin").read_bytes() == b"large content\n"

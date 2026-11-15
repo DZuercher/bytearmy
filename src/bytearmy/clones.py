@@ -3,6 +3,9 @@
 The repository is downloaded once per project, into a bare mirror in the project's metadata
 directory. A task clones from the mirror after fetching into it: git hard-links the objects of
 a local clone, so a task costs no download and hardly any disk, yet is a repository of its own.
+
+The mirror holds no Git LFS files: the task checks out their pointers, and once its origin is
+the project's URL, git-lfs downloads the files from there.
 """
 
 from __future__ import annotations
@@ -120,6 +123,8 @@ class Cloner:
                 )
                 switch = ["switch", branch] if on_remote == 0 else ["switch", "-c", branch]
                 self._run(key, "-C", str(temporary), *switch)
+            if self._run(key, "lfs", "version", check=False) == 0:
+                self._run(key, "-C", str(temporary), "lfs", "pull")
             temporary.rename(task_dir / repo)
         except (CloneFailed, OSError) as failure:
             error = str(failure) or "The clone failed."
@@ -182,8 +187,14 @@ class Cloner:
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.PIPE,
                 text=True,
-                # Fail instead of asking; as the GitHub account the project's config names.
-                env={**os.environ, **self._github_env(key[0]), "GIT_TERMINAL_PROMPT": "0"},
+                # Fail instead of asking; as the GitHub account the project's config names;
+                # Git LFS files are left to `git lfs pull`, the mirror has none to check out.
+                env={
+                    **os.environ,
+                    **self._github_env(key[0]),
+                    "GIT_TERMINAL_PROMPT": "0",
+                    "GIT_LFS_SKIP_SMUDGE": "1",
+                },
                 start_new_session=True,
             )
             self._processes[key] = process
