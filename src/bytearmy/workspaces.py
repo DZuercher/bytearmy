@@ -12,6 +12,7 @@ from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 
+from bytearmy import themes
 from bytearmy.agents import (
     EARLIER_INSTRUCTIONS,
     INSTRUCTIONS,
@@ -127,6 +128,7 @@ class Workspaces:
         self._bin = pane_command(store.root / METADATA_DIR / "bin").parent
         ensure_premade(store.root)
         write_premade(store.root / INSTRUCTIONS_FILE, INSTRUCTIONS, EARLIER_INSTRUCTIONS)
+        themes.ensure_premade(store.root)
 
     def tools(self, github_page: str = "") -> list[Tool]:
         """The tools, each parameter with what it defaults to in a project with that page."""
@@ -513,7 +515,9 @@ class Workspaces:
             if parameter.path and parameter.name in shown.values
         ]
         if tool and "{log}" in tool.url:
+            # The log page has the colors of the window.
             files.append(Path(found.path) / METADATA_DIR / LOG_FILE)
+            return " ".join([*(_stamp(file) for file in files), themes.stamp(self._store.root)])
         return " ".join(_stamp(file) for file in files) if files else None
 
     def _ended(self, key: Key, code: int) -> None:

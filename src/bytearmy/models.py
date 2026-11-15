@@ -204,6 +204,25 @@ class GlobalState(BaseModel):
     ui: UiState = UiState()
 
 
+class Theme(BaseModel):
+    """A color scheme; one file in `<root>/.bytearmy/themes`."""
+
+    name: str = "light"
+    appearance: Literal["light", "dark"] = "light"
+    colors: dict[str, str] = {}  # CSS colors by the name of their variable, without `--`
+
+    @field_validator("colors")
+    @classmethod
+    def _plain(cls, colors: dict[str, str]) -> dict[str, str]:
+        # The colors go into style sheets: nothing in them may end a rule or the sheet.
+        for name, value in colors.items():
+            if not re.fullmatch(r"[a-z0-9-]+", name):
+                raise ValueError(f"{name!r} is no color name")
+            if re.search(r"[;{}<>\\]", value) or not value.strip():
+                raise ValueError(f"{value!r} is no color")
+        return colors
+
+
 class AppState(BaseModel):
     """Everything the UI shows, in one piece."""
 
@@ -212,6 +231,7 @@ class AppState(BaseModel):
     focused_project: str | None
     ui: UiState
     tools: list[Tool] = []
+    theme: Theme = Theme()
 
 
 class ProjectOrder(BaseModel):

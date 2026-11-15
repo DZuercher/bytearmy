@@ -44,6 +44,21 @@ export function App() {
   // What the agents in the panes change shows at once.
   useEffect(() => listenForChanges(() => run(api.state())), [run])
 
+  // The colors of the color scheme in use; the user can edit its file while bytearmy runs.
+  // Every fetch brings a new object: compared as text, the colors are set only when they change.
+  const themeText = state ? JSON.stringify(state.theme) : null
+  useEffect(() => {
+    if (!themeText) return
+    const theme: AppState['theme'] = JSON.parse(themeText)
+    const root = document.documentElement
+    for (const [name, value] of Object.entries(theme.colors)) root.style.setProperty(`--${name}`, value)
+    root.classList.toggle('dark', theme.appearance === 'dark')
+    root.style.colorScheme = theme.appearance
+    return () => {
+      for (const name of Object.keys(theme.colors)) root.style.removeProperty(`--${name}`)
+    }
+  }, [themeText])
+
   const cloning =
     state?.projects.some((project) =>
       [...project.backlog, ...project.tasks].some((task) => task.clone === 'cloning'),
@@ -119,7 +134,7 @@ export function App() {
   )
 
   return (
-    <div className="flex h-full flex-col bg-zinc-50">
+    <div className="flex h-full flex-col bg-shell">
       {error && (
         <button type="button" className="bg-destructive px-4 py-1 text-left text-white" onClick={() => setError(null)}>
           {error} (click to dismiss)
@@ -152,7 +167,7 @@ export function App() {
             run(api.hidePane(project!.slug, slug, pane, false, beside))
           }}
         />
-        <main className="flex min-w-0 flex-1 flex-col bg-white">
+        <main className="flex min-w-0 flex-1 flex-col bg-background">
           <div className="flex items-baseline gap-3 px-4 pt-4 pb-3">
             <h1 className="text-lg font-semibold">Workspace</h1>
             <p className="text-muted-foreground">

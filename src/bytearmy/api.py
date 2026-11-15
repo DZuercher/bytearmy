@@ -51,6 +51,7 @@ from bytearmy.store import (
     TaskNotFound,
     UnknownDependency,
 )
+from bytearmy.themes import load_theme, stamp
 from bytearmy.tools import ToolFailed
 from bytearmy.workspaces import (
     SPAWNING_TOOL,
@@ -113,6 +114,7 @@ def create_app(
         pages = {project.slug: project.github_page for project in whole.projects}
         # The command dialogue opens tools in the focused project: its defaults are offered.
         whole.tools = workspaces.tools(pages.get(whole.focused_project, ""))
+        whole.theme = load_theme(store.root)
         return whole
 
     api = APIRouter(prefix="/api", dependencies=[Depends(require_token)])
@@ -315,7 +317,8 @@ def create_app(
 
     @app.websocket("/api/changes")
     async def changes(socket: WebSocket) -> None:
-        """Sends the store's version whenever it changed, so the window fetches the state."""
+        """Sends the store's version whenever it or the color scheme changed, so the window
+        fetches the state."""
         if not token_ok(socket.query_params.get("token", "")):
             await socket.close(code=4401)
             return
@@ -324,9 +327,11 @@ def create_app(
         async def send_versions() -> None:
             sent = None
             while True:
-                if store.version != sent:
-                    sent = store.version
-                    await socket.send_text(str(sent))
+                # The color scheme is a file the user edits: it changes outside the store.
+                current = (store.version, await asyncio.to_thread(stamp, store.root))
+                if current != sent:
+                    sent = current
+                    await socket.send_text(str(store.version))
                 await asyncio.sleep(CHANGE_CHECK_SECONDS)
 
         async def until_closed() -> None:
@@ -402,7 +407,8 @@ def create_app(
         """The log of a task as a page, for web panes."""
         if not secrets.compare_digest(key.encode(), files_key.encode()):
             raise HTTPException(status_code=404)
-        return HTMLResponse(render(store.task(project, task).name, store.log(project, task)))
+        entries = store.log(project, task)
+        return HTMLResponse(render(store.task(project, task).name, entries, load_theme(store.root)))
 
     def answer(status_code: int, detail: str) -> JSONResponse:
         return JSONResponse(status_code=status_code, content={"detail": detail})

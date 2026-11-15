@@ -4,14 +4,9 @@ from __future__ import annotations
 
 from html import escape
 
-from bytearmy.models import LogEntry
+from bytearmy.models import LogEntry, Theme
 
 STYLE = """\
-:root { color-scheme: light dark; --text: #1f2328; --muted: #6e7781; --line: #d0d7de;
-  --background: #ffffff; }
-@media (prefers-color-scheme: dark) {
-  :root { --text: #e6edf3; --muted: #8d96a0; --line: #30363d; --background: #0d1117; }
-}
 body { margin: 0; padding: 16px; background: var(--background); color: var(--text);
   font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
 h1 { font-size: 16px; margin: 0 0 12px; }
@@ -24,7 +19,19 @@ p { color: var(--muted); }
 """
 
 
-def render(task_name: str, entries: list[LogEntry]) -> str:
+def colors(theme: Theme) -> str:
+    """The page's colors, from the color scheme of the window."""
+    shown = {
+        "text": "foreground",
+        "muted": "muted-foreground",
+        "line": "border",
+        "background": "background",
+    }
+    variables = " ".join(f"--{own}: {theme.colors[name]};" for own, name in shown.items())
+    return f":root {{ color-scheme: {theme.appearance}; {variables} }}\n"
+
+
+def render(task_name: str, entries: list[LogEntry], theme: Theme) -> str:
     """The log as an HTML page, oldest entry first; it opens scrolled to the newest."""
     rows = "\n".join(
         "<tr>"
@@ -38,7 +45,7 @@ def render(task_name: str, entries: list[LogEntry]) -> str:
     return (
         "<!doctype html>\n"
         '<html><head><meta charset="utf-8">'
-        f"<title>Log: {escape(task_name)}</title><style>{STYLE}</style></head>\n"
+        f"<title>Log: {escape(task_name)}</title><style>{colors(theme)}{STYLE}</style></head>\n"
         f"<body><h1>Log: {escape(task_name)}</h1>\n{body}\n"
         "<script>window.scrollTo(0, document.body.scrollHeight)</script>\n"
         "</body></html>\n"
