@@ -52,10 +52,10 @@ export function TaskItem({
           aria-current={highlighted}
           className={cn(
             'flex w-full flex-col items-start gap-1 rounded-md px-3 py-1.5 text-left outline-none focus-visible:ring-2',
-            highlighted
-              ? 'bg-white font-medium shadow-sm ring-1 ring-border'
-              : 'text-muted-foreground hover:bg-zinc-100 hover:text-foreground',
+            !highlighted && 'text-muted-foreground hover:bg-zinc-100 hover:text-foreground',
             task.color && cn('border-l-4 text-foreground', COLORS[task.color]),
+            // After the color, so that a focused task stays dark; it keeps its colored left border.
+            highlighted && 'bg-primary font-medium text-primary-foreground shadow-sm',
             isDragging && 'relative z-10 cursor-grabbing shadow-md',
           )}
           onClick={onClick}
