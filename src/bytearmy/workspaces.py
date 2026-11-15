@@ -9,6 +9,7 @@ import sys
 import threading
 import uuid
 from collections.abc import Mapping, Sequence
+from datetime import UTC, datetime
 from pathlib import Path
 
 from bytearmy.agents import (
@@ -25,6 +26,7 @@ from bytearmy.models import (
     BACKLOG,
     Agent,
     AgentSpawn,
+    LogEntry,
     Pane,
     PaneCall,
     PaneOpen,
@@ -35,7 +37,7 @@ from bytearmy.models import (
 )
 from bytearmy.ptys import Pty
 from bytearmy.services import Services, launch
-from bytearmy.store import METADATA_DIR, ProjectNotFound, Store, TaskNotFound
+from bytearmy.store import LOG_FILE, METADATA_DIR, ProjectNotFound, Store, TaskNotFound
 from bytearmy.tools import (
     command_line,
     default_value,
@@ -152,10 +154,12 @@ class Workspaces:
         role: str | None = None,
         prompt: str = "",
         spawned_by: str = "",
-    ) -> Pane | None:
+        author: str = "user",
+    ) -> Pane | LogEntry | None:
         """Add a pane to the task's layout. Its program starts when a terminal attaches.
 
         An external tool gets no pane: its program is started at once, in a window of its own.
+        A log tool gets none either: it adds an entry by `author` to the task's log.
         An agent gets a name with its `role`; without one, the first agent of the task is
         its master. `prompt` and `spawned_by` are for an agent that another one starts.
         """
@@ -176,8 +180,21 @@ class Workspaces:
                 self._logs / f"{tool.id}.log",
             )
             return None
+        if tool.kind == "log":
+            entry = LogEntry(
+                time=datetime.now(UTC).replace(microsecond=0), author=author, text=values["entry"]
+            )
+            self._store.add_log_entry(project, task, entry)
+            return entry
         if tool.kind == "web":
-            _page(tool, values, found, files="http://files", service="http://service")
+            _page(
+                tool,
+                values,
+                found,
+                files="http://files",
+                service="http://service",
+                log="http://log",
+            )
         opened: list[Pane] = []
 
         def change(workspace: Workspace) -> None:
@@ -260,8 +277,11 @@ class Workspaces:
                 None,
             )
 
-    def open_for(self, caller: Key, call: PaneCall) -> Pane | None:
-        """Open a tool for the program of a pane, beside that pane, and start it at once."""
+    def open_for(self, caller: Key, call: PaneCall) -> Pane | LogEntry | None:
+        """Open a tool for the program of a pane, beside that pane, and start it at once.
+
+        A log entry is written by the pane's agent; a pane without one is used by the user.
+        """
         project, task, pane = caller
         tool = load_tools(self._store.root).get(call.tool)
         if tool is None:
@@ -271,8 +291,10 @@ class Workspaces:
         request = PaneOpen(
             tool=tool.id, values=values_from_args(tool, call.args), beside=call.beside or pane
         )
-        opened = self.open_pane(project, task, request)
-        if opened is not None:
+        calling = self._store.task(project, task).workspace.panes.get(pane)
+        author = calling.agent if calling and calling.agent else "user"
+        opened = self.open_pane(project, task, request, author=author)
+        if isinstance(opened, Pane):
             self.start(project, task, opened.id)
         return opened
 
@@ -297,7 +319,7 @@ class Workspaces:
             prompt=request.prompt,
             spawned_by=calling.agent if calling else "",
         )
-        assert opened is not None  # an agent tool is never external
+        assert isinstance(opened, Pane)  # an agent tool is never external, nor a log
         self.start(project, task, opened.id)
         return opened
 
@@ -410,8 +432,9 @@ class Workspaces:
         )
         return env
 
-    def page(self, project: str, task: str, pane: str, files: str) -> str:
-        """The page a web pane shows; `files` is where the task directory is served.
+    def page(self, project: str, task: str, pane: str, files: str, log: str = "") -> str:
+        """The page a web pane shows; `files` is where the task directory is served, `log`
+        where the task's log is shown.
 
         Starts the service of the pane's tool if it does not run yet, which can take a while.
         """
@@ -425,12 +448,13 @@ class Workspaces:
         service = ""
         if tool.service is not None:
             service = self._services.url(tool, pane_env(os.environ, sys.prefix))
-        return _page(tool, shown.values, found, files, service)
+        return _page(tool, shown.values, found, files, service, log)
 
     def page_version(self, project: str, task: str, pane: str) -> str | None:
         """A text that changes when a file the web pane shows changes; None if it shows none.
 
-        The files a pane shows are the values of its tool's path parameters.
+        The files a pane shows are the values of its tool's path parameters, and the
+        task's log if its page is the log.
         """
         found = self._store.task(project, task)
         shown = found.workspace.panes.get(pane)
@@ -442,6 +466,8 @@ class Workspaces:
             for parameter in (tool.parameters if tool else [])
             if parameter.path and parameter.name in shown.values
         ]
+        if tool and "{log}" in tool.url:
+            files.append(Path(found.path) / METADATA_DIR / LOG_FILE)
         return " ".join(_stamp(file) for file in files) if files else None
 
     def _ended(self, key: Key, code: int) -> None:
@@ -510,9 +536,11 @@ def _stamp(file: Path) -> str:
     return f"{status.st_mtime_ns}-{status.st_size}"
 
 
-def _page(tool: Tool, values: Mapping[str, str], task: Task, files: str, service: str) -> str:
+def _page(
+    tool: Tool, values: Mapping[str, str], task: Task, files: str, service: str, log: str
+) -> str:
     try:
-        return page_url(tool, values, _directory(tool, task), files, service)
+        return page_url(tool, values, _directory(tool, task), files, service, log)
     except ValueError as error:
         raise InvalidValues(str(error)) from error
 

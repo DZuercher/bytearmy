@@ -5,6 +5,7 @@ Layout below the root:
     .bytearmy/state.json                   project order, focused project, UI state
     <project>/.bytearmy/project.json       name, description, GitHub URL, task order, focused task
     <project>/<task>/.bytearmy/task.json   name, description, status, branch, reminder, dependencies
+    <project>/<task>/.bytearmy/log.jsonl   the task's log, one entry per line
     <project>/<task>/<repo>/               clone of the project's GitHub URL, if it has one
 
 A directory is a project or a task if and only if it holds that metadata file.
@@ -30,6 +31,7 @@ from bytearmy.models import (
     NEW,
     AppState,
     GlobalState,
+    LogEntry,
     Project,
     ProjectFile,
     ProjectMeta,
@@ -44,6 +46,7 @@ from bytearmy.models import (
 log = logging.getLogger(__name__)
 
 METADATA_DIR = ".bytearmy"
+LOG_FILE = "log.jsonl"
 MAX_SLUG_LENGTH = 64
 SLUG_RE = re.compile(r"[a-z0-9]+(-[a-z0-9]+)*")
 REPO_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
@@ -462,6 +465,28 @@ class Store:
             _write_json(task_dir / METADATA_DIR / "layout.json", workspace)
             self._changed()
             return workspace
+
+    # -- logs --------------------------------------------------------------
+
+    def log_file(self, project: str, slug: str) -> Path:
+        return self._task_dir(self._project_dir(project), slug) / METADATA_DIR / LOG_FILE
+
+    def add_log_entry(self, project: str, slug: str, entry: LogEntry) -> None:
+        with self._lock, self.log_file(project, slug).open("a") as file:
+            file.write(entry.model_dump_json() + "\n")
+
+    def log(self, project: str, slug: str) -> list[LogEntry]:
+        """The entries of the task's log, oldest first; a line that cannot be read is skipped."""
+        with self._lock:
+            file = self.log_file(project, slug)
+            lines = file.read_text().splitlines() if file.exists() else []
+        entries = []
+        for line in lines:
+            try:
+                entries.append(LogEntry.model_validate_json(line))
+            except ValidationError as error:
+                log.warning("Skipping a line of the log of %s: %s", slug, error)
+        return entries
 
     # -- clones ------------------------------------------------------------
 

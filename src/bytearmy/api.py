@@ -11,10 +11,11 @@ from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, WebSocket
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from bytearmy.clones import AlreadyCloning, Cloner
+from bytearmy.logpage import render
 from bytearmy.models import (
     Agent,
     AgentSpawn,
@@ -22,6 +23,7 @@ from bytearmy.models import (
     Focus,
     Highlight,
     Layout,
+    LogEntry,
     Opened,
     Page,
     PageVersion,
@@ -91,8 +93,8 @@ def create_app(
     workspaces = workspaces or Workspaces(store)
     if url:
         workspaces.url = url
-    # Pages in web panes cannot send the token, and must not know it: the files of the
-    # tasks are served under a key of their own.
+    # Pages in web panes cannot send the token, and must not know it: the files and logs
+    # of the tasks are served under a key of their own.
     files_key = secrets.token_urlsafe(16)
 
     def token_ok(supplied: str) -> bool:
@@ -201,8 +203,10 @@ def create_app(
     @api.get(PANES + "/{pane}/page")
     def pane_page(project: str, task: str, pane: str, request: Request) -> Page:
         """What a web pane shows. Answers only once the tool's service runs."""
-        files = f"{str(request.base_url).rstrip('/')}/files/{files_key}/{project}/{task}"
-        return Page(url=workspaces.page(project, task, pane, files))
+        base = str(request.base_url).rstrip("/")
+        files = f"{base}/files/{files_key}/{project}/{task}"
+        log = f"{base}/log/{files_key}/{project}/{task}"
+        return Page(url=workspaces.page(project, task, pane, files, log))
 
     @api.get(PANES + "/{pane}/page/version")
     def pane_page_version(project: str, task: str, pane: str) -> PageVersion:
@@ -236,6 +240,8 @@ def create_app(
     @agent.post("/panes", status_code=201)
     def agent_open_pane(caller: Caller, call: PaneCall) -> Opened:
         opened = workspaces.open_for(caller, call)
+        if isinstance(opened, LogEntry):
+            return Opened(pane="", logged=True)
         return Opened(pane=opened.id if opened else "")
 
     @agent.delete("/panes/{pane}")
@@ -374,6 +380,13 @@ def create_app(
         if not file.is_relative_to(directory) or not file.is_file():
             raise HTTPException(status_code=404)
         return FileResponse(file)
+
+    @app.get("/log/{key}/{project}/{task}")
+    def task_log(key: str, project: str, task: str) -> HTMLResponse:
+        """The log of a task as a page, for web panes."""
+        if not secrets.compare_digest(key.encode(), files_key.encode()):
+            raise HTTPException(status_code=404)
+        return HTMLResponse(render(store.task(project, task).name, store.log(project, task)))
 
     def answer(status_code: int, detail: str) -> JSONResponse:
         return JSONResponse(status_code=status_code, content={"detail": detail})

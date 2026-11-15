@@ -37,6 +37,8 @@ def test_the_premade_tools_are_written_once_and_never_overwritten(tmp_path):
         "explorer.toml",
         "html.toml",
         "ide.toml",
+        "log.toml",
+        "show-log.toml",
         "terminal.toml",
         "vim.toml",
         "webpage.toml",

@@ -26,6 +26,7 @@ HEADER = """\
 #   kind        "terminal" (default): a program in a terminal pane
 #               "web": a page in a browser pane
 #               "external": a program with a window of its own; no pane
+#               "log": adds the parameter `entry` to the task's log; no pane
 #   command     terminal and external: run by your shell in the tool's directory.
 #               For a terminal, empty means the shell itself.
 #               {session} is replaced by an id that stays the same across restarts,
@@ -36,7 +37,8 @@ HEADER = """\
 #   spawn       agent: run instead of `command` when another agent starts this one;
 #               {prompt} is what it asks the new agent to do
 #   url         web: the page. Besides the parameters it can hold {directory},
-#               {files} (the task directory, served by bytearmy) and {service}.
+#               {files} (the task directory, served by bytearmy), {log} (the task's
+#               log as a page) and {service}.
 #   directory   "task" (default) or "repo": the clone, if the task has one
 #   callers     who may open the tool: ["user", "agent"] (default)
 #   [[parameters]] with name, label, path = true for a file below the task directory
@@ -111,34 +113,51 @@ PREMADE = {
         'url = "http://127.0.0.1:{port}/?tkn={token}"\n'
     ),
     "explorer": f'name = "Explorer"\nkind = "external"\ncommand = "{FILE_MANAGER} ."\n',
+    "log": ('name = "Log"\nkind = "log"\n\n[[parameters]]\nname = "entry"\nlabel = "Log entry"\n'),
+    "show-log": 'name = "Show Log"\nkind = "web"\nurl = "{log}"\n',
 }
 
 
-# Fingerprints of the files earlier versions wrote (m3, m4; macOS and Linux). A file that
+# Fingerprints of the files earlier versions wrote (m3, m4, m5; macOS and Linux). A file that
 # still has one was never edited, and is replaced by the current version.
 EARLIER = {
     "terminal": {
         "30b737f89737ed7f1b39205ae4433539e3ea837eebb6b8afd4c0c42c2195b02a",
         "878e8097727c2ffc5dd4ad05345e2aae2cddceecfb192416c890cabd383e648b",
+        "f79a0a7e2bfc39caed7cf655e2f2afff5e08cb51612eb087c100b2a61fdee0d2",
     },
     "claude": {
         "853e7b4147fdd6c899fcc0cbf62bebd01e0584797ee836d31067558760cce5c1",
         "28e17bf121edfed84b4486e018d1564072c3aa2454b1cc64b148f46e1ed6d556",
+        "d61c2c4d0afa8f80fd86edeceba6c3cc5eb310fe42ef75669ec27acf18b0d0bf",
     },
     "vim": {
         "eb5b624575842e280a1f807756a723dc74be432b0c4e479d9718d7911b516114",
         "f8ef1b57eddbe2f97dfb76f747bc34f23620de28200cc8cbf7fdbd7b7015d9b8",
+        "1cf2de368f083b1ed2a52273d87684787474bb64e395a12bd642ac0e4cbc4a87",
     },
-    "webpage": {"8140c3ef66b8e098021dbbb777d41a480fc9673a0765c76029cdd835e92e0665"},
-    "html": {"67cb2d82c4660e7d4ae9e26fcb960b8ba456b5cbf92878a1729730619e785539"},
+    "webpage": {
+        "8140c3ef66b8e098021dbbb777d41a480fc9673a0765c76029cdd835e92e0665",
+        "1816f0a2cefbb056add28f57963762ab4804b0c5e4bc8dd5bb87f3e594110320",
+    },
+    "html": {
+        "67cb2d82c4660e7d4ae9e26fcb960b8ba456b5cbf92878a1729730619e785539",
+        "d217fb7bf52bd6ae49d63d17ec884c537f36b7fe6ed07f0a4a593b96b78b0d09",
+    },
     "ide": {
         "4803194c0a2d9eed46b3db8f2631c4be644c0df691dbc776e7662eb30625afe3",
         "d21a8e27826fb881a6731ba7567a595cfcd8c834f5cc56c93aadcd05cb9a5bc8",
+        "1c94765805033061902e4f4a3df542ad69ddc55b71b6f3c63c7ec6a0d4e6e1dc",
+        "61b1149746319745984b042d91a7366fbc96382ca5029ae47917c6c976cad0b5",
     },
     "explorer": {
         "123b6b37c169a431418c0fe6dc96e168679d22a32fc3d7ca402df9f6afaab07a",
         "4bf639b0cf4d8f3d317e04c550495f429af9953a02db66222f9b48b996123e89",
+        "440b4ccddb873df3eef96c75b1184c8561ead106d9936a0e3f85fa6e7057444d",
+        "541ded652a49c8b3fd9cdbc780ea1dbcbbaa2a2233cea9bd0c3e0dc56468a6b4",
     },
+    "log": set(),
+    "show-log": set(),
 }
 
 
@@ -215,7 +234,7 @@ def default_value(parameter: Parameter, github_page: str) -> str:
 
 
 def page_url(
-    tool: Tool, values: Mapping[str, str], directory: Path, files: str, service: str
+    tool: Tool, values: Mapping[str, str], directory: Path, files: str, service: str, log: str = ""
 ) -> str:
     """The page of a web pane: the tool's url with its parts filled in.
 
@@ -224,7 +243,7 @@ def page_url(
     """
     paths = {parameter.name for parameter in tool.parameters if parameter.path}
     entered = {name: quote(value) if name in paths else value for name, value in values.items()}
-    parts = {"directory": quote(str(directory)), "files": files, "service": service}
+    parts = {"directory": quote(str(directory)), "files": files, "service": service, "log": log}
     url = fill(tool.url, {**entered, **parts})
     if not SCHEME.match(url):
         url = f"https://{url}"

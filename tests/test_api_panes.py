@@ -121,6 +121,8 @@ def test_pane_lifecycle_over_http(live):
         "explorer",
         "html",
         "ide",
+        "log",
+        "show-log",
         "terminal",
         "vim",
         "webpage",

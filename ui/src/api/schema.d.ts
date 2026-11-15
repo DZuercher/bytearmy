@@ -498,6 +498,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/log/{key}/{project}/{task}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Task Log
+         * @description The log of a task as a page, for web panes.
+         */
+        get: operations["task_log_log__key___project___task__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -575,6 +595,11 @@ export interface components {
              * @default
              */
             agent: string;
+            /**
+             * Logged
+             * @default false
+             */
+            logged: boolean;
         };
         /**
          * Page
@@ -941,7 +966,7 @@ export interface components {
              * @default terminal
              * @enum {string}
              */
-            kind: "terminal" | "web" | "external";
+            kind: "terminal" | "web" | "external" | "log";
             /**
              * Command
              * @default
@@ -2014,6 +2039,39 @@ export interface operations {
                 project: string;
                 task: string;
                 path: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    task_log_log__key___project___task__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+                project: string;
+                task: string;
             };
             cookie?: never;
         };
