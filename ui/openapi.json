@@ -946,6 +946,265 @@
         }
       }
     },
+    "/api/projects/{project}/tasks/{task}/panes/{pane}/diff": {
+      "get": {
+        "summary": "Pane Diff",
+        "description": "The changes a diff pane shows.",
+        "operationId": "pane_diff_api_projects__project__tasks__task__panes__pane__diff_get",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project"
+            }
+          },
+          {
+            "name": "task",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task"
+            }
+          },
+          {
+            "name": "pane",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pane"
+            }
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "branch",
+                "uncommitted"
+              ],
+              "type": "string",
+              "default": "branch",
+              "title": "Mode"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Diff"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project}/tasks/{task}/panes/{pane}/review": {
+      "get": {
+        "summary": "Pane Review",
+        "description": "The comments written in a diff pane so far.",
+        "operationId": "pane_review_api_projects__project__tasks__task__panes__pane__review_get",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project"
+            }
+          },
+          {
+            "name": "task",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task"
+            }
+          },
+          {
+            "name": "pane",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pane"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Review"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Save Review",
+        "operationId": "save_review_api_projects__project__tasks__task__panes__pane__review_put",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project"
+            }
+          },
+          {
+            "name": "task",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task"
+            }
+          },
+          {
+            "name": "pane",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pane"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Review"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Submit Review",
+        "description": "Finish a review: its comments go to the agent that asked for it, or the master.",
+        "operationId": "submit_review_api_projects__project__tasks__task__panes__pane__review_post",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project"
+            }
+          },
+          {
+            "name": "task",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task"
+            }
+          },
+          {
+            "name": "pane",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pane"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Review"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/projects/{project}/tasks/{task}/layout": {
       "put": {
         "summary": "Set Layout",
@@ -1634,6 +1893,83 @@
         }
       }
     },
+    "/agent/reviews": {
+      "post": {
+        "summary": "Agent Request Review",
+        "operationId": "agent_request_review_agent_reviews_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Opened"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agent/reviews/{pane}": {
+      "get": {
+        "summary": "Agent Review State",
+        "operationId": "agent_review_state_agent_reviews__pane__get",
+        "parameters": [
+          {
+            "name": "pane",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pane"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/agent/tools": {
       "get": {
         "summary": "Agent Tools",
@@ -1900,6 +2236,144 @@
         "title": "AppState",
         "description": "Everything the UI shows, in one piece."
       },
+      "Diff": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "branch",
+              "uncommitted"
+            ],
+            "title": "Mode"
+          },
+          "base": {
+            "type": "string",
+            "title": "Base"
+          },
+          "commit": {
+            "type": "string",
+            "title": "Commit"
+          },
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/DiffFile"
+            },
+            "type": "array",
+            "title": "Files"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mode",
+          "base",
+          "commit",
+          "files"
+        ],
+        "title": "Diff",
+        "description": "The changes a diff pane shows."
+      },
+      "DiffFile": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "old_path": {
+            "type": "string",
+            "title": "Old Path",
+            "default": ""
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "modified",
+              "added",
+              "deleted",
+              "renamed"
+            ],
+            "title": "Status"
+          },
+          "binary": {
+            "type": "boolean",
+            "title": "Binary",
+            "default": false
+          },
+          "truncated": {
+            "type": "boolean",
+            "title": "Truncated",
+            "default": false
+          },
+          "additions": {
+            "type": "integer",
+            "title": "Additions",
+            "default": 0
+          },
+          "deletions": {
+            "type": "integer",
+            "title": "Deletions",
+            "default": 0
+          },
+          "hunks": {
+            "items": {
+              "$ref": "#/components/schemas/Hunk"
+            },
+            "type": "array",
+            "title": "Hunks",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "path",
+          "status"
+        ],
+        "title": "DiffFile"
+      },
+      "DiffLine": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "context",
+              "add",
+              "delete"
+            ],
+            "title": "Kind"
+          },
+          "old": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Old"
+          },
+          "new": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "New"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "text"
+        ],
+        "title": "DiffLine"
+      },
       "Focus": {
         "properties": {
           "slug": {
@@ -1945,6 +2419,27 @@
           "on"
         ],
         "title": "Highlight"
+      },
+      "Hunk": {
+        "properties": {
+          "header": {
+            "type": "string",
+            "title": "Header"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/DiffLine"
+            },
+            "type": "array",
+            "title": "Lines"
+          }
+        },
+        "type": "object",
+        "required": [
+          "header",
+          "lines"
+        ],
+        "title": "Hunk"
       },
       "InboxState": {
         "properties": {
@@ -2136,7 +2631,8 @@
             "type": "string",
             "enum": [
               "terminal",
-              "web"
+              "web",
+              "diff"
             ],
             "title": "Kind",
             "default": "terminal"
@@ -2466,6 +2962,117 @@
           "unread"
         ],
         "title": "ReadChange"
+      },
+      "Review": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "branch",
+              "uncommitted"
+            ],
+            "title": "Mode",
+            "default": "branch"
+          },
+          "comments": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewComment"
+            },
+            "type": "array",
+            "title": "Comments",
+            "default": []
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "Review",
+        "description": "The comments of a review; kept while the user writes them, sent when finished."
+      },
+      "ReviewComment": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "side": {
+            "type": "string",
+            "enum": [
+              "old",
+              "new"
+            ],
+            "title": "Side",
+            "default": "new"
+          },
+          "start": {
+            "type": "integer",
+            "title": "Start",
+            "default": 0
+          },
+          "end": {
+            "type": "integer",
+            "title": "End",
+            "default": 0
+          },
+          "quote": {
+            "type": "string",
+            "title": "Quote",
+            "default": ""
+          },
+          "body": {
+            "type": "string",
+            "title": "Body"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path",
+          "body"
+        ],
+        "title": "ReviewComment"
+      },
+      "ReviewRequest": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "branch",
+              "uncommitted"
+            ],
+            "title": "Mode",
+            "default": "branch"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "ReviewRequest",
+        "description": "An agent asks the user to review the changes of the task's clone."
+      },
+      "ReviewState": {
+        "properties": {
+          "done": {
+            "type": "boolean",
+            "title": "Done"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "done"
+        ],
+        "title": "ReviewState",
+        "description": "Whether the user has finished a review an agent asked for, and what they said."
       },
       "Service": {
         "properties": {
@@ -2914,7 +3521,8 @@
               "terminal",
               "web",
               "external",
-              "log"
+              "log",
+              "diff"
             ],
             "title": "Kind",
             "default": "terminal"
