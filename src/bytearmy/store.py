@@ -34,11 +34,13 @@ from bytearmy.models import (
     GlobalState,
     LogEntry,
     Project,
+    ProjectEdit,
     ProjectFile,
     ProjectMeta,
     Task,
     TaskChange,
     TaskCreate,
+    TaskEdit,
     TaskFile,
     UiChange,
     Workspace,
@@ -71,6 +73,10 @@ class DuplicateName(ValueError):
 
 
 class UnknownDependency(ValueError):
+    pass
+
+
+class InvalidEdit(ValueError):
     pass
 
 
@@ -241,6 +247,19 @@ class Store:
             self._save_state(state)
             return self._read_projects()[slug]
 
+    def edit_project(self, slug: str, edit: ProjectEdit) -> None:
+        """Change a project's name and description; its directory keeps its name."""
+        with self._lock:
+            directory = self._project_dir(slug)
+            projects = self._read_projects()
+            if any(
+                other != slug and project.name == edit.name for other, project in projects.items()
+            ):
+                raise DuplicateName("project", edit.name)
+            file = self._project_file(directory)
+            file.name, file.description = edit.name, edit.description
+            self._save_project(directory, file)
+
     def delete_project(self, slug: str) -> None:
         """Remove the project's directory with everything in it.
 
@@ -395,6 +414,43 @@ class Store:
             project_file = self._project_file(project_dir)
             project_file.task_order = [*_ordered(project_file.task_order, started), slug]
             self._save_project(project_dir, project_file)
+
+    def edit_task(self, project: str, slug: str, edit: TaskEdit) -> None:
+        """Change what the user may change about a task; its directory keeps its name."""
+        with self._lock:
+            project_dir = self._project_dir(project)
+            self._task_dir(project_dir, slug)
+            files = self._task_files(project_dir)
+            file = files[slug]
+            if any(
+                other != slug and other_file.name == edit.name
+                for other, other_file in files.items()
+            ):
+                raise DuplicateName("task", edit.name)
+            if file.status == BACKLOG and edit.status != BACKLOG:
+                raise InvalidEdit("a task in the backlog gets a status when it is started")
+            if file.status != BACKLOG and edit.status == BACKLOG:
+                raise InvalidEdit("a started task cannot go back to the backlog")
+            dependencies = list(dict.fromkeys(edit.dependencies))
+            for dependency in dependencies:
+                if dependency not in files:
+                    raise UnknownDependency(dependency)
+            # The task must not wait for itself, also not through other tasks.
+            waiting, seen = list(dependencies), set()
+            while waiting:
+                other = waiting.pop()
+                if other == slug:
+                    raise InvalidEdit(f'"{edit.name}" would wait for itself')
+                if other not in seen:
+                    seen.add(other)
+                    waiting.extend(
+                        dependency
+                        for dependency in files[other].dependencies
+                        if dependency in files
+                    )
+            fields = edit.model_dump()
+            fields["dependencies"] = dependencies
+            self._save_task(project_dir, slug, file.model_copy(update=fields))
 
     def delete_task(self, project: str, slug: str) -> None:
         """Remove the task's directory with everything in it."""

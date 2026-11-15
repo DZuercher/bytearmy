@@ -6,8 +6,10 @@ type Schemas = components['schemas']
 export type AppState = Schemas['AppState']
 export type Project = Schemas['Project']
 export type ProjectMeta = Schemas['ProjectMeta']
+export type ProjectEdit = Schemas['ProjectEdit']
 export type Task = Schemas['Task']
 export type TaskCreate = Schemas['TaskCreate']
+export type TaskEdit = Schemas['TaskEdit']
 export type UiChange = Schemas['UiChange']
 export type Bar = Schemas['TaskOrder']['bar']
 export type Pane = Schemas['Pane']
@@ -81,6 +83,8 @@ export const api = {
   updateUi: (change: UiChange) => request('PATCH', routes.ui, change),
 
   createProject: (meta: ProjectMeta) => request('POST', routes.projects, meta),
+  editProject: (project: string, edit: ProjectEdit) =>
+    request('PUT', fill(routes.project, { project }), edit),
   deleteProject: (project: string) => request('DELETE', fill(routes.project, { project })),
   reorderProjects: (order: string[]) =>
     request('PUT', routes.projectOrder, { order } satisfies Schemas['ProjectOrder']),
@@ -93,6 +97,8 @@ export const api = {
     request('POST', fill(routes.taskStart, { project, task })),
   cloneAgain: (project: string, task: string) =>
     request('POST', fill(routes.taskClone, { project, task })),
+  editTask: (project: string, task: string, edit: TaskEdit) =>
+    request('PUT', fill(routes.task, { project, task }), edit),
   deleteTask: (project: string, task: string) =>
     request('DELETE', fill(routes.task, { project, task })),
   reorderTasks: (project: string, bar: Bar, order: string[]) =>

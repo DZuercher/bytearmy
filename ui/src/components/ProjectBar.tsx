@@ -1,10 +1,11 @@
-import { ChevronLeft, ChevronRight, Plus, Trash2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useState } from 'react'
-import type { Project, ProjectMeta } from '@/api/client'
+import type { Project, ProjectEdit, ProjectMeta } from '@/api/client'
 import { BarHeading } from '@/components/BarHeading'
 import { CreateProjectDialog } from '@/components/CreateProjectDialog'
 import { DataList } from '@/components/DataList'
 import type { Doomed } from '@/components/DeleteDialog'
+import { EditProjectDialog } from '@/components/EditProjectDialog'
 import { SortableItem, SortableList } from '@/components/Sortable'
 import { Button } from '@/components/ui/button'
 import {
@@ -23,12 +24,15 @@ type Props = {
   focused: string | null
   onFocus: (slug: string) => void
   onCreate: (meta: ProjectMeta) => Promise<void>
+  onEdit: (slug: string, edit: ProjectEdit) => Promise<void>
   onDelete: (doomed: Doomed) => void
   onReorder: (order: string[]) => void
 }
 
-export function ProjectBar({ open, onToggle, projects, focused, onFocus, onCreate, onDelete, onReorder }: Props) {
+export function ProjectBar({ open, onToggle, projects, focused, onFocus, onCreate, onEdit, onDelete, onReorder }: Props) {
   const [creating, setCreating] = useState(false)
+  const [editing, setEditing] = useState<string | null>(null) // the slug of the project being edited
+  const edited = projects.find((project) => project.slug === editing)
 
   if (!open) {
     return (
@@ -91,6 +95,10 @@ export function ProjectBar({ open, onToggle, projects, focused, onFocus, onCreat
                     ]}
                   />
                   <ContextMenuSeparator />
+                  <ContextMenuItem onSelect={() => setEditing(project.slug)}>
+                    <Pencil />
+                    Edit project…
+                  </ContextMenuItem>
                   <ContextMenuItem
                     variant="destructive"
                     onSelect={() => onDelete({ kind: 'project', ...project })}
@@ -107,6 +115,14 @@ export function ProjectBar({ open, onToggle, projects, focused, onFocus, onCreat
       {projects.length === 0 && <p className="text-muted-foreground">No projects yet.</p>}
 
       <CreateProjectDialog open={creating} onOpenChange={setCreating} onCreate={onCreate} />
+      {edited && (
+        <EditProjectDialog
+          key={edited.slug}
+          project={edited}
+          onClose={() => setEditing(null)}
+          onSave={(edit) => onEdit(edited.slug, edit)}
+        />
+      )}
     </nav>
   )
 }
