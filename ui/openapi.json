@@ -1340,6 +1340,62 @@
           }
         }
       }
+    },
+    "/log/{key}/{project}/{task}": {
+      "get": {
+        "summary": "Task Log",
+        "description": "The log of a task as a page, for web panes.",
+        "operationId": "task_log_log__key___project___task__get",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          },
+          {
+            "name": "project",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project"
+            }
+          },
+          {
+            "name": "task",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1527,6 +1583,11 @@
             "type": "string",
             "title": "Agent",
             "default": ""
+          },
+          "logged": {
+            "type": "boolean",
+            "title": "Logged",
+            "default": false
           }
         },
         "type": "object",
@@ -2229,7 +2290,8 @@
             "enum": [
               "terminal",
               "web",
-              "external"
+              "external",
+              "log"
             ],
             "title": "Kind",
             "default": "terminal"

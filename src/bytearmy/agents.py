@@ -11,7 +11,10 @@ from bytearmy.store import METADATA_DIR
 MASTER = "master"  # the role of the first agent of a task
 INSTRUCTIONS_FILE = Path(".claude") / "bytearmy.md"  # below the root; the user may change it
 # Fingerprints of the texts earlier versions wrote; a file that still has one is replaced.
-EARLIER_INSTRUCTIONS = {"d7b7e2ff9de55b90644b86a495241721af6ed7405a674dfa89d702b49bee815f"}
+EARLIER_INSTRUCTIONS = {
+    "d7b7e2ff9de55b90644b86a495241721af6ed7405a674dfa89d702b49bee815f",
+    "75400f6d42471783dd12939ab458350e54dd7a6809b4112f5b36cb9562a8c3ec",
+}
 
 INSTRUCTIONS = """\
 # bytearmy
@@ -43,6 +46,9 @@ of your own task; it cannot reach other tasks.
   in the task bar; use it when the user should look at the task.
 - `bytearmy task set-color <color>`, `bytearmy task set-description "<text>"`,
   `bytearmy task set-reminder <YYYY-MM-DD|none>`.
+- `bytearmy log "<text>"`: add an entry to the task's log; the time is taken from the clock
+  and you are named as its author. The user writes to the same log, and
+  `bytearmy pane open show-log` shows it.
 
 ## Other agents
 

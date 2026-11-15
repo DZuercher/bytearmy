@@ -92,10 +92,11 @@ The tools are found in .tools. Ideally these just open already existing programs
 Every tool is one file `<bytearmy_root>/.tools/<tool>.toml` holding its name, its kind, its command or page and its parameters. bytearmy writes the files of the premade tools if they are missing. When a newer bytearmy brings a new version of a premade file, it replaces the files nobody edited; a file the user changed is never overwritten. The same holds for `<bytearmy_root>/.claude/bytearmy.md`.
 A tool file also says who may call the tool (the user, agents or both), what a parameter is set to if nothing is entered (e.g. the projects GitHub page), which background program the tool needs (e.g. the VS Code server of the IDE), whether its program is an agent, and how it is started when another agent spawns it.
 A program can run inside a pane if it is a terminal program or if it serves a web UI. Windows of native programs (Finder, Ghostty, the VS Code desktop app) cannot be placed inside a pane.
-Every tool therefore has one of three kinds:
+Every tool therefore has one of four kinds:
 - terminal: the program runs in a terminal emulator inside the pane (xterm.js connected to a pseudo-terminal).
 - web: the pane is an embedded browser view (Electron `<webview>`) showing a URL or a file.
 - external: the program opens in its own window outside of bytearmy, no pane is created.
+- log: adds its parameter `entry` to the task's log, no pane is created.
 
 Web panes:
 - A web pane shows only http and https pages. An address without `http://` or `https://` is opened with `https://`.
@@ -113,6 +114,8 @@ Tools can be added by the user or agents but the following tools should come pre
 - Webpage [web. Shows a specific webpage. Eg github page associaated with the projects github url. The command dialogue offers the projects GitHub page; an address can be typed instead.]
 - IDE [web. Opens the web UI of vscode (`code serve-web`) in the repository in the task, if there is one, otherwise in the tasks working directory. The vscode desktop app cannot be embedded. One VS Code server serves all IDE panes; it starts with the first IDE pane and ends when bytearmy quits. It is started with `--accept-server-license-terms`, which stands in the tool file.]
 - Explorer [external. Opens systems file explorer in the tasks working directory, in its own window. If it fails within two seconds, the command dialogue shows why.]
+- Log [log. Adds an entry to the tasks log in `<task>/.bytearmy/log.jsonl`. Each entry holds the current time in UTC (ISO 8601), its author (the name of the agent, or `user`) and the text. The user calls it from the command dialogue, an agent with `bytearmy log "<text>"`.]
+- Show Log [web. Shows the tasks log as an HTML page, oldest entry first. bytearmy renders the page from `log.jsonl` and serves it under the same random key as the files of the HTML tool. When an entry is added the pane loads it again.]
 
 What a program without a pane (an external tool, the VS Code server) prints goes to `<bytearmy_root>/.bytearmy/logs/<tool>.log`.
 

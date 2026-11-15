@@ -78,9 +78,17 @@ def pane_list(_args: argparse.Namespace) -> str:
 def pane_open(args: argparse.Namespace) -> str:
     body = {"tool": args.tool, "args": args.values, "beside": args.beside}
     opened = call("POST", "/panes", body)
+    if opened["logged"]:
+        return "added the entry to the task's log"
     return (
         f"opened {opened['pane']}" if opened["pane"] else f"started {args.tool} in its own window"
     )
+
+
+def log(args: argparse.Namespace) -> str:
+    """Short for `bytearmy pane open log entry=<text>`."""
+    call("POST", "/panes", {"tool": "log", "args": [f"entry={args.entry}"]})
+    return "added the entry to the task's log"
 
 
 def pane_close(args: argparse.Namespace) -> str:
@@ -198,7 +206,7 @@ def parser() -> argparse.ArgumentParser:
     main = argparse.ArgumentParser(
         prog="bytearmy", description="Steer the workspace of this pane's task in bytearmy."
     )
-    groups = main.add_subparsers(dest="group", required=True, metavar="{pane,tool,task,agent}")
+    groups = main.add_subparsers(dest="group", required=True, metavar="{pane,tool,task,agent,log}")
 
     def command(group, name: str, run, help: str):
         sub = group.add_parser(name, help=help, description=help)
@@ -250,6 +258,12 @@ def parser() -> argparse.ArgumentParser:
     spawning.add_argument("prompt", nargs="?", help="what the new agent should do")
     spawning.add_argument("--prompt-file", help="read the prompt from this file")
     spawning.add_argument("--beside", help="the pane to open it next to")
+
+    logging = groups.add_parser(
+        "log", help="add an entry to the task's log", description="add an entry to the task's log"
+    )
+    logging.set_defaults(run=log)
+    logging.add_argument("entry", help="the text of the entry; the time is taken from the clock")
     return main
 
 

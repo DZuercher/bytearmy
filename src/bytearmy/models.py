@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from datetime import date
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -140,7 +140,8 @@ class Tool(BaseModel):
     name: str
     # terminal: a program in a terminal pane. web: a page in a browser pane.
     # external: a program with a window of its own, no pane.
-    kind: Literal["terminal", "web", "external"] = "terminal"
+    # log: adds its parameter `entry` to the task's log, no pane.
+    kind: Literal["terminal", "web", "external", "log"] = "terminal"
     command: str = ""  # run by the user's shell; for a terminal, empty means the shell itself
     resume: str = ""  # run instead of `command` when a pane is restored after a restart
     agent: bool = False  # the program is an agent: it gets a name and bytearmy's instructions
@@ -157,7 +158,17 @@ class Tool(BaseModel):
             raise ValueError("a web tool needs a url")
         if self.kind == "external" and not self.command:
             raise ValueError("an external tool needs a command")
+        if self.kind == "log" and "entry" not in {parameter.name for parameter in self.parameters}:
+            raise ValueError("a log tool needs a parameter named entry")
         return self
+
+
+class LogEntry(BaseModel):
+    """One line of `<task>/.bytearmy/log.jsonl`."""
+
+    time: datetime  # UTC
+    author: str  # the name of the agent that wrote it, or "user"
+    text: str
 
 
 class Project(ProjectMeta):
@@ -314,3 +325,4 @@ class Opened(BaseModel):
 
     pane: str
     agent: str = ""
+    logged: bool = False  # the tool added an entry to the task's log
