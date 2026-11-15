@@ -5,6 +5,7 @@ import { useEffect, useRef } from 'react'
 import { openTerminal } from '@/api/client'
 
 const RESIZE_PAUSE_MS = 100 // a window drag resizes many times; the core hears the last size
+const RECONNECT_MS = 1_000
 
 type Props = {
   place: { project: string; task: string; pane: string }
@@ -36,20 +37,34 @@ export function TerminalPane({ place, visible, onEnded }: Props) {
     fitter.fit() // a new program starts at the size the pane really has
     terminal.current = term
 
-    const socket = openTerminal({ project, task, pane }, { rows: term.rows, cols: term.cols })
-    socket.binaryType = 'arraybuffer'
+    let socket: WebSocket
+    let retry: ReturnType<typeof setTimeout> | undefined
+    let stopped = false
     const send = (message: object) => {
       if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message))
     }
-    socket.onopen = () => {
-      // A program restored after a restart still has the size it had before.
-      send({ type: 'resize', rows: term.rows, cols: term.cols })
-      term.focus()
+    const connect = (first: boolean) => {
+      socket = openTerminal({ project, task, pane }, { rows: term.rows, cols: term.cols })
+      socket.binaryType = 'arraybuffer'
+      socket.onopen = () => {
+        // The core sends what was printed so far again; it replaces the screen.
+        if (!first) term.reset()
+        // A program restored after a restart still has the size it had before.
+        send({ type: 'resize', rows: term.rows, cols: term.cols })
+        if (first) term.focus()
+      }
+      socket.onmessage = (event) => {
+        if (typeof event.data === 'string') {
+          stopped = true
+          ended.current()
+        } else term.write(new Uint8Array(event.data))
+      }
+      // The connection can drop while the computer sleeps; the program runs on.
+      socket.onclose = (event) => {
+        if (!stopped && event.code < 4000) retry = setTimeout(() => connect(false), RECONNECT_MS)
+      }
     }
-    socket.onmessage = (event) => {
-      if (typeof event.data === 'string') ended.current()
-      else term.write(new Uint8Array(event.data))
-    }
+    connect(true)
 
     let pending: ReturnType<typeof setTimeout> | undefined
     const typed = term.onData((data) => send({ type: 'input', data }))
@@ -64,6 +79,8 @@ export function TerminalPane({ place, visible, onEnded }: Props) {
     observer.observe(host.current!)
 
     return () => {
+      stopped = true
+      clearTimeout(retry)
       clearTimeout(pending)
       observer.disconnect()
       typed.dispose()
