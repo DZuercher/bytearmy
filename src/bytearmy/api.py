@@ -6,6 +6,7 @@ import asyncio
 import json
 import secrets
 import tempfile
+from collections.abc import Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
@@ -14,6 +15,7 @@ from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, WebSock
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from bytearmy.agents import ORCHESTRATOR
 from bytearmy.clones import AlreadyCloning, Cloner
 from bytearmy.inbox import Inbox, MessageNotFound
 from bytearmy.logpage import render
@@ -25,17 +27,21 @@ from bytearmy.models import (
     DiffMode,
     Focus,
     Highlight,
+    InboxState,
     Layout,
     LogEntry,
     Opened,
+    OrchestratorState,
     Page,
     PageVersion,
     PaneCall,
     PaneMove,
     PaneOpen,
+    Project,
     ProjectEdit,
     ProjectMeta,
     ProjectOrder,
+    ProjectSummary,
     ReadChange,
     Review,
     ReviewRequest,
@@ -45,12 +51,16 @@ from bytearmy.models import (
     TaskCreate,
     TaskEdit,
     TaskOrder,
+    TaskStart,
+    TaskSummary,
     Tool,
     UiChange,
     Unfold,
     Visibility,
     Workspace,
 )
+from bytearmy.orchestrator import Orchestrator
+from bytearmy.ptys import Pty
 from bytearmy.store import (
     Blocked,
     DuplicateName,
@@ -95,6 +105,47 @@ def calling_pane(request: Request) -> Key:
 Caller = Annotated[Key, Depends(calling_pane)]
 
 
+def calling_orchestrator(request: Request) -> None:
+    """Only the orchestrator's program may call; its key is the token it sends."""
+    supplied = request.headers.get("authorization", "").removeprefix("Bearer ").strip()
+    if not request.app.state.orchestrator.caller_ok(supplied):
+        raise HTTPException(status_code=401, detail="only the orchestrator may call this")
+
+
+async def pump(
+    socket: WebSocket,
+    pty: Pty,
+    write: Callable[[bytes], None],
+    resized: Callable[[int, int], None],
+) -> None:
+    """Carry a terminal over an accepted socket: output as binary frames, input and
+    resizes as JSON, and a JSON `exit` once the program has ended."""
+    ended = json.dumps({"type": "exit"})
+    output = pty.listen()
+
+    async def send_output() -> None:
+        while (chunk := await output.get()) is not None:
+            await socket.send_bytes(chunk)
+        await socket.send_text(ended)
+
+    async def receive_input() -> None:
+        while True:
+            message = json.loads(await socket.receive_text())
+            if message["type"] == "input":
+                await asyncio.to_thread(write, message["data"].encode())
+            elif message["type"] == "resize":
+                await asyncio.to_thread(resized, int(message["rows"]), int(message["cols"]))
+
+    directions = [asyncio.create_task(send_output()), asyncio.create_task(receive_input())]
+    try:
+        await asyncio.wait(directions, return_when=asyncio.FIRST_COMPLETED)
+    finally:
+        for direction in directions:
+            direction.cancel()
+        await asyncio.gather(*directions, return_exceptions=True)
+        pty.stop_listening(output)
+
+
 def create_app(
     store: Store,
     token: str,
@@ -103,14 +154,17 @@ def create_app(
     workspaces: Workspaces | None = None,
     url: str = "",
     inbox: Inbox | None = None,
+    orchestrator: Orchestrator | None = None,
 ) -> FastAPI:
     """The core's app. `url` is where it is served: the programs in the panes call it there.
 
     Without an `inbox`, the inbox asks no source: only the app the user starts asks GitHub.
+    Without an `orchestrator`, it starts only once the window shows it.
     """
     cloner = cloner or Cloner(store)
     inbox = inbox or Inbox(store)
     workspaces = workspaces or Workspaces(store)
+    orchestrator = orchestrator or Orchestrator(store, workspaces)
     if url:
         workspaces.url = url
     # Pages in web panes cannot send the token, and must not know it: the files and logs
@@ -138,7 +192,33 @@ def create_app(
         )
         whole.theme = load_theme(store.root)
         whole.inbox = inbox.state()
+        whole.orchestrator = orchestrator.state()
         return whole
+
+    # What the window and the orchestrator both do; the orchestrator gets no state back.
+
+    def new_project(meta: ProjectMeta) -> Project:
+        return store.create_project(meta)
+
+    def drop_project(project: str) -> None:
+        cloner.cancel(project)
+        workspaces.stop(project)
+        store.delete_project(project)
+
+    def new_task(project: str, new: TaskCreate) -> Task:
+        if new.branch and not cloner.valid_branch(new.branch):
+            raise HTTPException(
+                status_code=400, detail=f'"{new.branch}" is not a valid branch name.'
+            )
+        task = store.create_task(project, new)
+        if task.repo:
+            cloner.start(project, task, store.project(project).github_url)
+        return task
+
+    def drop_task(project: str, task: str) -> None:
+        cloner.cancel(project, task)
+        workspaces.stop(project, task)
+        store.delete_task(project, task)
 
     api = APIRouter(prefix="/api", dependencies=[Depends(require_token)])
 
@@ -173,7 +253,7 @@ def create_app(
 
     @api.post("/projects", status_code=201)
     def create_project(meta: ProjectMeta) -> AppState:
-        store.create_project(meta)
+        new_project(meta)
         return state()
 
     @api.put("/projects/order")
@@ -188,9 +268,7 @@ def create_app(
 
     @api.delete("/projects/{project}")
     def delete_project(project: str) -> AppState:
-        cloner.cancel(project)
-        workspaces.stop(project)
-        store.delete_project(project)
+        drop_project(project)
         return state()
 
     @api.post("/projects/{project}/tasks", status_code=201)
@@ -257,9 +335,7 @@ def create_app(
 
     @api.delete("/projects/{project}/tasks/{task}")
     def delete_task(project: str, task: str) -> AppState:
-        cloner.cancel(project, task)
-        workspaces.stop(project, task)
-        store.delete_task(project, task)
+        drop_task(project, task)
         return state()
 
     @api.post(PANES, status_code=201)
@@ -329,6 +405,92 @@ def create_app(
     def highlight_pane(project: str, task: str, pane: str, body: Highlight) -> AppState:
         workspaces.highlight(project, task, pane, body.on)
         return state()
+
+    @api.get("/orchestrator")
+    def orchestrator_state() -> OrchestratorState:
+        return orchestrator.state()
+
+    @api.post("/orchestrator/restart")
+    def restart_orchestrator() -> AppState:
+        orchestrator.restart()
+        return state()
+
+    # -- the `bytearmy` command of the orchestrator --------------------------
+    # Its program has a key of its own and reaches every project, task and the inbox.
+
+    above = APIRouter(prefix="/orchestrator", dependencies=[Depends(calling_orchestrator)])
+
+    def summary(project: str, task: Task) -> TaskSummary:
+        master = task.workspace.panes.get(task.workspace.master or "")
+        return TaskSummary(
+            slug=task.slug,
+            name=task.name,
+            status=task.status,
+            color=task.color,
+            branch=task.branch,
+            description=task.description,
+            path=task.path,
+            master=master.agent if master else "",
+            master_running=bool(master) and workspaces.master_running(project, task.slug),
+        )
+
+    def project_summary(project: Project) -> ProjectSummary:
+        return ProjectSummary(
+            slug=project.slug,
+            name=project.name,
+            description=project.description,
+            github_url=project.github_url,
+            path=project.path,
+            backlog=[summary(project.slug, task) for task in project.backlog],
+            tasks=[summary(project.slug, task) for task in project.tasks],
+        )
+
+    @above.get("/projects")
+    def above_projects() -> list[ProjectSummary]:
+        return [project_summary(project) for project in store.app_state().projects]
+
+    @above.post("/projects", status_code=201)
+    def above_create_project(meta: ProjectMeta) -> ProjectSummary:
+        return project_summary(new_project(meta))
+
+    @above.delete("/projects/{project}")
+    def above_delete_project(project: str) -> None:
+        drop_project(project)
+
+    @above.post("/projects/{project}/tasks", status_code=201)
+    def above_create_task(project: str, new: TaskCreate) -> TaskSummary:
+        return summary(project, new_task(project, new))
+
+    @above.post("/projects/{project}/tasks/{task}/start")
+    def above_start_task(project: str, task: str, start: TaskStart) -> TaskSummary:
+        """Move the task into the task bar; with a prompt, start its master with it."""
+        found = store.task(project, task)
+        if start.prompt and found.clone == "cloning":
+            # Its master would start outside the clone.
+            raise HTTPException(
+                status_code=409,
+                detail=f'"{found.name}" is still being cloned; start it once the clone is ready.',
+            )
+        store.start_task(project, task)
+        if start.prompt and start.prompt.strip():
+            workspaces.start_master(project, task, start.prompt, spawned_by=ORCHESTRATOR)
+        return summary(project, store.task(project, task))
+
+    @above.delete("/projects/{project}/tasks/{task}")
+    def above_delete_task(project: str, task: str) -> None:
+        drop_task(project, task)
+
+    @above.get("/inbox")
+    def above_inbox() -> InboxState:
+        return inbox.state()
+
+    @above.post("/inbox/{message}/read")
+    def above_mark_message(message: str, change: ReadChange) -> None:
+        inbox.mark(message, change.unread)
+
+    @above.post("/inbox/{message}/dismiss")
+    def above_dismiss_message(message: str) -> None:
+        inbox.dismiss(message)
 
     # -- the `bytearmy` command in the panes -------------------------------
     # Each pane's program has a key of its own and reaches only its own task.
@@ -400,16 +562,20 @@ def create_app(
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
         workspaces.start_all()
+        orchestrator.start()
         inbox.start()
         yield
         inbox.shutdown()
+        orchestrator.shutdown()
         cloner.shutdown()
         workspaces.shutdown()
 
     # FastAPI's schema and docs pages would answer without the token.
     app = FastAPI(title="bytearmy", openapi_url=None, lifespan=lifespan)
     app.state.workspaces = workspaces  # for `calling_pane`
+    app.state.orchestrator = orchestrator  # for `calling_orchestrator`
     app.include_router(api)
+    app.include_router(above)
     app.include_router(agent)
 
     @app.websocket("/api/changes")
@@ -457,36 +623,36 @@ def create_app(
             await socket.close(code=4404)
             return
         await socket.accept()
-        ended = json.dumps({"type": "exit"})
         if pty is None:
-            await socket.send_text(ended)
+            await socket.send_text(json.dumps({"type": "exit"}))
             await socket.close()
             return
-        output = pty.listen()
 
-        async def send_output() -> None:
-            while (chunk := await output.get()) is not None:
-                await socket.send_bytes(chunk)
-            await socket.send_text(ended)
+        def resized(rows: int, cols: int) -> None:
+            pty.resize(rows, cols)
+            workspaces.resized(project, task, pane, rows, cols)
 
-        async def receive_input() -> None:
-            while True:
-                message = json.loads(await socket.receive_text())
-                if message["type"] == "input":
-                    await asyncio.to_thread(pty.write, message["data"].encode())
-                elif message["type"] == "resize":
-                    size = int(message["rows"]), int(message["cols"])
-                    pty.resize(*size)
-                    await asyncio.to_thread(workspaces.resized, project, task, pane, *size)
+        await pump(socket, pty, pty.write, resized)
 
-        directions = [asyncio.create_task(send_output()), asyncio.create_task(receive_input())]
+    @app.websocket("/api/orchestrator/terminal")
+    async def orchestrator_terminal(socket: WebSocket) -> None:
+        """The orchestrator's terminal, like that of a pane."""
+        query = socket.query_params
+        if not token_ok(query.get("token", "")):
+            await socket.close(code=4401)
+            return
         try:
-            await asyncio.wait(directions, return_when=asyncio.FIRST_COMPLETED)
-        finally:
-            for direction in directions:
-                direction.cancel()
-            await asyncio.gather(*directions, return_exceptions=True)
-            pty.stop_listening(output)
+            rows, cols = int(query.get("rows", 24)), int(query.get("cols", 80))
+        except ValueError:
+            await socket.close(code=4404)
+            return
+        pty = await asyncio.to_thread(orchestrator.attach, rows, cols)
+        await socket.accept()
+        if pty is None:
+            await socket.send_text(json.dumps({"type": "exit"}))
+            await socket.close()
+            return
+        await pump(socket, pty, orchestrator.write, orchestrator.resized)
 
     @app.get("/files/{key}/{project}/{task}/{path:path}")
     def task_file(key: str, project: str, task: str, path: str) -> FileResponse:

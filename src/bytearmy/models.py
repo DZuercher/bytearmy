@@ -292,7 +292,8 @@ class UiState(BaseModel):
     left_open: bool = True
     right_open: bool = True
     bottom_open: bool = True
-    view: Literal["workspace", "inbox"] = "workspace"  # what the middle of the window shows
+    # what the middle of the window shows
+    view: Literal["workspace", "inbox", "orchestrator"] = "workspace"
 
 
 class UiChange(BaseModel):
@@ -301,7 +302,7 @@ class UiChange(BaseModel):
     left_open: bool | None = None
     right_open: bool | None = None
     bottom_open: bool | None = None
-    view: Literal["workspace", "inbox"] | None = None
+    view: Literal["workspace", "inbox", "orchestrator"] | None = None
 
 
 class Message(BaseModel):
@@ -358,6 +359,23 @@ class Theme(BaseModel):
         return colors
 
 
+class OrchestratorFile(BaseModel):
+    """Contents of `<root>/.bytearmy/orchestrator.json`."""
+
+    session: str = ""  # its Claude session; it resumes it after a restart
+    rows: int = 24
+    cols: int = 80
+    exit_code: int | None = None  # set when its program ended with an error
+
+
+class OrchestratorState(BaseModel):
+    """What the window shows of the orchestrator."""
+
+    name: str = "orchestrator"
+    running: bool = False
+    exit_code: int | None = None
+
+
 class AppState(BaseModel):
     """Everything the UI shows, in one piece."""
 
@@ -368,6 +386,7 @@ class AppState(BaseModel):
     tools: list[Tool] = []
     theme: Theme = Theme()
     inbox: InboxState = InboxState()
+    orchestrator: OrchestratorState = OrchestratorState()
 
 
 class ProjectOrder(BaseModel):
@@ -509,3 +528,38 @@ class Opened(BaseModel):
     pane: str
     agent: str = ""
     logged: bool = False  # the tool added an entry to the task's log
+
+
+# -- what the `bytearmy` command of the orchestrator sends and gets ------------
+
+
+class TaskStart(BaseModel):
+    """Start a task; with a prompt, a master agent starts in it and gets the prompt."""
+
+    prompt: str | None = None
+
+
+class TaskSummary(BaseModel):
+    """A task as the orchestrator sees it."""
+
+    slug: str
+    name: str
+    status: str
+    color: Color = ""
+    branch: str = ""
+    description: str = ""
+    path: str
+    master: str = ""  # the name of its master agent; empty if it has none
+    master_running: bool = False
+
+
+class ProjectSummary(BaseModel):
+    """A project with its tasks, as the orchestrator sees it."""
+
+    slug: str
+    name: str
+    description: str = ""
+    github_url: str = ""
+    path: str
+    backlog: list[TaskSummary]
+    tasks: list[TaskSummary]

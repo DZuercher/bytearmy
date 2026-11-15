@@ -4,6 +4,7 @@ Layout below the root:
 
     .bytearmy/state.json                   project order, focused project, UI state
     .bytearmy/inbox.json                   messages of the inbox (written by `bytearmy.inbox`)
+    .bytearmy/orchestrator.json            session of the orchestrator (`bytearmy.orchestrator`)
     <project>/.bytearmy/project.json       name, description, GitHub URL, task order, focused task
     <project>/.bytearmy/mirror.git/        mirror of the GitHub URL, which the tasks clone from
     <project>/<task>/.bytearmy/task.json   name, description, status, branch, reminder, dependencies

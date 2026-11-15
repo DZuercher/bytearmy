@@ -472,6 +472,180 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/orchestrator": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Orchestrator State */
+        get: operations["orchestrator_state_api_orchestrator_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/orchestrator/restart": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Restart Orchestrator */
+        post: operations["restart_orchestrator_api_orchestrator_restart_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/orchestrator/projects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Above Projects */
+        get: operations["above_projects_orchestrator_projects_get"];
+        put?: never;
+        /** Above Create Project */
+        post: operations["above_create_project_orchestrator_projects_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/orchestrator/projects/{project}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Above Delete Project */
+        delete: operations["above_delete_project_orchestrator_projects__project__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/orchestrator/projects/{project}/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Above Create Task */
+        post: operations["above_create_task_orchestrator_projects__project__tasks_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/orchestrator/projects/{project}/tasks/{task}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Above Start Task
+         * @description Move the task into the task bar; with a prompt, start its master with it.
+         */
+        post: operations["above_start_task_orchestrator_projects__project__tasks__task__start_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/orchestrator/projects/{project}/tasks/{task}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Above Delete Task */
+        delete: operations["above_delete_task_orchestrator_projects__project__tasks__task__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/orchestrator/inbox": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Above Inbox */
+        get: operations["above_inbox_orchestrator_inbox_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/orchestrator/inbox/{message}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Above Mark Message */
+        post: operations["above_mark_message_orchestrator_inbox__message__read_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/orchestrator/inbox/{message}/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Above Dismiss Message */
+        post: operations["above_dismiss_message_orchestrator_inbox__message__dismiss_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/agent/panes": {
         parameters: {
             query?: never;
@@ -764,6 +938,13 @@ export interface components {
              *     }
              */
             inbox: components["schemas"]["InboxState"];
+            /**
+             * @default {
+             *       "name": "orchestrator",
+             *       "running": false
+             *     }
+             */
+            orchestrator: components["schemas"]["OrchestratorState"];
         };
         /**
          * Diff
@@ -947,6 +1128,24 @@ export interface components {
              * @default false
              */
             logged: boolean;
+        };
+        /**
+         * OrchestratorState
+         * @description What the window shows of the orchestrator.
+         */
+        OrchestratorState: {
+            /**
+             * Name
+             * @default orchestrator
+             */
+            name: string;
+            /**
+             * Running
+             * @default false
+             */
+            running: boolean;
+            /** Exit Code */
+            exit_code?: number | null;
         };
         /**
          * Page
@@ -1157,6 +1356,32 @@ export interface components {
         ProjectOrder: {
             /** Order */
             order: string[];
+        };
+        /**
+         * ProjectSummary
+         * @description A project with its tasks, as the orchestrator sees it.
+         */
+        ProjectSummary: {
+            /** Slug */
+            slug: string;
+            /** Name */
+            name: string;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /**
+             * Github Url
+             * @default
+             */
+            github_url: string;
+            /** Path */
+            path: string;
+            /** Backlog */
+            backlog: components["schemas"]["TaskSummary"][];
+            /** Tasks */
+            tasks: components["schemas"]["TaskSummary"][];
         };
         /** ReadChange */
         ReadChange: {
@@ -1443,6 +1668,54 @@ export interface components {
             order: string[];
         };
         /**
+         * TaskStart
+         * @description Start a task; with a prompt, a master agent starts in it and gets the prompt.
+         */
+        TaskStart: {
+            /** Prompt */
+            prompt?: string | null;
+        };
+        /**
+         * TaskSummary
+         * @description A task as the orchestrator sees it.
+         */
+        TaskSummary: {
+            /** Slug */
+            slug: string;
+            /** Name */
+            name: string;
+            /** Status */
+            status: string;
+            /**
+             * Color
+             * @default
+             * @enum {string}
+             */
+            color: "" | "red" | "amber" | "green" | "blue" | "purple";
+            /**
+             * Branch
+             * @default
+             */
+            branch: string;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /** Path */
+            path: string;
+            /**
+             * Master
+             * @default
+             */
+            master: string;
+            /**
+             * Master Running
+             * @default false
+             */
+            master_running: boolean;
+        };
+        /**
          * Theme
          * @description A color scheme; one file in `<root>/.bytearmy/themes`.
          */
@@ -1539,7 +1812,7 @@ export interface components {
             /** Bottom Open */
             bottom_open?: boolean | null;
             /** View */
-            view?: ("workspace" | "inbox") | null;
+            view?: ("workspace" | "inbox" | "orchestrator") | null;
         };
         /** UiState */
         UiState: {
@@ -1563,7 +1836,7 @@ export interface components {
              * @default workspace
              * @enum {string}
              */
-            view: "workspace" | "inbox";
+            view: "workspace" | "inbox" | "orchestrator";
         };
         /** Unfold */
         Unfold: {
@@ -2617,6 +2890,319 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AppState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    orchestrator_state_api_orchestrator_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrchestratorState"];
+                };
+            };
+        };
+    };
+    restart_orchestrator_api_orchestrator_restart_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppState"];
+                };
+            };
+        };
+    };
+    above_projects_orchestrator_projects_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectSummary"][];
+                };
+            };
+        };
+    };
+    above_create_project_orchestrator_projects_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectMeta"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    above_delete_project_orchestrator_projects__project__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    above_create_task_orchestrator_projects__project__tasks_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TaskCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    above_start_task_orchestrator_projects__project__tasks__task__start_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project: string;
+                task: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TaskStart"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    above_delete_task_orchestrator_projects__project__tasks__task__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project: string;
+                task: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    above_inbox_orchestrator_inbox_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InboxState"];
+                };
+            };
+        };
+    };
+    above_mark_message_orchestrator_inbox__message__read_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                message: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReadChange"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    above_dismiss_message_orchestrator_inbox__message__dismiss_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                message: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

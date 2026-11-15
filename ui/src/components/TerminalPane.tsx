@@ -2,26 +2,30 @@ import '@xterm/xterm/css/xterm.css'
 import { FitAddon } from '@xterm/addon-fit'
 import { Terminal } from '@xterm/xterm'
 import { useEffect, useRef } from 'react'
-import { openTerminal } from '@/api/client'
+import type { TerminalSize } from '@/api/client'
 
 const RESIZE_PAUSE_MS = 100 // a window drag resizes many times; the core hears the last size
 const RECONNECT_MS = 1_000
 
 type Props = {
-  place: { project: string; task: string; pane: string }
+  // Names the program; a new name connects to another program.
+  program: string
+  // Opens the socket of the program's terminal, at the size the emulator has.
+  connect: (size: TerminalSize) => WebSocket
   visible: boolean // false while the workspace of another task is shown
   onEnded: () => void // the program of the pane has ended
 }
 
-// A terminal emulator wired to the program of one pane.
-export function TerminalPane({ place, visible, onEnded }: Props) {
+// A terminal emulator wired to the program of one pane, or of the orchestrator.
+export function TerminalPane({ program, connect: open, visible, onEnded }: Props) {
   const host = useRef<HTMLDivElement>(null)
   const terminal = useRef<Terminal | null>(null)
   const ended = useRef(onEnded)
-  const { project, task, pane } = place
+  const opener = useRef(open)
 
   useEffect(() => {
     ended.current = onEnded
+    opener.current = open
   })
 
   useEffect(() => {
@@ -44,7 +48,7 @@ export function TerminalPane({ place, visible, onEnded }: Props) {
       if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message))
     }
     const connect = (first: boolean) => {
-      socket = openTerminal({ project, task, pane }, { rows: term.rows, cols: term.cols })
+      socket = opener.current({ rows: term.rows, cols: term.cols })
       socket.binaryType = 'arraybuffer'
       socket.onopen = () => {
         // The core sends what was printed so far again; it replaces the screen.
@@ -88,7 +92,7 @@ export function TerminalPane({ place, visible, onEnded }: Props) {
       socket.close()
       term.dispose()
     }
-  }, [project, task, pane])
+  }, [program])
 
   useEffect(() => {
     if (visible) terminal.current?.focus()

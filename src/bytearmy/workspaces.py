@@ -15,9 +15,12 @@ from pathlib import Path
 from bytearmy import diffs, themes
 from bytearmy.agents import (
     EARLIER_INSTRUCTIONS,
+    EARLIER_ORCHESTRATOR_INSTRUCTIONS,
     INSTRUCTIONS,
     INSTRUCTIONS_FILE,
     MASTER,
+    ORCHESTRATOR_FILE,
+    ORCHESTRATOR_INSTRUCTIONS,
     agent_name,
     next_role,
     write_instructions,
@@ -155,6 +158,11 @@ class Workspaces:
         self._bin = pane_command(store.root / METADATA_DIR / "bin").parent
         ensure_premade(store.root)
         write_premade(store.root / INSTRUCTIONS_FILE, INSTRUCTIONS, EARLIER_INSTRUCTIONS)
+        write_premade(
+            store.root / ORCHESTRATOR_FILE,
+            ORCHESTRATOR_INSTRUCTIONS,
+            EARLIER_ORCHESTRATOR_INSTRUCTIONS,
+        )
         themes.ensure_premade(store.root)
 
     def tools(self, project: str | None = None, task: str | None = None) -> list[Tool]:
@@ -423,19 +431,44 @@ class Workspaces:
         self.start(project, task, opened.id)
         return opened
 
-    def start_master(self, project: str, task: str) -> Pane:
-        """Open the master agent of a task the user started at once, with the task's
-        description as its first message; one without a description just starts."""
+    def start_master(
+        self, project: str, task: str, prompt: str | None = None, spawned_by: str = ""
+    ) -> Pane:
+        """Open the master agent of a task, shown on its workspace, with `prompt` as its first
+        message: by default the task's description; one without either just starts.
+
+        The orchestrator passes its own prompt, and itself as `spawned_by`.
+        """
         tool = self._tools(project).get(SPAWNING_TOOL)
-        if tool is None or not tool.agent:
+        if tool is None or not tool.agent or (prompt and not tool.spawn):
             raise NoAgentTool()
-        description = self._store.task(project, task).description
+        found = self._store.task(project, task)
+        if found.workspace.master is not None:
+            raise RoleTaken(MASTER)
+        if prompt is None:
+            prompt = found.description
         opened = self.open_pane(
-            project, task, PaneOpen(tool=tool.id), prompt=description if tool.spawn else ""
+            project,
+            task,
+            PaneOpen(tool=tool.id),
+            role=MASTER,
+            prompt=prompt if tool.spawn else "",
+            spawned_by=spawned_by,
         )
         assert isinstance(opened, Pane)  # an agent tool is never external, nor a log
         self.start(project, task, opened.id)
         return opened
+
+    def master_running(self, project: str, task: str) -> bool:
+        """Whether the program of the task's master runs."""
+        workspace = self._store.task(project, task).workspace
+        with self._lock:
+            return workspace.master is not None and self._running((project, task, workspace.master))
+
+    @property
+    def bin_dir(self) -> Path:
+        """Where the `bytearmy` command of the panes lies."""
+        return self._bin
 
     def request_review(self, caller: Key, request: ReviewRequest) -> Pane:
         """Open a highlighted diff pane beside the calling one; the review the user writes

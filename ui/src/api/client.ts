@@ -26,6 +26,7 @@ export type Review = Schemas['Review']
 export type ReviewComment = Schemas['ReviewComment']
 export type Message = Schemas['Message']
 export type Inbox = Schemas['InboxState']
+export type Orchestrator = Schemas['OrchestratorState']
 
 const routes = {
   state: '/api/state',
@@ -54,6 +55,7 @@ const routes = {
   inboxRefresh: '/api/inbox/refresh',
   inboxRead: '/api/inbox/{message}/read',
   inboxDismiss: '/api/inbox/{message}/dismiss',
+  orchestratorRestart: '/api/orchestrator/restart',
 } as const satisfies Record<string, keyof paths>
 
 function fill(route: string, parts: { project: string; task?: string; pane?: string }): string {
@@ -151,6 +153,8 @@ export const api = {
     } satisfies Schemas['ReadChange']),
   dismissMessage: (message: string) =>
     request('POST', routes.inboxDismiss.replace('{message}', encodeURIComponent(message))),
+
+  restartOrchestrator: () => request('POST', routes.orchestratorRestart),
 }
 
 // Calls `onChange` whenever the core's data changed, also by a program in a pane, so the
@@ -207,11 +211,21 @@ export function saveReview(place: { project: string; task: string; pane: string 
 
 // The terminal of a pane. WebSocket routes are not part of the schema, so this path is
 // the one place the type check does not cover.
-export function openTerminal(
-  place: { project: string; task: string; pane: string },
-  size: { rows: number; cols: number },
-): WebSocket {
-  const path = `${fill(routes.pane, place)}/terminal`
+export type TerminalSize = { rows: number; cols: number }
+
+function terminalSocket(path: string, size: TerminalSize): WebSocket {
   const query = new URLSearchParams({ token, rows: String(size.rows), cols: String(size.cols) })
   return new WebSocket(`${location.origin.replace(/^http/, 'ws')}${path}?${query}`)
+}
+
+export function openTerminal(
+  place: { project: string; task: string; pane: string },
+  size: TerminalSize,
+): WebSocket {
+  return terminalSocket(`${fill(routes.pane, place)}/terminal`, size)
+}
+
+// The terminal of the orchestrator, the one agent above all tasks.
+export function openOrchestratorTerminal(size: TerminalSize): WebSocket {
+  return terminalSocket('/api/orchestrator/terminal', size)
 }

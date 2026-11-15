@@ -67,13 +67,13 @@ def live(tmp_path):
 
 
 @contextmanager
-def serving(store: Store, workspaces: Workspaces):
-    """Run the core on a local port for the duration of the block."""
+def serving(store: Store, workspaces: Workspaces, **extra):
+    """Run the core on a local port for the duration of the block; `extra` goes to the app."""
     port = free_port()
     url = f"http://127.0.0.1:{port}"
     server = uvicorn.Server(
         uvicorn.Config(
-            create_app(store, TOKEN, workspaces=workspaces, url=url),
+            create_app(store, TOKEN, workspaces=workspaces, url=url, **extra),
             host="127.0.0.1",
             port=port,
             log_level="warning",
