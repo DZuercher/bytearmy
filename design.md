@@ -31,7 +31,8 @@ Optionally a description of the task can be provided and a branch name (only sho
 Optionally, dependencies on other already existing tasks and a reminder date can be provided.
 From its reminder date on a task shows a reminder marker in its bar and in its data.
 The task is created at `<bytearmy_root>/<project_slug>/<task_slug>` where the project is the currently focused project in the project bar. The slug is derived from the name like for projects (`Fix login` becomes `fix-login`).
-If a Github URL is provided for the current project `git clone <github url>` in `<bytearmy_root>/<project_slug>/<task_slug>`.
+If a Github URL is provided for the current project the repository is cloned into `<bytearmy_root>/<project_slug>/<task_slug>`.
+The repository is downloaded only once per project: the first clone creates a bare mirror of its branches in the projects `.bytearmy` directory, every clone first fetches into the mirror and then clones from it. A clone from the mirror shares its files by hard links, so it needs no download and hardly any disk, yet it is a repository of its own whose `origin` is the Github URL.
 The clone lands in `<bytearmy_root>/<project_slug>/<task_slug>/<repo_name>`, so the tasks `.bytearmy` directory stays outside of the repository.
 If a branch name was provided the branch is checked out after the clone if it exists on the remote, otherwise it is created from the default branch.
 If the clone fails, the task shows a warning marker and its data says why. Its right-click menu then offers to clone again, with the projects Github URL and the tasks branch.
@@ -137,7 +138,7 @@ bytearmy_root
 |- .claude [contains bytearmy.md, the explanation for claude about how bytearmy works and how claude can interact with it. It is passed to every Claude pane when it starts]
 |- .bytearmy [contains global metadata, the logs of programs without a pane, the browser session of the web panes, the `bytearmy` command of the panes and the lock that keeps a second bytearmy off the root]
 |-- project-1
-    |- .bytearmy [contains bytearmy project level metadata, like name and Github URL]
+    |- .bytearmy [contains bytearmy project level metadata, like name and Github URL, and the mirror of the projects repository the tasks clone from]
     |- .claude [contains project specific claude configurations like CLAUDE.md etc. Claude loads this CLAUDE.md by itself in every task of the project]
     |- task-1
         |- .bytearmy [contains bytearmy metadata, like current state of the UI, and the instructions each agent of the task started with]

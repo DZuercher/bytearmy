@@ -23,16 +23,16 @@ def project(store, remote):
     return store.create_project(ProjectMeta(name="Widgets", github_url=str(remote))).slug
 
 
-def start(store: Store, cloner: Cloner, project: str, **fields) -> Task:
-    task = store.create_task(project, TaskCreate(name="a", **fields))
+def start(store: Store, cloner: Cloner, project: str, name: str = "a", **fields) -> Task:
+    task = store.create_task(project, TaskCreate(name=name, **fields))
     cloner.start(project, task, store.project(project).github_url)
     return task
 
 
-def finished(store: Store, project: str, timeout: float = 20) -> Task:
+def finished(store: Store, project: str, slug: str = "a", timeout: float = 20) -> Task:
     """The task once its clone has ended, one way or the other."""
     deadline = time.monotonic() + timeout
-    while (task := store.task(project, "a")).clone == "cloning":
+    while (task := store.task(project, slug)).clone == "cloning":
         assert time.monotonic() < deadline, "the clone did not end"
         time.sleep(0.02)
     return task
@@ -80,6 +80,7 @@ def test_a_failed_clone_is_reported_and_leaves_nothing_behind(store, tmp_path):
     assert task.clone == "failed"
     assert "no-such-repository.git" in task.clone_error
     assert entries(task.path) == [".bytearmy"]
+    assert entries(store.root / project / ".bytearmy") == ["project.json"]
 
 
 def fake_git(tmp_path: Path, body: str) -> list[str]:
@@ -97,12 +98,65 @@ def clone_error_with(store: Store, project: str, git: list[str]) -> str:
     return task.clone_error
 
 
-def test_git_is_asked_to_clone_the_url_into_a_directory_beside_the_final_one(
+def test_git_is_asked_to_mirror_the_url_into_a_directory_beside_the_final_one(
     store, project, remote, tmp_path
 ):
     asked = clone_error_with(store, project, fake_git(tmp_path, 'echo "$*" >&2; exit 1'))
 
-    assert asked == f"clone -- {remote} {store.root / project / 'a' / 'widgets.cloning'}"
+    mirror = store.root / project / ".bytearmy" / "mirror.git.cloning"
+    assert asked == f"clone --bare -- {remote} {mirror}"
+
+
+def test_the_clone_of_a_task_pulls_from_the_url_not_from_the_mirror(store, project, remote):
+    start(store, Cloner(store), project)
+    repo = Path(finished(store, project).path) / "widgets"
+
+    assert git("remote", "get-url", "origin", cwd=repo) == str(remote)
+
+
+def test_tasks_share_the_objects_of_the_mirror(store, project):
+    start(store, Cloner(store), project)
+    repo = Path(finished(store, project).path) / "widgets"
+    mirror = store.root / project / ".bytearmy" / "mirror.git"
+
+    def inodes(objects: Path) -> set[int]:
+        return {path.stat().st_ino for path in objects.rglob("*") if path.is_file()}
+
+    assert inodes(repo / ".git" / "objects") & inodes(mirror / "objects")
+
+
+def test_a_later_task_sees_what_was_pushed_since_the_mirror_was_made(store, project, remote):
+    cloner = Cloner(store)
+    start(store, cloner, project)
+    finished(store, project)
+    git("branch", "pushed-later", "feature", cwd=remote)
+    git("branch", "-D", "feature", cwd=remote)
+
+    start(store, cloner, project, name="b", branch="pushed-later")
+    repo = Path(finished(store, project, "b").path) / "widgets"
+
+    assert git("branch", "--show-current", cwd=repo) == "pushed-later"
+    assert (repo / "feature.txt").exists()
+    assert git("branch", "-r", cwd=repo).split() == [
+        "origin/HEAD",
+        "->",
+        "origin/main",
+        "origin/main",
+        "origin/pushed-later",
+    ]
+
+
+def test_the_mirror_takes_branches_only(store, project, remote):
+    cloner = Cloner(store)
+    start(store, cloner, project)
+    finished(store, project)
+    git("update-ref", "refs/pull/1/head", "feature", cwd=remote)
+
+    start(store, cloner, project, name="b")
+    finished(store, project, "b")
+
+    mirror = store.root / project / ".bytearmy" / "mirror.git"
+    assert git("for-each-ref", "--format=%(refname)", "refs/pull", cwd=mirror) == ""
 
 
 def test_git_must_not_prompt(store, project, tmp_path):
@@ -156,6 +210,17 @@ def test_what_an_interrupted_clone_left_behind_is_replaced(store, project):
     assert entries(task.path) == [".bytearmy", "widgets"]
 
 
+def test_what_an_interrupted_mirror_left_behind_is_replaced(store, project):
+    leftover = store.root / project / ".bytearmy" / "mirror.git.cloning"
+    leftover.mkdir()
+    (leftover / "half-a-mirror").write_text("junk")
+
+    start(store, Cloner(store), project)
+
+    assert finished(store, project).clone == "ready"
+    assert entries(store.root / project / ".bytearmy") == ["mirror.git", "project.json"]
+
+
 def test_a_task_is_cloning_until_git_is_done(store, project, gated_git):
     start(store, Cloner(store, git=gated_git.command), project)
     gated_git.wait_until_running()
@@ -179,6 +244,44 @@ def test_cancel_stops_the_clone_of_a_task(store, project, gated_git):
         "The clone was cancelled.",
     )
     assert entries(task.path) == [".bytearmy"]
+
+
+def test_tasks_started_together_wait_for_each_other_at_the_mirror(store, project, gated_git):
+    cloner = Cloner(store, git=gated_git.command)
+    start(store, cloner, project)
+    gated_git.wait_until_running()
+    start(store, cloner, project, name="b")
+
+    gated_git.release()
+
+    assert (finished(store, project).clone_error, finished(store, project, "b").clone_error) == (
+        "",
+        "",
+    )
+
+
+def test_a_failed_mirror_leaves_nothing_behind(store, project, tmp_path):
+    leaving = fake_git(tmp_path, 'for last; do :; done; mkdir -p "$last"; exit 1')
+
+    clone_error_with(store, project, leaving)
+
+    assert entries(store.root / project / ".bytearmy") == ["project.json"]
+
+
+def test_a_task_waiting_for_the_mirror_is_cancelled_at_once(store, project, gated_git):
+    cloner = Cloner(store, git=gated_git.command)
+    start(store, cloner, project)
+    gated_git.wait_until_running()
+    start(store, cloner, project, name="b")
+
+    began = time.monotonic()
+    cloner.cancel(project, "b")
+
+    assert time.monotonic() - began < 2
+    assert store.task(project, "b").clone_error == "The clone was cancelled."
+    assert store.task(project, "a").clone == "cloning"
+    gated_git.release()
+    assert finished(store, project).clone == "ready"
 
 
 def test_cancel_leaves_the_clones_of_other_tasks_alone(store, project, gated_git):
