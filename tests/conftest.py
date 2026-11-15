@@ -32,6 +32,14 @@ def pytest_runtest_makereport(item, call):
 
 
 @pytest.fixture(autouse=True)
+def claude_config(tmp_path_factory, monkeypatch) -> Path:
+    """Claude's configuration for the check, never the user's: agent panes trust directories."""
+    directory = tmp_path_factory.mktemp("claude-config")
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(directory))
+    return directory / ".claude.json"
+
+
+@pytest.fixture(autouse=True)
 def end_leftover_programs(request, monkeypatch):
     """When a check fails, end the programs it started that still run, and their children.
 
