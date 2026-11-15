@@ -187,14 +187,34 @@ def create_app(
         return state()
 
     @api.post("/projects/{project}/tasks", status_code=201)
-    def create_task(project: str, new: TaskCreate) -> AppState:
+    def create_task(project: str, new: TaskCreate, start: bool = False) -> AppState:
+        """Create a task in the backlog. With `start`, start it and its master agent at once,
+        with the description as the agent's first message; with a clone, after the clone."""
         if new.branch and not cloner.valid_branch(new.branch):
             raise HTTPException(
                 status_code=400, detail=f'"{new.branch}" is not a valid branch name.'
             )
+        if start:
+            waiting = [
+                other.name
+                for other in store.project(project).backlog
+                if other.slug in new.dependencies
+            ]
+            if waiting:
+                raise Blocked(new.name, waiting)
         task = store.create_task(project, new)
+        then = None
+        if start:
+            store.start_task(project, task.slug)
+            store.focus_task(project, task.slug)
+
+            def then() -> None:
+                workspaces.start_master(project, task.slug)
+
         if task.repo:
-            cloner.start(project, task, store.project(project).github_url)
+            cloner.start(project, task, store.project(project).github_url, then)
+        elif then is not None:
+            then()
         return state()
 
     @api.put("/projects/{project}/tasks/order")

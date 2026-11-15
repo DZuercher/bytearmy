@@ -370,6 +370,7 @@
     "/api/projects/{project}/tasks": {
       "post": {
         "summary": "Create Task",
+        "description": "Create a task in the backlog. With `start`, start it and its master agent at once,\nwith the description as the agent's first message; with a clone, after the clone.",
         "operationId": "create_task_api_projects__project__tasks_post",
         "parameters": [
           {
@@ -379,6 +380,16 @@
             "schema": {
               "type": "string",
               "title": "Project"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Start"
             }
           }
         ],

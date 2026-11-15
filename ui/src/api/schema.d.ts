@@ -167,7 +167,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Create Task */
+        /**
+         * Create Task
+         * @description Create a task in the backlog. With `start`, start it and its master agent at once,
+         *     with the description as the agent's first message; with a clone, after the clone.
+         */
         post: operations["create_task_api_projects__project__tasks_post"];
         delete?: never;
         options?: never;
@@ -1693,7 +1697,9 @@ export interface operations {
     };
     create_task_api_projects__project__tasks_post: {
         parameters: {
-            query?: never;
+            query?: {
+                start?: boolean;
+            };
             header?: never;
             path: {
                 project: string;

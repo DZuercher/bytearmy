@@ -12,7 +12,7 @@ type Props = {
   open: boolean
   onToggle: () => void
   project: Project | undefined // the focused project
-  onCreate: (task: TaskCreate) => Promise<void>
+  onCreate: (task: TaskCreate, start: boolean) => Promise<void>
   onStart: (slug: string) => void
   onCloneAgain: (slug: string) => void
   onEdit: (slug: string) => void

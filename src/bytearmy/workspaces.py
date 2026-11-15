@@ -401,6 +401,20 @@ class Workspaces:
         self.start(project, task, opened.id)
         return opened
 
+    def start_master(self, project: str, task: str) -> Pane:
+        """Open the master agent of a task the user started at once, with the task's
+        description as its first message; one without a description just starts."""
+        tool = self._tools(project).get(SPAWNING_TOOL)
+        if tool is None or not tool.agent:
+            raise NoAgentTool()
+        description = self._store.task(project, task).description
+        opened = self.open_pane(
+            project, task, PaneOpen(tool=tool.id), prompt=description if tool.spawn else ""
+        )
+        assert isinstance(opened, Pane)  # an agent tool is never external, nor a log
+        self.start(project, task, opened.id)
+        return opened
+
     def agents(self, project: str, task: str) -> list[Agent]:
         workspace = self._store.task(project, task).workspace
         with self._lock:
