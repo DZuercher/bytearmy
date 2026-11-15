@@ -29,6 +29,8 @@ HEADER = """\
 #               "web": a page in a browser pane
 #               "external": a program with a window of its own; no pane
 #               "log": adds the parameter `entry` to the task's log; no pane
+#               "diff": the changes of the task's clone, to review and comment on.
+#               The comments go to the master agent when the review is finished.
 #   command     terminal and external: run by your shell in the tool's directory.
 #               For a terminal, empty means the shell itself.
 #               {session} is replaced by an id that stays the same across restarts,
@@ -122,11 +124,12 @@ PREMADE = {
     ),
     "log": ('name = "Log"\nkind = "log"\n\n[[parameters]]\nname = "entry"\nlabel = "Log entry"\n'),
     "show-log": 'name = "Show Log"\nkind = "web"\nurl = "{log}"\n',
+    "diff": 'name = "Review Changes"\nkind = "diff"\ndirectory = "repo"\n',
 }
 
 
-# Fingerprints of the files earlier versions wrote (m3, m4, m5, #10, #11; macOS and Linux). A file that
-# still has one was never edited, and is replaced by the current version.
+# Fingerprints of the files earlier versions wrote (m3, m4, m5, #10, #11; macOS and Linux). A file
+# that still has one was never edited, and is replaced by the current version.
 EARLIER = {
     "terminal": {
         "30b737f89737ed7f1b39205ae4433539e3ea837eebb6b8afd4c0c42c2195b02a",
@@ -191,6 +194,7 @@ EARLIER = {
         "5b21bc617bacd2b99831b5b03ec168c5d1abca8c77256182093a8ffcf3eafc6e",
         "1a91372c6576af6afc7f321584a93074a9690c7c88583ccfa97d181bce51a0b0",
     },
+    "diff": set(),
 }
 
 

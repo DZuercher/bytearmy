@@ -21,6 +21,8 @@ from bytearmy.models import (
     Agent,
     AgentSpawn,
     AppState,
+    Diff,
+    DiffMode,
     Focus,
     Highlight,
     Layout,
@@ -35,6 +37,9 @@ from bytearmy.models import (
     ProjectMeta,
     ProjectOrder,
     ReadChange,
+    Review,
+    ReviewRequest,
+    ReviewState,
     Task,
     TaskChange,
     TaskCreate,
@@ -64,6 +69,8 @@ from bytearmy.workspaces import (
     InvalidValues,
     Key,
     NoAgentTool,
+    NoDiffTool,
+    NoMaster,
     NotForAgents,
     NotStarted,
     PaneNotFound,
@@ -278,6 +285,26 @@ def create_app(
         """Asked again and again by a web pane, which loads its page anew on a change."""
         return PageVersion(version=workspaces.page_version(project, task, pane))
 
+    @api.get(PANES + "/{pane}/diff")
+    def pane_diff(project: str, task: str, pane: str, mode: DiffMode = "branch") -> Diff:
+        """The changes a diff pane shows."""
+        return workspaces.diff(project, task, pane, mode)
+
+    @api.get(PANES + "/{pane}/review")
+    def pane_review(project: str, task: str, pane: str) -> Review:
+        """The comments written in a diff pane so far."""
+        return workspaces.draft(project, task, pane)
+
+    @api.put(PANES + "/{pane}/review")
+    def save_review(project: str, task: str, pane: str, review: Review) -> None:
+        workspaces.save_draft(project, task, pane, review)
+
+    @api.post(PANES + "/{pane}/review")
+    def submit_review(project: str, task: str, pane: str, review: Review) -> AppState:
+        """Finish a review: its comments go to the agent that asked for it, or the master."""
+        workspaces.submit_review(project, task, pane, review)
+        return state()
+
     @api.put("/projects/{project}/tasks/{task}/layout")
     def set_layout(project: str, task: str, layout: Layout) -> AppState:
         workspaces.set_tree(project, task, layout.tree)
@@ -356,6 +383,14 @@ def create_app(
     def agent_spawn(caller: Caller, spawn: AgentSpawn) -> Opened:
         opened = workspaces.spawn(caller, spawn)
         return Opened(pane=opened.id, agent=opened.agent)
+
+    @agent.post("/reviews", status_code=201)
+    def agent_request_review(caller: Caller, request: ReviewRequest) -> Opened:
+        return Opened(pane=workspaces.request_review(caller, request).id)
+
+    @agent.get("/reviews/{pane}")
+    def agent_review_state(caller: Caller, pane: str) -> ReviewState:
+        return workspaces.review_state(caller, pane)
 
     @agent.get("/tools")
     def agent_tools(caller: Caller) -> list[Tool]:
@@ -502,6 +537,14 @@ def create_app(
             f"no tool starts agents: .tools/{SPAWNING_TOOL}.toml needs `agent = true`"
             " and a `spawn` line",
         )
+
+    @app.exception_handler(NoDiffTool)
+    def no_diff_tool(_request: Request, _error: NoDiffTool) -> JSONResponse:
+        return answer(404, 'no tool shows the changes: a tool in .tools needs `kind = "diff"`')
+
+    @app.exception_handler(NoMaster)
+    def no_master(_request: Request, _error: NoMaster) -> JSONResponse:
+        return answer(409, "The task has no running master agent to send the review to.")
 
     @app.exception_handler(NotForAgents)
     def not_for_agents(_request: Request, error: NotForAgents) -> JSONResponse:

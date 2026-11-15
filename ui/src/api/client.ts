@@ -17,6 +17,13 @@ export type PaneOpen = Schemas['PaneOpen']
 export type Tool = Schemas['Tool']
 export type Workspace = Schemas['Workspace']
 export type Tree = Schemas['Layout']['tree']
+export type Diff = Schemas['Diff']
+export type DiffMode = Diff['mode']
+export type DiffFile = Schemas['DiffFile']
+export type Hunk = Schemas['Hunk']
+export type DiffLine = Schemas['DiffLine']
+export type Review = Schemas['Review']
+export type ReviewComment = Schemas['ReviewComment']
 export type Message = Schemas['Message']
 export type Inbox = Schemas['InboxState']
 
@@ -42,6 +49,8 @@ const routes = {
   paneHidden: '/api/projects/{project}/tasks/{task}/panes/{pane}/hidden',
   panePage: '/api/projects/{project}/tasks/{task}/panes/{pane}/page',
   panePageVersion: '/api/projects/{project}/tasks/{task}/panes/{pane}/page/version',
+  paneDiff: '/api/projects/{project}/tasks/{task}/panes/{pane}/diff',
+  paneReview: '/api/projects/{project}/tasks/{task}/panes/{pane}/review',
   inboxRefresh: '/api/inbox/refresh',
   inboxRead: '/api/inbox/{message}/read',
   inboxDismiss: '/api/inbox/{message}/dismiss',
@@ -128,6 +137,10 @@ export const api = {
       hidden,
       beside,
     } satisfies Schemas['Visibility']),
+  // Sends the comments of a diff pane to the agent that asked for the review, or the master.
+  // The core closes the pane.
+  submitReview: (project: string, task: string, pane: string, review: Review) =>
+    request('POST', fill(routes.paneReview, { project, task, pane }), review),
   listHidden: (project: string, task: string, open: boolean) =>
     request('PUT', fill(routes.hiddenOpen, { project, task }), { open } satisfies Schemas['Unfold']),
 
@@ -176,6 +189,20 @@ export function panePageVersion(place: {
   return send<Schemas['PageVersion']>('GET', fill(routes.panePageVersion, place)).then(
     (answer) => answer.version ?? null,
   )
+}
+
+// The changes of the task's clone that a diff pane shows. Like the page, it is not the state.
+export function paneDiff(place: { project: string; task: string; pane: string }, mode: DiffMode): Promise<Diff> {
+  return send<Diff>('GET', `${fill(routes.paneDiff, place)}?${new URLSearchParams({ mode })}`)
+}
+
+// The comments written in a diff pane so far. The core keeps them, so they survive a reload.
+export function paneReview(place: { project: string; task: string; pane: string }): Promise<Review> {
+  return send<Review>('GET', fill(routes.paneReview, place))
+}
+
+export function saveReview(place: { project: string; task: string; pane: string }, review: Review): Promise<void> {
+  return send<unknown>('PUT', fill(routes.paneReview, place), review).then(() => undefined)
 }
 
 // The terminal of a pane. WebSocket routes are not part of the schema, so this path is
