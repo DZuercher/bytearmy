@@ -479,6 +479,28 @@ class ReviewRequest(BaseModel):
     note: str = ""  # what the agent wants the user to look at
 
 
+class PullRequestCreate(BaseModel):
+    """An agent opens the pull request of the task's branch."""
+
+    title: str = Field(min_length=1)
+    body: str = ""
+    base: str = ""  # "" = the repository's default branch
+    draft: bool = False
+
+
+class PullRequestMerge(BaseModel):
+    """An agent merges the pull request of the task's branch."""
+
+    method: Literal["merge", "squash", "rebase"] = "squash"
+    delete_branch: bool = False
+
+
+class PullRequestAnswer(BaseModel):
+    """What gh answered: a URL, the pull request, or what it did."""
+
+    text: str
+
+
 class ReviewState(BaseModel):
     """Whether the user has finished a review an agent asked for, and what they said."""
 

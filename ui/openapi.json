@@ -2071,6 +2071,98 @@
         }
       }
     },
+    "/agent/pulls": {
+      "get": {
+        "summary": "Agent View Pull Request",
+        "operationId": "agent_view_pull_request_agent_pulls_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PullRequestAnswer"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Agent Create Pull Request",
+        "operationId": "agent_create_pull_request_agent_pulls_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PullRequestCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PullRequestAnswer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agent/pulls/merge": {
+      "post": {
+        "summary": "Agent Merge Pull Request",
+        "operationId": "agent_merge_pull_request_agent_pulls_merge_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PullRequestMerge"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PullRequestAnswer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/agent/reviews/{pane}": {
       "get": {
         "summary": "Agent Review State",
@@ -3023,6 +3115,72 @@
         ],
         "title": "ProjectSummary",
         "description": "A project with its tasks, as the orchestrator sees it."
+      },
+      "PullRequestAnswer": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "PullRequestAnswer",
+        "description": "What gh answered: a URL, the pull request, or what it did."
+      },
+      "PullRequestCreate": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Title"
+          },
+          "body": {
+            "type": "string",
+            "title": "Body",
+            "default": ""
+          },
+          "base": {
+            "type": "string",
+            "title": "Base",
+            "default": ""
+          },
+          "draft": {
+            "type": "boolean",
+            "title": "Draft",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "title"
+        ],
+        "title": "PullRequestCreate",
+        "description": "An agent opens the pull request of the task's branch."
+      },
+      "PullRequestMerge": {
+        "properties": {
+          "method": {
+            "type": "string",
+            "enum": [
+              "merge",
+              "squash",
+              "rebase"
+            ],
+            "title": "Method",
+            "default": "squash"
+          },
+          "delete_branch": {
+            "type": "boolean",
+            "title": "Delete Branch",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "PullRequestMerge",
+        "description": "An agent merges the pull request of the task's branch."
       },
       "ReadChange": {
         "properties": {
