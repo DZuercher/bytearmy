@@ -14,12 +14,14 @@ ORCHESTRATOR = "orchestrator"  # the name of the one agent above all tasks
 # The instructions files below the root; the user may change them.
 MASTER_FILE = Path(METADATA_DIR) / "master.md"  # for the master of every task
 AGENT_FILE = Path(METADATA_DIR) / "agent.md"  # for every other agent of a task
+SCRATCHPAD_FILE = Path(METADATA_DIR) / "scratchpad.md"  # for every agent of a scratchpad
 ORCHESTRATOR_FILE = Path(METADATA_DIR) / "orchestrator.md"  # for the orchestrator
 # Where earlier versions kept the instructions; bytearmy deletes these files.
 LEGACY_FILES = (Path(".claude") / "bytearmy.md", Path(".claude") / "orchestrator.md")
 # Fingerprints of the texts earlier versions wrote; a file that still has one is replaced.
 EARLIER_MASTER_INSTRUCTIONS: set[str] = set()
 EARLIER_AGENT_INSTRUCTIONS: set[str] = set()
+EARLIER_SCRATCHPAD_INSTRUCTIONS: set[str] = set()
 EARLIER_ORCHESTRATOR_INSTRUCTIONS: set[str] = set()
 
 # The parts both kinds of task agents are told.
@@ -65,6 +67,70 @@ OTHER_AGENTS = """\
 - Talk to the agents of your task with the SendMessage tool, by their names. Do not message
   sessions that `bytearmy agent list` does not name: they belong to other work.
 
+"""
+
+GITHUB = """\
+## Pull requests
+
+- The master opens and merges the pull request of the task's branch with `bytearmy pr`,
+  not with `gh pr` (which Claude's permission modes often block):
+  `bytearmy pr create --title "<title>" --body-file <file>` pushes the branch and opens it,
+  `bytearmy pr view` shows it, and `bytearmy pr merge` squashes it into the base branch
+  (`--method merge|rebase`, `--delete-branch`). They act on the task's own branch only.
+- Open a pull request only when the user asks for one, and merge one only when the user
+  asks you to merge it.
+
+## GitHub Actions
+
+- Use `bytearmy workflow`, not `gh workflow run` (which Claude's permission modes often
+  block), for the workflows of the task's repository:
+  `bytearmy workflow list` lists them, and
+  `bytearmy workflow run <workflow> -f <input>=<value> ...` dispatches one (its name, ID
+  or file name) with its `workflow_dispatch` inputs, one `-f` per input, or all of them as
+  a JSON object with `--inputs-file <file>`. It runs on the task's branch, which must be
+  pushed, unless you name another branch or tag with `--ref`. Only the master may dispatch.
+- `bytearmy workflow runs [<workflow>] [--branch <branch>]` lists the latest runs; to wait
+  for one to end, `bytearmy listen "<workflow> run" "gh run watch <run id> --exit-status"`.
+- Dispatch a workflow only when the user asks for it, or when the task plainly needs it.
+
+"""
+THE_ORCHESTRATOR = """\
+## The orchestrator
+
+Above all tasks there is one more agent, `orchestrator`. It creates, starts and deletes
+tasks, and the user talks to it in its own tab. It is the only session outside your task
+that you may message. If it started your task, it gave you your first prompt: tell it with
+SendMessage when you are done, when you are stuck, or when you need something from outside
+your task. Answer it when it asks you something.
+"""
+
+WAITING = """\
+## Waiting for events
+
+- When you have to wait for something outside your control, e.g. CI on GitHub to finish,
+  a deployment, or a long build, do not watch it yourself: no polling loops, no
+  `sleep`, no `--watch` in your own shell. Hand it to an event listener:
+  `bytearmy listen "<what you wait for>" "<command>"`. The command must end when the
+  event happens, e.g. `bytearmy listen "CI of PR #12" "gh pr checks 12 --watch"`, or
+  `until <check>; do sleep 30; done`. It runs in a hidden pane, `event_listener`.
+- When the command ends, bytearmy sends you a message that starts with "Event:", with
+  its exit code and the last lines it printed. Until then, go on with other work, or end
+  your turn; the message wakes you.
+- To stop waiting, close the listener's pane with `bytearmy pane close <pane>`; it then
+  sends nothing.
+
+"""
+REVIEWS = """\
+## Reviews
+
+- Before you commit changes, always ask the user to review them first: run
+  `bytearmy review --uncommitted` in the background (Bash with `run_in_background`), which
+  compares only the uncommitted changes with the current state of the branch. Commit only
+  after the review has ended, and act on its comments before you do.
+- When you want the user to review your changes, run `bytearmy review` in the background
+  (Bash with `run_in_background`); add `--note "<what to look at>"`, and `--uncommitted` to
+  show only what changed since the last commit. It opens the changes in a pane and ends when
+  the user finishes the review; its output holds their comments. Act on them.
 """
 
 MASTER_INSTRUCTIONS = (
@@ -125,30 +191,8 @@ MASTER_INSTRUCTIONS = (
   as a message that starts with "Review comments from the user"; act on them likewise.
 
 """
+    + GITHUB
     + """\
-## Pull requests
-
-- The master opens and merges the pull request of the task's branch with `bytearmy pr`,
-  not with `gh pr` (which Claude's permission modes often block):
-  `bytearmy pr create --title "<title>" --body-file <file>` pushes the branch and opens it,
-  `bytearmy pr view` shows it, and `bytearmy pr merge` squashes it into the base branch
-  (`--method merge|rebase`, `--delete-branch`). They act on the task's own branch only.
-- Open a pull request only when the user asks for one, and merge one only when the user
-  asks you to merge it.
-
-## GitHub Actions
-
-- Use `bytearmy workflow`, not `gh workflow run` (which Claude's permission modes often
-  block), for the workflows of the task's repository:
-  `bytearmy workflow list` lists them, and
-  `bytearmy workflow run <workflow> -f <input>=<value> ...` dispatches one (its name, ID
-  or file name) with its `workflow_dispatch` inputs, one `-f` per input, or all of them as
-  a JSON object with `--inputs-file <file>`. It runs on the task's branch, which must be
-  pushed, unless you name another branch or tag with `--ref`. Only the master may dispatch.
-- `bytearmy workflow runs [<workflow>] [--branch <branch>]` lists the latest runs; to wait
-  for one to end, `bytearmy listen "<workflow> run" "gh run watch <run id> --exit-status"`.
-- Dispatch a workflow only when the user asks for it, or when the task plainly needs it.
-
 ## Status and log of the master
 
 As the master of your task, keep the status and the log telling the user at a glance
@@ -171,14 +215,8 @@ where the task stands. Update both every time you start or stop working:
 - When you are done, run `bytearmy task done` and log what you did and what the user
   should look at. Once the task's pull request is merged, run `bytearmy task merged`.
 
-## The orchestrator
-
-Above all tasks there is one more agent, `orchestrator`. It creates, starts and deletes
-tasks, and the user talks to it in its own tab. It is the only session outside your task
-that you may message. If it started your task, it gave you your first prompt: tell it with
-SendMessage when you are done, when you are stuck, or when you need something from outside
-your task. Answer it when it asks you something.
 """
+    + THE_ORCHESTRATOR
 )
 
 AGENT_INSTRUCTIONS = (
@@ -196,34 +234,34 @@ AGENT_INSTRUCTIONS = (
 
 """
     + OTHER_AGENTS
-    + """\
-## Waiting for events
+    + WAITING
+    + REVIEWS
+)
 
-- When you have to wait for something outside your control, e.g. CI on GitHub to finish,
-  a deployment, or a long build, do not watch it yourself: no polling loops, no
-  `sleep`, no `--watch` in your own shell. Hand it to an event listener:
-  `bytearmy listen "<what you wait for>" "<command>"`. The command must end when the
-  event happens, e.g. `bytearmy listen "CI of PR #12" "gh pr checks 12 --watch"`, or
-  `until <check>; do sleep 30; done`. It runs in a hidden pane, `event_listener`.
-- When the command ends, bytearmy sends you a message that starts with "Event:", with
-  its exit code and the last lines it printed. Until then, go on with other work, or end
-  your turn; the message wakes you.
-- To stop waiting, close the listener's pane with `bytearmy pane close <pane>`; it then
-  sends nothing.
+SCRATCHPAD_INSTRUCTIONS = (
+    INTRO
+    + PANES
+    + """\
+## The task
+
+Your task is the project's scratchpad, a place to explore. It is not a normal task: it has
+no state and no status tag, so there is nothing to keep up to date in the task bar, and
+it has no hierarchy. Every agent in it, you as well, is a master of its own work and may
+do all a master may; the other agents in it work on their own things.
+
+- `bytearmy task show`: name, description and the other data of your task.
+- `bytearmy task set-description "<text>"`, `bytearmy task set-reminder <YYYY-MM-DD|none>`.
+- `bytearmy log "<text>"`: add an entry to the task's log; the time is taken from the clock
+  and you are named as its author. The user writes to the same log, and
+  `bytearmy pane open show-log` shows it.
 
 """
-    + """\
-## Reviews
-
-- Before you commit changes, always ask the user to review them first: run
-  `bytearmy review --uncommitted` in the background (Bash with `run_in_background`), which
-  compares only the uncommitted changes with the current state of the branch. Commit only
-  after the review has ended, and act on its comments before you do.
-- When you want the user to review your changes, run `bytearmy review` in the background
-  (Bash with `run_in_background`); add `--note "<what to look at>"`, and `--uncommitted` to
-  show only what changed since the last commit. It opens the changes in a pane and ends when
-  the user finishes the review; its output holds their comments. Act on them.
-"""
+    + OTHER_AGENTS
+    + WAITING
+    + REVIEWS
+    + "\n"
+    + GITHUB
+    + THE_ORCHESTRATOR
 )
 
 ORCHESTRATOR_INSTRUCTIONS = """\
@@ -313,6 +351,7 @@ BY_ORCHESTRATOR = (
     "The orchestrator started you with the prompt you got as your first message. When you\n"
     "are done, or stuck, tell `orchestrator` with SendMessage."
 )
+IN_SCRATCHPAD = "You are one of the masters of the scratchpad: every agent in it is one."
 HAS_MASTER = "The master agent of this task is `{master}`."
 NO_MASTER = "The task has no master agent right now."
 
@@ -351,6 +390,12 @@ def not_allowed(commands: Sequence[str], key: str, actions: Sequence[str] = ()) 
     return text
 
 
+def is_master(task: Task, pane: str) -> bool:
+    """Whether the agent of a pane counts as a master: the task's master, or any agent of a
+    scratchpad, which has no hierarchy."""
+    return task.scratchpad or task.workspace.master == pane
+
+
 def write_instructions(
     root: Path,
     task: Task,
@@ -358,13 +403,19 @@ def write_instructions(
     denied: Sequence[str] = (),
     forbidden: Sequence[str] = (),
 ) -> Path:
-    """The instructions an agent starts with: the root's file for masters or for the other
-    agents, what the config forbids it, then who it is.
+    """The instructions an agent starts with: the root's file for masters, for the other
+    agents or for the agents of a scratchpad, what the config forbids it, then who it is.
 
     Written anew at every start, so a restarted agent learns who the master is now.
     """
     master = task.workspace.panes.get(task.workspace.master or "")
-    if task.workspace.master == pane.id:
+    if task.scratchpad:
+        relation = IN_SCRATCHPAD
+        if pane.spawned_by == ORCHESTRATOR:
+            relation += "\n" + BY_ORCHESTRATOR
+        elif pane.spawned_by:
+            relation += "\n" + SPAWNED.format(spawner=pane.spawned_by)
+    elif task.workspace.master == pane.id:
         relation = IS_MASTER
         if pane.spawned_by == ORCHESTRATOR:
             relation += "\n" + BY_ORCHESTRATOR
@@ -376,13 +427,16 @@ def write_instructions(
         relation = HAS_MASTER.format(master=master.agent)
     else:
         relation = NO_MASTER
-    is_master = task.workspace.master == pane.id
-    general = root / (MASTER_FILE if is_master else AGENT_FILE)
-    default = MASTER_INSTRUCTIONS if is_master else AGENT_INSTRUCTIONS
+    if task.scratchpad:
+        general, default = root / SCRATCHPAD_FILE, SCRATCHPAD_INSTRUCTIONS
+    elif task.workspace.master == pane.id:
+        general, default = root / MASTER_FILE, MASTER_INSTRUCTIONS
+    else:
+        general, default = root / AGENT_FILE, AGENT_INSTRUCTIONS
     text = general.read_text() if general.is_file() else default
     file = Path(task.path) / METADATA_DIR / "agents" / f"{pane.id}.md"
     file.parent.mkdir(parents=True, exist_ok=True)
-    key = "master" if is_master else "agents"
+    key = "master" if is_master(task, pane.id) else "agents"
     file.write_text(
         text
         + not_allowed(denied, key, forbidden)

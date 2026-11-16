@@ -21,15 +21,17 @@ from bytearmy import cli
 from bytearmy.agents import (
     AGENT_INSTRUCTIONS,
     HAS_MASTER,
+    IN_SCRATCHPAD,
     IS_MASTER,
     MASTER_INSTRUCTIONS,
     NO_MASTER,
+    SCRATCHPAD_INSTRUCTIONS,
     SPAWNED,
 )
 from bytearmy.api import create_app
-from bytearmy.models import PaneOpen, ProjectMeta, Split, TaskCreate
+from bytearmy.models import PaneOpen, ProjectMeta, Split, TaskChange, TaskCreate
 from bytearmy.ptys import Pty
-from bytearmy.store import Store
+from bytearmy.store import InvalidEdit, Store
 from bytearmy.workspaces import InvalidValues, RoleTaken, Workspaces, values_from_args
 
 WAIT = "sleep 60"
@@ -179,6 +181,43 @@ def test_only_the_master_is_told_the_masters_duties():
         assert duty not in AGENT_INSTRUCTIONS
     for both in ("## Panes", "## Other agents", "## Waiting for events", "## Reviews"):
         assert both in MASTER_INSTRUCTIONS and both in AGENT_INSTRUCTIONS
+
+
+def test_the_scratchpad_is_told_it_has_no_status_and_no_hierarchy():
+    for duty in (
+        "## Status and log of the master",
+        "`bytearmy task done",
+        "`bytearmy task working",
+    ):
+        assert duty not in SCRATCHPAD_INSTRUCTIONS
+    for kept in ("## Other agents", "## Reviews", "`bytearmy pr create", "## The orchestrator"):
+        assert kept in SCRATCHPAD_INSTRUCTIONS
+
+
+def test_every_agent_in_the_scratchpad_is_a_master(store, workspaces, task):
+    assert (store.root / ".bytearmy" / "scratchpad.md").read_text() == SCRATCHPAD_INSTRUCTIONS
+    project, _ = task
+    scratchpad = (project, store.add_scratchpad(project).slug)
+    tool(store, "bot", **BOT)
+    configure(store, '[master]\nallow = ["*"]\n[agents]\nallow = ["pane.*"]\n')
+    open_pane(workspaces, scratchpad, "bot")
+    open_pane(workspaces, scratchpad, "bot")
+    open_pane(workspaces, scratchpad, "bot", role="x", prompt="Do x.", spawned_by="demo-x-master")
+    for pane in ("p1", "p2", "p3"):
+        workspaces.start(*scratchpad, pane)
+
+    for pane in ("p1", "p2", "p3"):
+        text = told(store, scratchpad, pane)
+        assert text.startswith(SCRATCHPAD_INSTRUCTIONS) and IN_SCRATCHPAD in text, pane
+        workspaces.check_allowed((*scratchpad, pane), "agent.spawn")  # [master] binds them all
+    assert relations(told(store, scratchpad, "p1")) == set()
+    assert relations(told(store, scratchpad, "p3")) == {"spawned by demo-x-master"}
+
+    for change in (TaskChange(status="Busy"), TaskChange(state="done")):
+        with pytest.raises(InvalidEdit):
+            store.change_task(*scratchpad, change)
+    store.change_task(*scratchpad, TaskChange(description="Trying things."))
+    assert store.task(*scratchpad).description == "Trying things."
 
 
 def test_the_instructions_files_of_earlier_versions_are_deleted(store):
