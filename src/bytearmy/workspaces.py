@@ -32,6 +32,7 @@ from bytearmy.models import (
     Agent,
     AgentSpawn,
     Diff,
+    DiffFile,
     DiffMode,
     LogEntry,
     Pane,
@@ -545,6 +546,19 @@ class Workspaces:
             return diffs.diff(_directory(tool, found), mode)
         except (diffs.GitFailed, OSError) as error:
             raise InvalidValues(f"The changes cannot be read: {error}") from error
+
+    def full_file(
+        self, project: str, task: str, pane: str, mode: DiffMode, path: str, old_path: str
+    ) -> DiffFile:
+        """The changes of one file of a diff pane, with all its lines."""
+        found, _, tool = self._diff_pane(project, task, pane)
+        try:
+            file = diffs.full_file(_directory(tool, found), mode, path, old_path)
+        except (diffs.GitFailed, OSError) as error:
+            raise InvalidValues(f"The changes cannot be read: {error}") from error
+        if file is None:
+            raise InvalidValues(f"{path} has no changes.")
+        return file
 
     def draft(self, project: str, task: str, pane: str) -> Review:
         """The comments the user has written in a diff pane so far."""

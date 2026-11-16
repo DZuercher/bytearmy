@@ -1,9 +1,10 @@
-import { ChevronDown, ChevronRight, MessageSquarePlus, Plus } from 'lucide-react'
+import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, MessageSquarePlus, Plus } from 'lucide-react'
 import { type MouseEvent, type ReactNode, useMemo, useState } from 'react'
 import type { DiffFile, DiffLine } from '@/api/client'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { type CommentActions, CommentThread } from './Comments'
+import type { FullFile } from './DiffPane'
 import { StatusLetter } from './FileList'
 import { highlightFile, type Token } from './highlight'
 import {
@@ -22,6 +23,8 @@ import {
 
 type Props = {
   file: DiffFile
+  full: FullFile | null // set once the user asked for all the lines of the file
+  onExpand: () => void
   view: View
   comments: Numbered[] // the comments on this file
   selection: Selection | null // the selection, if it is in this file
@@ -32,8 +35,19 @@ type Props = {
 }
 
 // The changes of one file: a header that stays on top while scrolling, then the hunks with
-// the comments below the lines they are on.
-export function FileDiff({ file, view, comments, selection, editing, actions, onSelect, onCommentFile }: Props) {
+// the comments below the lines they are on. The user can expand it to all its lines.
+export function FileDiff({
+  file,
+  full,
+  onExpand,
+  view,
+  comments,
+  selection,
+  editing,
+  actions,
+  onSelect,
+  onCommentFile,
+}: Props) {
   const [collapsed, setCollapsed] = useState(false)
   const tokens = useMemo(() => highlightFile(file), [file])
   const keys = useMemo(() => refKeys(file), [file])
@@ -66,10 +80,12 @@ export function FileDiff({ file, view, comments, selection, editing, actions, on
   }
 
   const select = (line: DiffLine) => (event: MouseEvent) => onSelect(lineRef(line), event.shiftKey)
+  // Added and deleted files show all their lines anyway.
+  const expandable = !file.binary && !file.truncated && (file.status === 'modified' || file.status === 'renamed')
 
   return (
-    <section className="border-b">
-      <header className="sticky top-0 z-10 flex items-center gap-2 border-b bg-background px-2 py-1">
+    <section className="overflow-clip rounded-lg border shadow-xs">
+      <header className="sticky top-0 z-10 flex items-center gap-2 rounded-t-lg border-b bg-muted px-2 py-1">
         <Button
           variant="ghost"
           size="icon-xs"
@@ -84,6 +100,12 @@ export function FileDiff({ file, view, comments, selection, editing, actions, on
         </span>
         <span className="font-mono text-xs text-task-green-mark">+{file.additions}</span>
         <span className="font-mono text-xs text-task-red-mark">−{file.deletions}</span>
+        {expandable && (
+          <Button variant="ghost" size="xs" disabled={full?.loading} onClick={onExpand}>
+            {full ? <ChevronsDownUp /> : <ChevronsUpDown />}
+            {full?.loading ? 'Expanding…' : full ? 'Show changes only' : 'Expand all lines'}
+          </Button>
+        )}
         <Button variant="ghost" size="xs" onClick={onCommentFile}>
           <MessageSquarePlus /> Comment on file
         </Button>
@@ -96,6 +118,7 @@ export function FileDiff({ file, view, comments, selection, editing, actions, on
       />
       {!collapsed && (
         <div className="font-mono text-xs leading-5">
+          {full?.error && <Note>All lines cannot be shown: {full.error}</Note>}
           {file.binary ? (
             <Note>Binary file, not shown.</Note>
           ) : file.truncated ? (

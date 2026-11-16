@@ -4,9 +4,11 @@ import {
   type AppState,
   api,
   type Diff,
+  type DiffFile,
   type DiffMode,
   type Pane,
   paneDiff,
+  paneDiffFile,
   paneReview,
   type Review,
   type ReviewComment,
@@ -40,6 +42,8 @@ export function DiffPane({ place, pane, run }: Props) {
   const [selection, setSelection] = useState<Selection | null>(null)
   const [editing, setEditing] = useState<number | null>(null)
   const [finishing, setFinishing] = useState(false)
+  // The files the user expanded to all their lines, by path.
+  const [full, setFull] = useState<Record<string, FullFile>>({})
   const files = useRef<Record<string, HTMLDivElement | null>>({})
   const saveTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
   const mode = review?.mode
@@ -63,6 +67,7 @@ export function DiffPane({ place, pane, run }: Props) {
     if (!mode) return
     let current = true
     setDiff((old) => ({ ...old, loading: true }))
+    setFull({})
     paneDiff({ project, task, pane: id }, mode).then(
       (answer) => current && setDiff({ diff: answer, loading: false }),
       (reason: unknown) =>
@@ -103,7 +108,7 @@ export function DiffPane({ place, pane, run }: Props) {
 
   const actions: CommentActions = {
     save: (body) => {
-      const file = diff.diff?.files.find((candidate) => candidate.path === selection?.path)
+      const file = shownFiles.find((candidate) => candidate.path === selection?.path)
       if (!selection || !file) return
       const { path, side, start, end } = selection
       const comment: ReviewComment = { path, side, start, end, quote: quote(file, selection), body }
@@ -135,6 +140,22 @@ export function DiffPane({ place, pane, run }: Props) {
     }
   }
 
+  function expand(file: DiffFile) {
+    if (full[file.path]) {
+      setFull(({ [file.path]: _, ...rest }) => rest)
+      return
+    }
+    setFull((old) => ({ ...old, [file.path]: { loading: true } }))
+    const answer = (entry: FullFile) =>
+      // Only if the user did not collapse it again, nor the diff was loaded anew meanwhile.
+      setFull((old) => (old[file.path]?.loading ? { ...old, [file.path]: entry } : old))
+    paneDiffFile({ project, task, pane: id }, review!.mode, file).then(
+      (found) => answer({ file: found, loading: false }),
+      (reason: unknown) =>
+        answer({ loading: false, error: reason instanceof Error ? reason.message : String(reason) }),
+    )
+  }
+
   function submit() {
     clearTimeout(saveTimer.current)
     const call = api.submitReview(project, task, id, review!)
@@ -143,6 +164,8 @@ export function DiffPane({ place, pane, run }: Props) {
   }
 
   const shown = diff.diff
+  // The files as they are shown: those the user expanded with all their lines.
+  const shownFiles = (shown?.files ?? []).map((file) => full[file.path]?.file ?? file)
   return (
     <div className="flex size-full flex-col bg-background">
       <div className="flex shrink-0 flex-wrap items-center gap-2 border-b px-2 py-1">
@@ -206,11 +229,13 @@ export function DiffPane({ place, pane, run }: Props) {
               />
             </nav>
           )}
-          <div className="min-w-0 flex-1 overflow-y-auto">
-            {shown.files.map((file) => (
+          <div className="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto p-3">
+            {shownFiles.map((file) => (
               <div key={file.path} ref={(element) => void (files.current[file.path] = element)}>
                 <FileDiff
                   file={file}
+                  full={full[file.path] ?? null}
+                  onExpand={() => expand(file)}
                   view={view}
                   comments={byFile[file.path] ?? []}
                   selection={selection?.path === file.path ? selection : null}
@@ -240,6 +265,9 @@ export function DiffPane({ place, pane, run }: Props) {
     </div>
   )
 }
+
+// A file the user expanded: loading, loaded with all its lines, or failed.
+export type FullFile = { file?: DiffFile; loading: boolean; error?: string }
 
 function Message({ children }: { children: ReactNode }) {
   return <p className="p-4 text-sm whitespace-pre-wrap text-muted-foreground">{children}</p>

@@ -51,6 +51,7 @@ const routes = {
   panePage: '/api/projects/{project}/tasks/{task}/panes/{pane}/page',
   panePageVersion: '/api/projects/{project}/tasks/{task}/panes/{pane}/page/version',
   paneDiff: '/api/projects/{project}/tasks/{task}/panes/{pane}/diff',
+  paneDiffFile: '/api/projects/{project}/tasks/{task}/panes/{pane}/diff/file',
   paneReview: '/api/projects/{project}/tasks/{task}/panes/{pane}/review',
   inboxRefresh: '/api/inbox/refresh',
   inboxRead: '/api/inbox/{message}/read',
@@ -198,6 +199,16 @@ export function panePageVersion(place: {
 // The changes of the task's clone that a diff pane shows. Like the page, it is not the state.
 export function paneDiff(place: { project: string; task: string; pane: string }, mode: DiffMode): Promise<Diff> {
   return send<Diff>('GET', `${fill(routes.paneDiff, place)}?${new URLSearchParams({ mode })}`)
+}
+
+// One file of a diff pane with all its lines, the unchanged ones as context.
+export function paneDiffFile(
+  place: { project: string; task: string; pane: string },
+  mode: DiffMode,
+  file: { path: string; old_path?: string },
+): Promise<DiffFile> {
+  const query = new URLSearchParams({ mode, path: file.path, old_path: file.old_path ?? '' })
+  return send<DiffFile>('GET', `${fill(routes.paneDiffFile, place)}?${query}`)
 }
 
 // The comments written in a diff pane so far. The core keeps them, so they survive a reload.

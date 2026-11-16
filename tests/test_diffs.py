@@ -13,7 +13,7 @@ from test_api_panes import PANES
 from bytearmy import cli, diffs
 from bytearmy.models import PaneOpen, ProjectMeta, Review, ReviewComment, TaskCreate
 from bytearmy.store import Store
-from bytearmy.workspaces import NoMaster, Workspaces
+from bytearmy.workspaces import InvalidValues, NoMaster, Workspaces
 
 # -- the changes ---------------------------------------------------------------
 
@@ -82,6 +82,22 @@ def test_lines_know_their_numbers_in_both_versions(clone):
     assert (added.old, added.new, added.text) == (None, 15, "line fifteen")
     context = next(line for line in lines if line.kind == "context")
     assert context.old == context.new
+
+
+def test_a_full_file_shows_every_line_with_the_changes(clone):
+    lib = diffs.full_file(clone, "branch", "lib.py")
+    assert lib is not None and len(lib.hunks) == 1
+    lines = lib.hunks[0].lines
+    assert [line.new for line in lines if line.kind != "delete"] == list(range(1, 21))
+    assert (lib.additions, lib.deletions) == (2, 2)
+
+
+def test_a_full_file_follows_renames_and_untracked_files(clone):
+    renamed = diffs.full_file(clone, "branch", "README.txt", "README.md")
+    assert renamed is not None and (renamed.status, renamed.old_path) == ("renamed", "README.md")
+    new = diffs.full_file(clone, "branch", "new.txt")
+    assert new is not None and [line.text for line in new.hunks[0].lines] == ["brand", "new"]
+    assert diffs.full_file(clone, "uncommitted", "README.txt") is None
 
 
 def test_without_a_default_branch_the_changes_are_those_since_head(tmp_path):
@@ -168,6 +184,10 @@ def test_a_diff_pane_shows_the_changes_of_its_task(store, workspaces, task):
     assert pane.kind == "diff"
     diff = workspaces.diff("demo", "work", pane.id, "branch")
     assert [file.path for file in diff.files] == ["a.txt"]
+    full = workspaces.full_file("demo", "work", pane.id, "branch", "a.txt", "")
+    assert [line.text for line in full.hunks[0].lines] == ["one"]
+    with pytest.raises(InvalidValues):
+        workspaces.full_file("demo", "work", pane.id, "branch", "missing.txt", "")
 
 
 def test_a_draft_is_kept_until_the_pane_closes(store, workspaces, task):
