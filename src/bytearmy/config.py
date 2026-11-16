@@ -201,6 +201,8 @@ class InboxSettings(Section):
 class GitHubSettings(Section):
     user: str = ""
     host: str = "github.com"
+    name: str = ""
+    email: str = ""
 
 
 class Config(Section):
@@ -306,6 +308,9 @@ repositories = []
 # One of the accounts `gh auth status` lists; "" takes gh's active account.
 user = ""
 host = "github.com"
+# The name and email git puts on commits (user.name and user.email); "" keeps git's own.
+name = ""
+email = ""
 """
 
 
@@ -413,10 +418,30 @@ class GitHubAccounts:
         self.errors: dict[tuple[str, str], str] = {}  # accounts gh did not know, and why
 
     def env(self, settings: GitHubSettings) -> dict[str, str]:
-        """GH_TOKEN and git's credential helper for the account; nothing if no account is
-        named or gh does not know it: then gh's active account is used."""
-        if not settings.user:
-            return {}
+        """GH_TOKEN and git's credential helper for the account, and git's user.name and
+        user.email for commits. Without an account, or one gh does not know, gh's active
+        account is used; without a name or email, git's own."""
+        token = self._token(settings) if settings.user else ""
+        git_config: list[tuple[str, str]] = []
+        env: dict[str, str] = {}
+        if token:
+            env = {"GH_TOKEN": token, "GH_HOST": settings.host}
+            # git asks gh for credentials, and gh answers with GH_TOKEN.
+            helper = f"credential.https://{settings.host}.helper"
+            git_config += [(helper, ""), (helper, "!gh auth git-credential")]
+        if settings.name:
+            git_config.append(("user.name", settings.name))
+        if settings.email:
+            git_config.append(("user.email", settings.email))
+        if git_config:
+            env["GIT_CONFIG_COUNT"] = str(len(git_config))
+            for index, (key, value) in enumerate(git_config):
+                env[f"GIT_CONFIG_KEY_{index}"] = key
+                env[f"GIT_CONFIG_VALUE_{index}"] = value
+        return env
+
+    def _token(self, settings: GitHubSettings) -> str:
+        """The account's token from gh, kept for a while; "" if gh does not know it."""
         account = (settings.host, settings.user)
         with self._lock:
             checked, token = self._tokens.get(account, (None, ""))
@@ -440,18 +465,7 @@ class GitHubAccounts:
                     self.errors[account] = message
                 else:
                     self.errors.pop(account, None)
-        if not token:
-            return {}
-        return {
-            "GH_TOKEN": token,
-            "GH_HOST": settings.host,
-            # git asks gh for credentials, and gh answers with GH_TOKEN.
-            "GIT_CONFIG_COUNT": "2",
-            "GIT_CONFIG_KEY_0": f"credential.https://{settings.host}.helper",
-            "GIT_CONFIG_VALUE_0": "",
-            "GIT_CONFIG_KEY_1": f"credential.https://{settings.host}.helper",
-            "GIT_CONFIG_VALUE_1": "!gh auth git-credential",
-        }
+        return token
 
     def problems(self) -> list[str]:
         with self._lock:

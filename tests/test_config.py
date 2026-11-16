@@ -174,6 +174,21 @@ def test_a_github_account_becomes_gh_and_git_credentials():
     assert "unknown" in accounts.problems()[0]
 
 
+def test_the_github_section_sets_the_git_identity_of_commits():
+    accounts = GitHubAccounts(run=lambda _command: "secret\n")
+    env = accounts.env(GitHubSettings(name="Ada Lovelace", email="ada@example.com"))
+    assert env == {  # no account: no token, but still the identity
+        "GIT_CONFIG_COUNT": "2",
+        "GIT_CONFIG_KEY_0": "user.name",
+        "GIT_CONFIG_VALUE_0": "Ada Lovelace",
+        "GIT_CONFIG_KEY_1": "user.email",
+        "GIT_CONFIG_VALUE_1": "ada@example.com",
+    }
+    env = accounts.env(GitHubSettings(user="me", email="me@example.com"))
+    assert env["GH_TOKEN"] == "secret" and env["GIT_CONFIG_COUNT"] == "3"
+    assert (env["GIT_CONFIG_KEY_2"], env["GIT_CONFIG_VALUE_2"]) == ("user.email", "me@example.com")
+
+
 def test_the_inbox_takes_only_the_notifications_the_config_wants():
     config = Config.model_validate(
         {"inbox": {"github": {"reasons": ["review_requested"], "repositories": ["o/a"]}}}
