@@ -15,15 +15,19 @@ from pathlib import Path
 
 from bytearmy import themes
 from bytearmy.agents import (
-    EARLIER_INSTRUCTIONS,
+    AGENT_FILE,
+    AGENT_INSTRUCTIONS,
+    EARLIER_AGENT_INSTRUCTIONS,
+    EARLIER_MASTER_INSTRUCTIONS,
     EARLIER_ORCHESTRATOR_INSTRUCTIONS,
-    INSTRUCTIONS,
-    INSTRUCTIONS_FILE,
     MASTER,
+    MASTER_FILE,
+    MASTER_INSTRUCTIONS,
     ORCHESTRATOR_FILE,
     ORCHESTRATOR_INSTRUCTIONS,
     agent_name,
     next_role,
+    remove_legacy,
     write_instructions,
 )
 from bytearmy.config import ACCOUNTS, AGENT_COMMANDS, Config, config_of, ensure_config
@@ -178,7 +182,9 @@ class Workspaces:
         self._diffle = Reviews(self._logs)
         self._bin = pane_command(store.root / METADATA_DIR / "bin").parent
         ensure_premade(store.root)
-        write_premade(store.root / INSTRUCTIONS_FILE, INSTRUCTIONS, EARLIER_INSTRUCTIONS)
+        remove_legacy(store.root)
+        write_premade(store.root / MASTER_FILE, MASTER_INSTRUCTIONS, EARLIER_MASTER_INSTRUCTIONS)
+        write_premade(store.root / AGENT_FILE, AGENT_INSTRUCTIONS, EARLIER_AGENT_INSTRUCTIONS)
         write_premade(
             store.root / ORCHESTRATOR_FILE,
             ORCHESTRATOR_INSTRUCTIONS,
