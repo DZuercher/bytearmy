@@ -60,15 +60,26 @@ def test_an_entry_of_the_directory_keeps_its_other_settings(tmp_path):
     }
 
 
-def test_a_trusted_directory_or_parent_leaves_the_file_alone(tmp_path):
+def test_a_trusted_directory_leaves_the_file_alone(tmp_path):
     config = tmp_path / ".claude.json"
     text = json.dumps({"projects": {str(tmp_path.resolve()): {"hasTrustDialogAccepted": True}}})
     config.write_text(text)
 
     trust_directory(tmp_path, config)
-    trust_directory(tmp_path / "task" / "repo", config)
 
     assert config.read_text() == text
+
+
+def test_a_directory_below_a_trusted_parent_gets_an_entry_of_its_own(tmp_path):
+    # Claude asks in a git repository even when a parent of it is trusted.
+    config = tmp_path / ".claude.json"
+    parent = str(tmp_path.resolve())
+    config.write_text(json.dumps({"projects": {parent: {"hasTrustDialogAccepted": True}}}))
+    repo = tmp_path / "task" / "repo"
+
+    trust_directory(repo, config)
+
+    assert trusted(config) == {parent: True, str(repo.resolve()): True}
 
 
 def test_a_config_that_cannot_be_read_is_left_alone(tmp_path):
