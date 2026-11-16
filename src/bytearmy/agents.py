@@ -77,6 +77,10 @@ of your own task; it cannot reach other tasks.
 
 ## Reviews
 
+- Before you commit changes, always ask the user to review them first: run
+  `bytearmy review --uncommitted` in the background (Bash with `run_in_background`), which
+  compares only the uncommitted changes with the current state of the branch. Commit only
+  after the review has ended, and act on its comments before you do.
 - When you want the user to review your changes, run `bytearmy review` in the background
   (Bash with `run_in_background`); add `--note "<what to look at>"`, and `--uncommitted` to
   show only what changed since the last commit. It opens the changes in a pane and ends when
