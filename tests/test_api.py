@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 
 import pytest
+from conftest import git
 from fastapi.testclient import TestClient
 
 from bytearmy.api import create_app
@@ -194,6 +195,47 @@ def test_creating_a_task_clones_the_repository_of_its_project(client, remote):
     assert (cloned["clone"], cloned["repo"]) == ("ready", "widgets")
     assert (Path(cloned["path"]) / "widgets" / "feature.txt").exists()
     assert task(client, "a", "plain")["clone"] == "none"
+
+
+def test_a_started_task_without_a_branch_can_get_one(client, remote):
+    client.post("/api/projects", json={"name": "Widgets", "github_url": str(remote)})
+    tasks = "/api/projects/widgets/tasks"
+    client.post(tasks, json={"name": "A"})
+    client.post(tasks, json={"name": "B"})
+    client.post(f"{tasks}/a/start")
+    for slug in ("a", "b"):
+        assert wait_while_cloning(client, slug, "widgets")["clone"] == "ready"
+    edit = {"name": "A", "status": "New"}
+
+    def head(slug: str) -> str:
+        repo = Path(task(client, slug, "widgets")["path"]) / "widgets"
+        return git("rev-parse", "--abbrev-ref", "HEAD", cwd=repo).strip()
+
+    refused = client.put(f"{tasks}/a", json={**edit, "branch": "no..good"})
+    assert (refused.status_code, refused.json()["detail"]) == (
+        400,
+        '"no..good" is not a valid branch name.',
+    )
+    assert task(client, "a", "widgets")["branch"] == ""
+
+    # A branch origin has is checked out, with its files.
+    assert client.put(f"{tasks}/a", json={**edit, "branch": "feature"}).status_code == 200
+    assert task(client, "a", "widgets")["branch"] == "feature"
+    assert head("a") == "feature"
+    assert (Path(task(client, "a", "widgets")["path"]) / "widgets" / "feature.txt").exists()
+
+    # Saved without a branch, the task keeps its own; another one is refused.
+    assert client.put(f"{tasks}/a", json=edit).status_code == 200
+    assert task(client, "a", "widgets")["branch"] == "feature"
+    refused = client.put(f"{tasks}/a", json={**edit, "branch": "other"})
+    assert refused.status_code == 400
+    assert task(client, "a", "widgets")["branch"] == "feature"
+    assert head("a") == "feature"
+
+    # A branch origin does not have is made, also for a task in the backlog.
+    backlog = {"name": "B", "status": "Backlog", "branch": "fresh"}
+    assert client.put(f"{tasks}/b", json=backlog).status_code == 200
+    assert head("b") == "fresh"
 
 
 def test_a_failed_clone_can_be_tried_again(client, remote, tmp_path):
