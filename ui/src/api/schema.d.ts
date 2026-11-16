@@ -1511,11 +1511,11 @@ export interface components {
              */
             status: string;
             /**
-             * Color
-             * @default
+             * State
+             * @default backlog
              * @enum {string}
              */
-            color: "" | "red" | "amber" | "green" | "blue" | "purple";
+            state: "backlog" | "new" | "working" | "needs_input" | "waiting" | "done" | "merged" | "manual";
             /**
              * Repo
              * @default
@@ -1549,7 +1549,7 @@ export interface components {
         /**
          * TaskChange
          * @description What an agent may change about its task. Only the fields that are sent change;
-         *     `color` "" removes the color, `reminder` null removes the reminder.
+         *     `reminder` null removes the reminder.
          */
         TaskChange: {
             /**
@@ -1558,11 +1558,11 @@ export interface components {
              */
             status: string;
             /**
-             * Color
-             * @default
+             * State
+             * @default working
              * @enum {string}
              */
-            color: "" | "red" | "amber" | "green" | "blue" | "purple";
+            state: "working" | "needs_input" | "waiting" | "done" | "merged";
             /**
              * Description
              * @default
@@ -1625,11 +1625,11 @@ export interface components {
             /** Status */
             status: string;
             /**
-             * Color
-             * @default
+             * State
+             * @default new
              * @enum {string}
              */
-            color: "" | "red" | "amber" | "green" | "blue" | "purple";
+            state: "backlog" | "new" | "working" | "needs_input" | "waiting" | "done" | "merged" | "manual";
             /** Reminder */
             reminder?: string | null;
             /**
@@ -1668,11 +1668,11 @@ export interface components {
             /** Status */
             status: string;
             /**
-             * Color
-             * @default
+             * State
+             * @default new
              * @enum {string}
              */
-            color: "" | "red" | "amber" | "green" | "blue" | "purple";
+            state: "backlog" | "new" | "working" | "needs_input" | "waiting" | "done" | "merged" | "manual";
             /**
              * Branch
              * @default

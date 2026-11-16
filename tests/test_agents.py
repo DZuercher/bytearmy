@@ -395,24 +395,37 @@ def test_a_pane_changes_the_data_of_its_task(core, bytearmy, monkeypatch):
     monkeypatch.setenv("http_proxy", "http://127.0.0.1:9")  # nothing answers there
     me = calling_pane(core)
 
-    code, shown = bytearmy(me, "task", "set-status", "Busy", "--color", "amber")
+    code, shown = bytearmy(me, "task", "needs-input", "Busy")
     assert code == 0
-    assert "status: Busy\ncolor: amber" in shown
+    assert "status: Busy\nstate: needs_input" in shown
     assert bytearmy(me, "task", "set-status", "Needs review")[0] == 0
     assert bytearmy(me, "task", "set-description", "Fix it")[0] == 0
     assert bytearmy(me, "task", "set-reminder", "2026-12-01")[0] == 0
     task = core.store.task("demo", "work")
-    assert (task.status, task.color, task.description, str(task.reminder)) == (
+    assert (task.status, task.state, task.description, str(task.reminder)) == (
         "Needs review",
-        "amber",
+        "needs_input",
         "Fix it",
         "2026-12-01",
     )
 
-    assert bytearmy(me, "task", "set-color", "none")[0] == 0
+    # Without a status, a state command sets the state's name as the status.
+    for command, state, status in [
+        ("working", "working", "Working"),
+        ("waiting", "waiting", "Waiting"),
+        ("done", "done", "Done"),
+    ]:
+        assert bytearmy(me, "task", command)[0] == 0
+        task = core.store.task("demo", "work")
+        assert (task.state, task.status) == (state, status)
+    # The project has no GitHub URL: its tasks are never merged.
+    assert bytearmy(me, "task", "merged") == (
+        1,
+        "bytearmy: only a task of a project with a GitHub URL can be merged",
+    )
     assert bytearmy(me, "task", "set-reminder", "none")[0] == 0
     task = core.store.task("demo", "work")
-    assert (task.status, task.color, task.reminder) == ("Needs review", "", None)
+    assert (task.status, task.state, task.reminder) == ("Done", "done", None)
     assert bytearmy(me, "task", "set-status", "Backlog") == (
         1,
         "bytearmy: a started task cannot go back to the backlog",
@@ -420,7 +433,7 @@ def test_a_pane_changes_the_data_of_its_task(core, bytearmy, monkeypatch):
     assert bytearmy(me, "task", "set-status", " ") == (1, "bytearmy: a status must not be empty")
     pink = httpx.patch(
         f"{me['BYTEARMY_URL']}/agent/task",
-        json={"color": "pink"},
+        json={"state": "manual"},  # only the user sets a task to manual
         headers={"Authorization": f"Bearer {me['BYTEARMY_TOKEN']}"},
         trust_env=False,
     )

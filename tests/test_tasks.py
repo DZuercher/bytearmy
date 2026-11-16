@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from bytearmy.models import ProjectMeta, TaskCreate
+from bytearmy.models import ProjectMeta, TaskCreate, TaskFile
 from bytearmy.store import (
     INTERRUPTED_CLONE,
     Blocked,
@@ -81,7 +81,7 @@ def test_create_writes_task_metadata_into_a_slug_directory(store, project):
         "reminder": "2026-12-01",
         "dependencies": ["design-api"],
         "status": "Backlog",
-        "color": "",
+        "state": "backlog",
         "repo": "",
         "clone_error": "",
         "scratchpad": False,
@@ -408,3 +408,16 @@ def test_the_scratchpad_cannot_be_deleted_or_moved_from_the_top(store, project):
     assert bars(store, project) == ([], ["scratchpad", "b", "a"])
     store.reorder_tasks(project, "tasks", ["a", "scratchpad", "b"])
     assert bars(store, project) == ([], ["scratchpad", "a", "b"])
+
+
+def test_a_task_file_from_before_the_states_takes_its_state_from_its_color():
+    def state(status: str, color: str) -> str:
+        return TaskFile.model_validate({"name": "A", "status": status, "color": color}).state
+
+    assert state("Backlog", "") == "backlog"
+    assert state("New", "") == "new"
+    assert state("Busy", "blue") == "working"
+    assert state("Ask", "amber") == "needs_input"
+    assert state("CI", "red") == "waiting"
+    assert state("Done", "green") == "done"
+    assert state("Merged", "purple") == "merged"

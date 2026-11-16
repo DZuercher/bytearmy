@@ -13,7 +13,18 @@ NEW = "New"
 SCRATCHPAD = "Scratchpad"  # the name of a project's scratchpad task
 SCRATCHPAD_STATUS = "Explore"
 
-Color = Literal["", "red", "amber", "green", "blue", "purple"]  # of a task's tab; "" is none
+# The state of a task; it alone sets the task's color in the bars.
+State = Literal["backlog", "new", "working", "needs_input", "waiting", "done", "merged", "manual"]
+# What an agent may set: the others come from bytearmy (backlog, new) or the user (manual).
+AgentState = Literal["working", "needs_input", "waiting", "done", "merged"]
+# The colors tasks had before their states, for task files written back then.
+_COLOR_STATES = {
+    "blue": "working",
+    "amber": "needs_input",
+    "red": "waiting",
+    "green": "done",
+    "purple": "merged",
+}
 
 
 class ProjectMeta(BaseModel):
@@ -98,7 +109,9 @@ class TaskEdit(BaseModel):
     description: str = ""
     branch: str = ""
     status: str
-    color: Color = ""
+    # null keeps the task's state; a task in the backlog keeps "backlog", a started one
+    # cannot get it
+    state: State | None = None
     reminder: date | None = None
     dependencies: list[str] = []  # slugs of tasks in the same project
 
@@ -126,12 +139,23 @@ class TaskFile(TaskCreate):
     """Contents of `<task>/.bytearmy/task.json`."""
 
     status: str = BACKLOG
-    color: Color = ""  # set by an agent to get the user's attention
+    state: State = "backlog"
     repo: str = ""  # directory of the clone below the task directory; empty without a GitHub URL
     clone_error: str = ""
     # the project's scratchpad: always there, first in the task bar, for exploring the
     # project and asking general questions; it cannot be deleted
     scratchpad: bool = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def _state_from_color(cls, data: object) -> object:
+        """A task file from before the states has a color instead: take its state from it."""
+        if isinstance(data, dict) and "state" not in data and "status" in data:
+            data = dict(data)
+            color = data.pop("color", "")
+            backlog = data["status"] == BACKLOG
+            data["state"] = "backlog" if backlog else _COLOR_STATES.get(color, "new")
+        return data
 
 
 class Split(BaseModel):
@@ -425,10 +449,10 @@ class PaneMove(BaseModel):
 
 class TaskChange(BaseModel):
     """What an agent may change about its task. Only the fields that are sent change;
-    `color` "" removes the color, `reminder` null removes the reminder."""
+    `reminder` null removes the reminder."""
 
     status: str = ""
-    color: Color = ""
+    state: AgentState = "working"
     description: str = ""
     reminder: date | None = None
 
@@ -532,7 +556,7 @@ class TaskSummary(BaseModel):
     slug: str
     name: str
     status: str
-    color: Color = ""
+    state: State = "new"
     branch: str = ""
     description: str = ""
     path: str

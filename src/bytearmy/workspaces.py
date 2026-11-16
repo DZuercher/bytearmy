@@ -28,7 +28,6 @@ from bytearmy.agents import (
 from bytearmy.config import ACCOUNTS, AGENT_COMMANDS, Config, config_of, ensure_config
 from bytearmy.layout import add_leaf, leaves, remove_leaf
 from bytearmy.models import (
-    BACKLOG,
     Agent,
     AgentSpawn,
     DiffMode,
@@ -241,7 +240,7 @@ class Workspaces:
         if tool is None:
             raise UnknownTool(request.tool)
         found = self._store.task(project, task)
-        if found.status == BACKLOG:
+        if found.state == "backlog":
             raise NotStarted(found.name)
         project_found = self._store.project(project)
         pull_request = ""
