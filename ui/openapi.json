@@ -2265,6 +2265,124 @@
         }
       }
     },
+    "/agent/workflows": {
+      "get": {
+        "summary": "Agent List Workflows",
+        "operationId": "agent_list_workflows_agent_workflows_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowAnswer"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agent/workflows/run": {
+      "post": {
+        "summary": "Agent Run Workflow",
+        "operationId": "agent_run_workflow_agent_workflows_run_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowDispatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowAnswer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agent/workflows/runs": {
+      "get": {
+        "summary": "Agent Workflow Runs",
+        "operationId": "agent_workflow_runs_agent_workflows_runs_get",
+        "parameters": [
+          {
+            "name": "workflow",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Workflow"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Branch"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 10,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowAnswer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/agent/reviews/{pane}": {
       "get": {
         "summary": "Agent Review State",
@@ -3694,19 +3812,25 @@
             "title": "Status"
           },
           "state": {
-            "type": "string",
-            "enum": [
-              "backlog",
-              "new",
-              "working",
-              "needs_input",
-              "waiting",
-              "done",
-              "merged",
-              "manual"
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "backlog",
+                  "new",
+                  "working",
+                  "needs_input",
+                  "waiting",
+                  "done",
+                  "merged",
+                  "manual"
+                ]
+              },
+              {
+                "type": "null"
+              }
             ],
-            "title": "State",
-            "default": "new"
+            "title": "State"
           },
           "reminder": {
             "anyOf": [
@@ -4155,6 +4279,48 @@
           "hidden"
         ],
         "title": "Visibility"
+      },
+      "WorkflowAnswer": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "WorkflowAnswer",
+        "description": "What gh answered: the workflows, the runs, or what it dispatched."
+      },
+      "WorkflowDispatch": {
+        "properties": {
+          "workflow": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Workflow"
+          },
+          "ref": {
+            "type": "string",
+            "title": "Ref",
+            "default": ""
+          },
+          "inputs": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Inputs",
+            "default": {}
+          }
+        },
+        "type": "object",
+        "required": [
+          "workflow"
+        ],
+        "title": "WorkflowDispatch",
+        "description": "An agent dispatches a GitHub Actions workflow of the task's repository."
       },
       "Workspace": {
         "properties": {

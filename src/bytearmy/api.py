@@ -11,7 +11,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, WebSocket
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request, WebSocket
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -58,10 +58,12 @@ from bytearmy.models import (
     UiChange,
     Unfold,
     Visibility,
+    WorkflowAnswer,
+    WorkflowDispatch,
     Workspace,
 )
 from bytearmy.orchestrator import Orchestrator
-from bytearmy.prs import PullRequestFailed
+from bytearmy.prs import GitHubFailed
 from bytearmy.ptys import Pty
 from bytearmy.store import (
     Blocked,
@@ -75,6 +77,7 @@ from bytearmy.store import (
 )
 from bytearmy.themes import load_theme, stamp
 from bytearmy.tools import ToolFailed
+from bytearmy.workflows import DEFAULT_RUN_LIMIT
 from bytearmy.workspaces import (
     SPAWNING_TOOL,
     CommandNotAllowed,
@@ -633,6 +636,23 @@ def create_app(
     def agent_merge_pull_request(caller: Caller, request: PullRequestMerge) -> PullRequestAnswer:
         return PullRequestAnswer(text=workspaces.merge_pull_request(caller, request))
 
+    @agent.get("/workflows", dependencies=[agent_may("workflow.list")])
+    def agent_list_workflows(caller: Caller) -> WorkflowAnswer:
+        return WorkflowAnswer(text=workspaces.list_workflows(caller))
+
+    @agent.post("/workflows/run", dependencies=[agent_may("workflow.run")])
+    def agent_run_workflow(caller: Caller, request: WorkflowDispatch) -> WorkflowAnswer:
+        return WorkflowAnswer(text=workspaces.run_workflow(caller, request))
+
+    @agent.get("/workflows/runs", dependencies=[agent_may("workflow.runs")])
+    def agent_workflow_runs(
+        caller: Caller,
+        workflow: str = "",
+        branch: str = "",
+        limit: Annotated[int, Query(ge=1, le=100)] = DEFAULT_RUN_LIMIT,
+    ) -> WorkflowAnswer:
+        return WorkflowAnswer(text=workspaces.workflow_runs(caller, workflow, branch, limit))
+
     @agent.get("/reviews/{pane}")
     def agent_review_state(caller: Caller, pane: str) -> ReviewState:
         return workspaces.review_state(caller, pane)
@@ -850,8 +870,8 @@ def create_app(
     def invalid_layout(_request: Request, error: InvalidLayout) -> JSONResponse:
         return answer(400, str(error))
 
-    @app.exception_handler(PullRequestFailed)
-    def pull_request_failed(_request: Request, error: PullRequestFailed) -> JSONResponse:
+    @app.exception_handler(GitHubFailed)
+    def github_failed(_request: Request, error: GitHubFailed) -> JSONResponse:
         return answer(409, str(error))
 
     @app.exception_handler(ToolFailed)

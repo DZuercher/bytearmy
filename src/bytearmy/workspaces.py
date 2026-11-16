@@ -43,6 +43,7 @@ from bytearmy.models import (
     Split,
     Task,
     Tool,
+    WorkflowDispatch,
     Workspace,
 )
 from bytearmy.prs import PullRequestCommands, PullRequestFailed
@@ -63,6 +64,7 @@ from bytearmy.tools import (
     write_premade,
 )
 from bytearmy.trust import trust_directory
+from bytearmy.workflows import WorkflowCommands, WorkflowFailed
 
 PASTE_START, PASTE_END = b"\x1b[200~", b"\x1b[201~"  # bracketed paste, as terminals send it
 SUBMIT_DELAY_SECONDS = 0.3  # Claude takes a paste as such only if Enter comes after it
@@ -156,10 +158,12 @@ class Workspaces:
         url: str = "",
         pulls: PullRequests | None = None,
         pr_commands: PullRequestCommands | None = None,
+        workflow_commands: WorkflowCommands | None = None,
     ) -> None:
         self._store = store
         self._pulls = pulls or PullRequests(store)
         self._pr_commands = pr_commands or PullRequestCommands()
+        self._workflow_commands = workflow_commands or WorkflowCommands()
         # A login shell that reads the user's startup files: functions and aliases work.
         self._shell = list(shell or [os.environ.get("SHELL", "/bin/sh"), "-l", "-i"])
         self.url = url  # where the programs in the panes reach the core
@@ -590,6 +594,30 @@ class Workspaces:
     def merge_pull_request(self, caller: Key, request: PullRequestMerge) -> str:
         clone, branch, env = self._clone_and_branch(caller)
         return self._pr_commands.merge(clone, branch, env, request.method, request.delete_branch)
+
+    # -- workflows ---------------------------------------------------------
+
+    def _clone(self, caller: Key) -> tuple[Path, str, dict[str, str]]:
+        """Where the task's clone is, its branch ("" if none), and the GitHub account."""
+        project, task, _ = caller
+        found = self._store.task(project, task)
+        if found.clone != "ready" or not found.repo:
+            raise WorkflowFailed("the task has no clone of a GitHub repository")
+        return Path(found.path) / found.repo, found.branch, self.github_env(project, task)
+
+    def list_workflows(self, caller: Key) -> str:
+        clone, _, env = self._clone(caller)
+        return self._workflow_commands.list(clone, env)
+
+    def run_workflow(self, caller: Key, request: WorkflowDispatch) -> str:
+        """Dispatch a workflow; it runs on the task's branch unless the request names a ref."""
+        clone, branch, env = self._clone(caller)
+        ref = request.ref or branch
+        return self._workflow_commands.run(clone, env, request.workflow, ref, request.inputs)
+
+    def workflow_runs(self, caller: Key, workflow: str, branch: str, limit: int) -> str:
+        clone, _, env = self._clone(caller)
+        return self._workflow_commands.runs(clone, env, workflow, branch, limit)
 
     def _review_page(self, project: str, task: str, pane: str) -> str:
         """Where the diffle of a diff pane answers; starts it if it does not run yet."""

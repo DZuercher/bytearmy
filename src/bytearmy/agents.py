@@ -27,6 +27,7 @@ EARLIER_INSTRUCTIONS = {
     "27cc28f29d94da91a13c943fc41a133bb23e8ac9df0132d61c1aabc82761d78b",
     "fd9f4c1e41be73b132fa252d56f9d623ab9cc7a45507b56c6e0ea80b38668e61",
     "c472a0526311f36efa32b29a3ee43b1feb9da3c88a0997059cbb80e418f45439",
+    "f77f69815c518217860136e6673c43ff1e9b5dbce734941669a7ec21ee674440",
 }
 EARLIER_ORCHESTRATOR_INSTRUCTIONS: set[str] = set()
 
@@ -125,6 +126,19 @@ of your own task; it cannot reach other tasks.
   (`--method merge|rebase`, `--delete-branch`). They act on the task's own branch only.
 - Open a pull request only when the user asks for one, and merge one only when the user
   asks you to merge it.
+
+## GitHub Actions
+
+- Use `bytearmy workflow`, not `gh workflow run` (which Claude's permission modes often
+  block), for the workflows of the task's repository:
+  `bytearmy workflow list` lists them, and
+  `bytearmy workflow run <workflow> -f <input>=<value> ...` dispatches one (its name, ID
+  or file name) with its `workflow_dispatch` inputs, one `-f` per input, or all of them as
+  a JSON object with `--inputs-file <file>`. It runs on the task's branch, which must be
+  pushed, unless you name another branch or tag with `--ref`. Only the master may dispatch.
+- `bytearmy workflow runs [<workflow>] [--branch <branch>]` lists the latest runs; to wait
+  for one to end, `bytearmy listen "<workflow> run" "gh run watch <run id> --exit-status"`.
+- Dispatch a workflow only when the user asks for it, or when the task plainly needs it.
 
 ## Status and log of the master
 

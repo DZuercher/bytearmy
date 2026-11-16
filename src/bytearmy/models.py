@@ -528,6 +528,27 @@ class PullRequestAnswer(BaseModel):
     text: str
 
 
+class WorkflowDispatch(BaseModel):
+    """An agent dispatches a GitHub Actions workflow of the task's repository."""
+
+    workflow: str = Field(min_length=1)  # its name, ID or file name, e.g. deploy.yml
+    ref: str = ""  # "" = the task's branch, or the default branch if the task has none
+    inputs: dict[str, str] = {}  # the workflow_dispatch inputs, by name
+
+    @field_validator("inputs")
+    @classmethod
+    def _named(cls, inputs: dict[str, str]) -> dict[str, str]:
+        if any(not name or "=" in name for name in inputs):
+            raise ValueError("every input needs a name without '='")
+        return inputs
+
+
+class WorkflowAnswer(BaseModel):
+    """What gh answered: the workflows, the runs, or what it dispatched."""
+
+    text: str
+
+
 class ReviewState(BaseModel):
     """Whether the user has finished a review an agent asked for, and what they said."""
 
