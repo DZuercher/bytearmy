@@ -294,20 +294,6 @@ def calling_pane(live, task: str = "work") -> dict[str, str]:
     return key_of(live, pane.id, task)
 
 
-@pytest.fixture
-def bytearmy(monkeypatch, capsys):
-    """Run the command as the pane whose variables are given: (exit code, what it printed)."""
-
-    def run(env: dict[str, str], *args: str) -> tuple[int, str]:
-        for name in ("BYTEARMY_URL", "BYTEARMY_TOKEN", "BYTEARMY_PANE"):
-            monkeypatch.setenv(name, env[name])
-        code = cli.main(list(args))
-        out, err = capsys.readouterr()
-        return code, (out + err).strip()
-
-    return run
-
-
 def row(*children) -> Split:
     return Split(direction="row", children=list(children))
 
@@ -588,7 +574,7 @@ def test_every_agent_route_needs_the_key_of_a_running_pane(tmp_path):
         if path.startswith("/agent/")
         for method in operations
     ]
-    assert len(routes) == 14
+    assert len(routes) == 17
 
     with TestClient(app) as client:
         for key in ("", TOKEN, "made-up"):
@@ -787,12 +773,13 @@ def test_the_config_gives_agents_their_command_and_claudes_permissions(core, byt
     me = calling_pane(core)
     bytearmy(me, "pane", "open", "bot")
     said = output_until(core.workspaces.attach("demo", "work", "p2", 24, 80), rb"Bash\(git \*\)")
-    assert "--permission-mode plan --allowedTools Bash(git *)" in said
+    assert "--permission-mode plan --allowedTools=Bash(git *)" in said
 
     master = key_of(core, "p2")
     assert bytearmy(master, "agent", "spawn", "helper", "Help.")[0] == 0
     said = output_until(core.workspaces.attach("demo", "work", "p3", 24, 80), rb"WebFetch\.")
-    assert "configured demo-work-helper --disallowedTools WebFetch." in said
+    assert "configured demo-work-helper --allowedTools=Bash(bytearmy pr *)" in said
+    assert "--disallowedTools=WebFetch." in said
 
 
 def test_the_pull_request_switches_keep_gh_from_the_master(core, bytearmy):
@@ -805,7 +792,10 @@ def test_the_pull_request_switches_keep_gh_from_the_master(core, bytearmy):
     me = calling_pane(core)
     bytearmy(me, "pane", "open", "bot")
     said = output_until(core.workspaces.attach("demo", "work", "p2", 24, 80), rb"merge \*\)")
-    assert "--disallowedTools WebFetch Bash(gh pr create *) Bash(gh pr merge *)" in said
+    assert (
+        "--disallowedTools=WebFetch --disallowedTools=Bash(gh pr create *)"
+        " --disallowedTools=Bash(gh pr merge *)"
+    ) in said
     told_master = told(core.store, ("demo", "work"), "p2")
     assert "You may not create pull requests" in told_master
     assert "You may not merge pull requests" in told_master

@@ -1,5 +1,6 @@
 """Helpers shared by the checks: reading terminals, a repository to clone from, a git on hold,
-a stand-in for the service of a web tool, an end to the programs a failing check left running."""
+a stand-in for the service of a web tool, an end to the programs a failing check left running,
+the `bytearmy` command run as a pane."""
 
 from __future__ import annotations
 
@@ -16,6 +17,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
+
+from bytearmy import cli
 
 # The fixture repositories must not depend on the git configuration of the machine.
 ISOLATED = {**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_SYSTEM": os.devnull}
@@ -288,3 +291,17 @@ def gated_git(tmp_path):
     held = GatedGit(command=[str(script)], gate=gate, pid_file=pid_file)
     yield held
     held.release()  # never leave a waiting process behind
+
+
+@pytest.fixture
+def bytearmy(monkeypatch, capsys):
+    """Run the command as the pane whose variables are given: (exit code, what it printed)."""
+
+    def run(env: dict[str, str], *args: str) -> tuple[int, str]:
+        for name in ("BYTEARMY_URL", "BYTEARMY_TOKEN", "BYTEARMY_PANE"):
+            monkeypatch.setenv(name, env[name])
+        code = cli.main(list(args))
+        out, err = capsys.readouterr()
+        return code, (out + err).strip()
+
+    return run

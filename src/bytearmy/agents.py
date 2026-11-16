@@ -17,6 +17,10 @@ ORCHESTRATOR_FILE = (
 )  # the orchestrator's; the user may change it
 # Fingerprints of the texts earlier versions wrote; a file that still has one is replaced.
 EARLIER_INSTRUCTIONS = {
+    "5a7c0096acfde4478895afd3c3e9a0b1cfb287ee383c80fed17c652cc5e3a409",
+    "d7a36eaffaba2303152a7f90c326f369ee7fd4a64b206998340f5a7b0c6b748d",
+    "eecb0bf8db8e3ff676687dd6b9cca39e2a4f5ff837f857b6c077a73e25049bae",
+    "f0145d493c3577037d99a27b342dcdd9644010ad67a8626104be3e7dad4fbd77",
     "d7b7e2ff9de55b90644b86a495241721af6ed7405a674dfa89d702b49bee815f",
     "75400f6d42471783dd12939ab458350e54dd7a6809b4112f5b36cb9562a8c3ec",
     "4ea89da126237af99b51e14cc1992b07ec5d81b70850bc2b5604ebf878f70376",
@@ -87,6 +91,16 @@ of your own task; it cannot reach other tasks.
   the user finishes the review; its output holds their comments. Act on them.
 - The user can also review the changes on their own. The master then gets their comments
   as a message that starts with "Review comments from the user"; act on them likewise.
+
+## Pull requests
+
+- The master opens and merges the pull request of the task's branch with `bytearmy pr`,
+  not with `gh pr` (which Claude's permission modes often block):
+  `bytearmy pr create --title "<title>" --body-file <file>` pushes the branch and opens it,
+  `bytearmy pr view` shows it, and `bytearmy pr merge` squashes it into the base branch
+  (`--method merge|rebase`, `--delete-branch`). They act on the task's own branch only.
+- Open a pull request only when the user asks for one, and merge one only when the user
+  asks you to merge it.
 
 ## Status and log of the master
 

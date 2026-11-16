@@ -62,6 +62,9 @@ AGENT_COMMANDS = (
     "agent.spawn",
     "review",
     "log",
+    "pr.create",
+    "pr.view",
+    "pr.merge",
 )
 
 
@@ -100,16 +103,23 @@ class ClaudeSettings(Section):
     def denied(self, commands: Sequence[str]) -> list[str]:
         return [command for command in commands if not self.allows(command)]
 
+    def granted_tools(self) -> list[str]:
+        """Claude tool rules bytearmy adds to `allowed_tools`."""
+        return []
+
     def flags(self) -> str:
-        """Claude's own permission flags, for {permissions} in a command."""
+        """Claude's own permission flags, for {permissions} in a command.
+
+        Each rule is one `--flag=rule`: the flags take several values, and a prompt
+        after `--flag rule` would be taken for one more rule.
+        """
         parts: list[str] = []
         if self.permission_mode:
             parts += ["--permission-mode", self.permission_mode]
-        if self.allowed_tools:
-            parts += ["--allowedTools", *self.allowed_tools]
+        allowed = [*self.allowed_tools, *self.granted_tools()]
+        parts += [f"--allowedTools={rule}" for rule in allowed]
         disallowed = [*self.disallowed_tools, *self.forbidden_tools()]
-        if disallowed:
-            parts += ["--disallowedTools", *disallowed]
+        parts += [f"--disallowedTools={rule}" for rule in disallowed]
         return shlex.join(parts)
 
 
@@ -130,9 +140,17 @@ class OrchestratorSettings(ClaudeSettings):
         return off
 
 
+# The `bytearmy pr` commands, and the rule that lets Claude run them in any permission mode.
+PR_COMMANDS = ("pr.create", "pr.view", "pr.merge")
+PR_COMMAND_RULE = "Bash(bytearmy pr *)"
+
+
 class TaskAgentSettings(ClaudeSettings):
     spawn: str = ""  # "" = the claude tool's
     allow: list[str] = ["*"]
+
+    def granted_tools(self) -> list[str]:
+        return [PR_COMMAND_RULE] if any(self.allows(command) for command in PR_COMMANDS) else []
 
 
 # The gh commands the pull request switches of [master] keep from Claude, as tool rules.
@@ -143,6 +161,14 @@ PR_MERGE_RULES = ("Bash(gh pr merge *)",)
 class MasterSettings(TaskAgentSettings):
     allow_pr_creation: bool = True
     allow_pr_merge: bool = True
+
+    def switched_off(self) -> set[str]:
+        off: set[str] = set()
+        if not self.allow_pr_creation:
+            off.add("pr.create")
+        if not self.allow_pr_merge:
+            off.add("pr.merge")
+        return off
 
     def forbidden_tools(self) -> list[str]:
         rules: list[str] = []
@@ -155,14 +181,20 @@ class MasterSettings(TaskAgentSettings):
     def forbidden_actions(self) -> list[str]:
         actions: list[str] = []
         if not self.allow_pr_creation:
-            actions.append("create pull requests (with `gh pr create` or any other way)")
+            actions.append(
+                "create pull requests (with `bytearmy pr create`, `gh pr create` or any other way)"
+            )
         if not self.allow_pr_merge:
-            actions.append("merge pull requests (with `gh pr merge` or any other way)")
+            actions.append(
+                "merge pull requests (with `bytearmy pr merge`, `gh pr merge` or any other way)"
+            )
         return actions
 
 
 class AgentSettings(TaskAgentSettings):
-    pass
+    def switched_off(self) -> set[str]:
+        """Creating and merging the pull request is the master's: its switches rule it."""
+        return {"pr.create", "pr.merge"}
 
 
 class ToolSettings(Section):
@@ -259,17 +291,21 @@ spawn = ""
 # The `bytearmy` commands it may call, as patterns: pane.list, pane.open, pane.close,
 # pane.maximize, pane.hide, pane.highlight, pane.move, tool.list, task.show,
 # task.set-status, task.set-color, task.set-description, task.set-reminder, agent.list,
-# agent.spawn, review, log.
+# agent.spawn, review, log, pr.create, pr.view, pr.merge.
 allow = ["*"]
-# Whether it may create and merge pull requests. false adds `gh pr create` or
-# `gh pr merge` to the tools Claude may not use, and tells the agent not to.
+# Whether it may create and merge the pull request of the task's branch. `bytearmy pr`
+# does it with gh as the account of [github], for the task's branch only, and Claude is
+# let run it in every permission mode, auto mode too. false forbids `bytearmy pr create`
+# or `bytearmy pr merge`, adds `gh pr create` or `gh pr merge` to the tools Claude may not
+# use, and tells the agent not to.
 allow_pr_creation = true
 allow_pr_merge = true
 permission_mode = ""
 allowed_tools = []
 disallowed_tools = []
 
-# Every other agent of a task: the ones agents spawn and the ones the user opens.
+# Every other agent of a task: the ones agents spawn and the ones the user opens. They may
+# not create or merge the pull request (pr.create, pr.merge), whatever allow says.
 [agents]
 command = ""
 resume = ""

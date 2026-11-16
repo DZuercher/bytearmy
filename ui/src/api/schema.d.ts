@@ -761,6 +761,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/agent/pulls": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Agent View Pull Request */
+        get: operations["agent_view_pull_request_agent_pulls_get"];
+        put?: never;
+        /** Agent Create Pull Request */
+        post: operations["agent_create_pull_request_agent_pulls_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agent/pulls/merge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Agent Merge Pull Request */
+        post: operations["agent_merge_pull_request_agent_pulls_merge_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/agent/reviews/{pane}": {
         parameters: {
             query?: never;
@@ -1268,6 +1303,54 @@ export interface components {
             backlog: components["schemas"]["TaskSummary"][];
             /** Tasks */
             tasks: components["schemas"]["TaskSummary"][];
+        };
+        /**
+         * PullRequestAnswer
+         * @description What gh answered: a URL, the pull request, or what it did.
+         */
+        PullRequestAnswer: {
+            /** Text */
+            text: string;
+        };
+        /**
+         * PullRequestCreate
+         * @description An agent opens the pull request of the task's branch.
+         */
+        PullRequestCreate: {
+            /** Title */
+            title: string;
+            /**
+             * Body
+             * @default
+             */
+            body: string;
+            /**
+             * Base
+             * @default
+             */
+            base: string;
+            /**
+             * Draft
+             * @default false
+             */
+            draft: boolean;
+        };
+        /**
+         * PullRequestMerge
+         * @description An agent merges the pull request of the task's branch.
+         */
+        PullRequestMerge: {
+            /**
+             * Method
+             * @default squash
+             * @enum {string}
+             */
+            method: "merge" | "squash" | "rebase";
+            /**
+             * Delete Branch
+             * @default false
+             */
+            delete_branch: boolean;
         };
         /** ReadChange */
         ReadChange: {
@@ -3277,6 +3360,92 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Opened"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_view_pull_request_agent_pulls_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PullRequestAnswer"];
+                };
+            };
+        };
+    };
+    agent_create_pull_request_agent_pulls_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PullRequestCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PullRequestAnswer"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_merge_pull_request_agent_pulls_merge_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PullRequestMerge"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PullRequestAnswer"];
                 };
             };
             /** @description Validation Error */
