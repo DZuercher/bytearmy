@@ -66,7 +66,7 @@ from bytearmy.trust import trust_directory
 
 PASTE_START, PASTE_END = b"\x1b[200~", b"\x1b[201~"  # bracketed paste, as terminals send it
 SUBMIT_DELAY_SECONDS = 0.3  # Claude takes a paste as such only if Enter comes after it
-CLOSED_REVIEW = "The user closed the review, but its comments could not be read."
+CLOSED_REVIEW = "The user closed the review without sending it; no comments were sent."
 COULD_NOT_START = 127  # the exit code a shell gives for a command it cannot find
 SPAWNING_TOOL = "claude"  # starts agents for a pane that is not an agent itself
 
@@ -304,11 +304,20 @@ class Workspaces:
         return opened[0]
 
     def close_pane(self, project: str, task: str, pane: str) -> None:
+        """Close a pane. A diff pane closes without sending its review: its comments stay in
+        diffle and show again in the next review."""
         found = self._store.task(project, task)
         if pane not in found.workspace.panes:
             raise PaneNotFound(pane)
         if found.workspace.panes[pane].kind == "diff":
-            self._finish_review(project, task, pane)
+            self._diffle.stop([(project, task, pane)])
+        self._end([(project, task, pane)])
+        self._store.change_workspace(project, task, lambda workspace: _drop(workspace, pane))
+
+    def finish_review(self, project: str, task: str, pane: str) -> None:
+        """Send the review of a diff pane to the agent that asked for it, or else to the
+        master, and close the pane."""
+        self._finish_review(project, task, pane)
         self._end([(project, task, pane)])
         self._store.change_workspace(project, task, lambda workspace: _drop(workspace, pane))
 

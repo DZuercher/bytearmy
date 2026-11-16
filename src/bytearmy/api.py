@@ -421,6 +421,12 @@ def create_app(
         workspaces.close_pane(project, task, pane)
         return state()
 
+    @api.post(PANES + "/{pane}/finish")
+    def finish_review(project: str, task: str, pane: str) -> AppState:
+        """Send the review of a diff pane and close the pane."""
+        workspaces.finish_review(project, task, pane)
+        return state()
+
     @api.get(PANES + "/{pane}/page")
     def pane_page(project: str, task: str, pane: str, request: Request) -> Page:
         """What a web pane shows. Answers only once the tool's service runs."""
