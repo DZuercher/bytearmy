@@ -11,7 +11,7 @@ type Props = {
 // The small tab above the inbox tab that brings the user to the orchestrator.
 export function OrchestratorTab({ open, active, running, onClick }: Props) {
   return (
-    <div className={cn('shrink-0 border-r border-b', open ? 'w-56 px-4 py-3' : 'flex w-12 justify-center py-3')}>
+    <div className={cn('shrink-0 border-r border-b', open ? 'w-full px-4 py-3' : 'flex w-12 justify-center py-3')}>
       <button
         type="button"
         aria-current={active}

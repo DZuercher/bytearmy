@@ -42,7 +42,7 @@ export function BacklogBar({
   }
 
   return (
-    <nav aria-label="Backlog tasks" className="flex min-h-0 w-56 flex-1 flex-col gap-2 border-l p-4">
+    <nav aria-label="Backlog tasks" className="flex min-h-0 w-full flex-1 flex-col gap-2 border-l p-4">
       <div className="flex items-center gap-1">
         <Button variant="ghost" size="icon-sm" aria-label="Collapse backlog bar" onClick={onToggle}>
           <ChevronRight />

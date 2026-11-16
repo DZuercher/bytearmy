@@ -12,7 +12,7 @@ type Props = {
 export function InboxTab({ open, active, unread, onClick }: Props) {
   const count = unread > 99 ? '99+' : String(unread)
   return (
-    <div className={cn('shrink-0 border-r border-b', open ? 'w-56 px-4 py-3' : 'flex w-12 justify-center py-3')}>
+    <div className={cn('shrink-0 border-r border-b', open ? 'w-full px-4 py-3' : 'flex w-12 justify-center py-3')}>
       <button
         type="button"
         aria-current={active}

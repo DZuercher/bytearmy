@@ -1844,6 +1844,12 @@ export interface components {
             right_open?: boolean | null;
             /** Bottom Open */
             bottom_open?: boolean | null;
+            /** Left Width */
+            left_width?: number | null;
+            /** Right Width */
+            right_width?: number | null;
+            /** Bottom Width */
+            bottom_width?: number | null;
             /** Focus */
             focus?: boolean | null;
             /** View */
@@ -1866,6 +1872,21 @@ export interface components {
              * @default true
              */
             bottom_open: boolean;
+            /**
+             * Left Width
+             * @default 224
+             */
+            left_width: number;
+            /**
+             * Right Width
+             * @default 224
+             */
+            right_width: number;
+            /**
+             * Bottom Width
+             * @default 224
+             */
+            bottom_width: number;
             /**
              * Focus
              * @default false
