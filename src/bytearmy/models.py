@@ -196,7 +196,7 @@ class Tool(BaseModel):
     # terminal: a program in a terminal pane. web: a page in a browser pane.
     # external: a program with a window of its own, no pane.
     # log: adds its parameter `entry` to the task's log, no pane.
-    # diff: the changes of the task's clone, for the user to review and comment on.
+    # diff: the changes of the task's clone in diffle, for the user to review and comment on.
     kind: Literal["terminal", "web", "external", "log", "diff"] = "terminal"
     command: str = ""  # run by the user's shell; for a terminal, empty means the shell itself
     resume: str = ""  # run instead of `command` when a pane is restored after a restart
@@ -220,55 +220,6 @@ class Tool(BaseModel):
 
 
 DiffMode = Literal["branch", "uncommitted"]  # against the default branch, or against HEAD
-
-
-class DiffLine(BaseModel):
-    kind: Literal["context", "add", "delete"]
-    old: int | None = None  # its number in the old version; None for an added line
-    new: int | None = None  # its number in the new version; None for a deleted line
-    text: str
-
-
-class Hunk(BaseModel):
-    header: str  # the `@@ -a,b +c,d @@` line
-    lines: list[DiffLine]
-
-
-class DiffFile(BaseModel):
-    path: str
-    old_path: str = ""  # set for a renamed file
-    status: Literal["modified", "added", "deleted", "renamed"]
-    binary: bool = False
-    truncated: bool = False  # its diff is too long to show; it has no hunks
-    additions: int = 0
-    deletions: int = 0
-    hunks: list[Hunk] = []
-
-
-class Diff(BaseModel):
-    """The changes a diff pane shows."""
-
-    mode: DiffMode
-    base: str  # what the changes are compared with, e.g. origin/main
-    commit: str  # the commit that is
-    files: list[DiffFile]
-
-
-class ReviewComment(BaseModel):
-    path: str
-    side: Literal["old", "new"] = "new"  # old: the lines are those of the old version
-    start: int = 0  # first line; 0 for a comment on the whole file
-    end: int = 0  # last line
-    quote: str = ""  # the lines commented on
-    body: str
-
-
-class Review(BaseModel):
-    """The comments of a review; kept while the user writes them, sent when finished."""
-
-    mode: DiffMode = "branch"
-    comments: list[ReviewComment] = []
-    summary: str = ""
 
 
 class LogEntry(BaseModel):

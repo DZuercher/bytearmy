@@ -12,7 +12,7 @@ from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 
-from bytearmy import diffs, themes
+from bytearmy import themes
 from bytearmy.agents import (
     EARLIER_INSTRUCTIONS,
     EARLIER_ORCHESTRATOR_INSTRUCTIONS,
@@ -31,14 +31,11 @@ from bytearmy.models import (
     BACKLOG,
     Agent,
     AgentSpawn,
-    Diff,
-    DiffFile,
     DiffMode,
     LogEntry,
     Pane,
     PaneCall,
     PaneOpen,
-    Review,
     ReviewRequest,
     ReviewState,
     Split,
@@ -48,9 +45,11 @@ from bytearmy.models import (
 )
 from bytearmy.ptys import Pty
 from bytearmy.pulls import PullRequests
+from bytearmy.reviews import ReviewFailed, Reviews
 from bytearmy.services import Services, launch
 from bytearmy.store import LOG_FILE, METADATA_DIR, ProjectNotFound, Store, TaskNotFound
 from bytearmy.tools import (
+    ToolFailed,
     as_configured,
     command_line,
     default_value,
@@ -64,8 +63,7 @@ from bytearmy.trust import trust_directory
 
 PASTE_START, PASTE_END = b"\x1b[200~", b"\x1b[201~"  # bracketed paste, as terminals send it
 SUBMIT_DELAY_SECONDS = 0.3  # Claude takes a paste as such only if Enter comes after it
-REVIEWS_DIR = "reviews"  # below a task's metadata: the drafts of its reviews
-CLOSED_REVIEW = "The user closed the review without finishing it."
+CLOSED_REVIEW = "The user closed the review, but its comments could not be read."
 COULD_NOT_START = 127  # the exit code a shell gives for a command it cannot find
 SPAWNING_TOOL = "claude"  # starts agents for a pane that is not an agent itself
 
@@ -162,6 +160,7 @@ class Workspaces:
         self._stopping = False
         self._logs = store.root / METADATA_DIR / "logs"  # of programs without a terminal
         self._services = Services(self._logs)
+        self._diffle = Reviews(self._logs)
         self._bin = pane_command(store.root / METADATA_DIR / "bin").parent
         ensure_premade(store.root)
         write_premade(store.root / INSTRUCTIONS_FILE, INSTRUCTIONS, EARLIER_INSTRUCTIONS)
@@ -304,7 +303,7 @@ class Workspaces:
         if pane not in found.workspace.panes:
             raise PaneNotFound(pane)
         if found.workspace.panes[pane].kind == "diff":
-            _draft_file(found, pane).unlink(missing_ok=True)
+            self._finish_review(project, task, pane)
         self._end([(project, task, pane)])
         self._store.change_workspace(project, task, lambda workspace: _drop(workspace, pane))
 
@@ -524,6 +523,8 @@ class Workspaces:
             shown = workspace.panes[opened.id]
             shown.values = {"requester": pane, "mode": request.mode, "note": request.note}
             shown.highlighted = True
+            if request.note:
+                shown.title = f"{tool.name}: {request.note}"
 
         self._store.change_workspace(project, task, change)
         return opened
@@ -539,70 +540,46 @@ class Workspaces:
             return ReviewState(done=False)
         return ReviewState(done=True, text=CLOSED_REVIEW)
 
-    def diff(self, project: str, task: str, pane: str, mode: DiffMode) -> Diff:
-        """The changes a diff pane shows."""
-        found, _, tool = self._diff_pane(project, task, pane)
-        try:
-            return diffs.diff(_directory(tool, found), mode)
-        except (diffs.GitFailed, OSError) as error:
-            raise InvalidValues(f"The changes cannot be read: {error}") from error
-
-    def full_file(
-        self, project: str, task: str, pane: str, mode: DiffMode, path: str, old_path: str
-    ) -> DiffFile:
-        """The changes of one file of a diff pane, with all its lines."""
-        found, _, tool = self._diff_pane(project, task, pane)
-        try:
-            file = diffs.full_file(_directory(tool, found), mode, path, old_path)
-        except (diffs.GitFailed, OSError) as error:
-            raise InvalidValues(f"The changes cannot be read: {error}") from error
-        if file is None:
-            raise InvalidValues(f"{path} has no changes.")
-        return file
-
-    def draft(self, project: str, task: str, pane: str) -> Review:
-        """The comments the user has written in a diff pane so far."""
-        found, shown, _ = self._diff_pane(project, task, pane)
-        file = _draft_file(found, pane)
-        if file.is_file():
-            try:
-                return Review.model_validate_json(file.read_text())
-            except ValueError:
-                pass  # a damaged draft: start anew
-        return Review(mode=shown.values.get("mode") or "branch")
-
-    def save_draft(self, project: str, task: str, pane: str, review: Review) -> None:
-        found, _, _ = self._diff_pane(project, task, pane)
-        file = _draft_file(found, pane)
-        file.parent.mkdir(parents=True, exist_ok=True)
-        file.write_text(review.model_dump_json(indent=2))
-
-    def submit_review(self, project: str, task: str, pane: str, review: Review) -> None:
-        """Send a finished review: to the agent that asked for it, or else to the master.
-
-        The diff pane closes afterwards.
-        """
+    def _review_page(self, project: str, task: str, pane: str) -> str:
+        """Where the diffle of a diff pane answers; starts it if it does not run yet."""
         found, shown, tool = self._diff_pane(project, task, pane)
-        try:
-            _, label = diffs.base(_directory(tool, found), review.mode)
-        except (diffs.GitFailed, OSError):
-            label = "HEAD" if review.mode == "uncommitted" else "the default branch"
-        text = diffs.format_review(label, review.comments, review.summary)
+        return self._diffle.url(
+            (project, task, pane), _directory(tool, found), _mode(shown), self._diffle_env()
+        )
+
+    def _finish_review(self, project: str, task: str, pane: str) -> None:
+        """Send the review of a closing diff pane: to the agent that asked for it, or else
+        to the master. Without a master to send it to, its comments stay in diffle and
+        show again in the next review."""
+        found, shown, tool = self._diff_pane(project, task, pane)
+        key = (project, task, pane)
         requester = shown.values.get("requester")
+        if not requester and not self.master_running(project, task):
+            self._diffle.stop([key])
+            self._log(project, task, "Closed a review; no master agent runs to send it to")
+            return
+        try:
+            text, count = self._diffle.finish(
+                key, _directory(tool, found), _mode(shown), self._diffle_env()
+            )
+        except (ToolFailed, ReviewFailed) as error:
+            self._diffle.stop([key])
+            self._log(project, task, f"Closed a review whose comments could not be read: {error}")
+            return
+        self._diffle.stop([key])
         if requester:
             with self._lock:
-                self._reviews[(project, task, pane)] = text
+                self._reviews[key] = text
         else:
             self.send_to_master(project, task, text)
-        count = len(review.comments)
-        entry = LogEntry(
-            time=datetime.now(UTC).replace(microsecond=0),
-            author="user",
-            text=f"Finished a review with {count} comment{'s' * (count != 1)}",
-        )
+        self._log(project, task, f"Finished a review with {count} comment{'s' * (count != 1)}")
+
+    def _diffle_env(self) -> dict[str, str]:
+        return {**pane_env(os.environ, sys.prefix), **self.github_env()}
+
+    def _log(self, project: str, task: str, text: str) -> None:
+        entry = LogEntry(time=datetime.now(UTC).replace(microsecond=0), author="user", text=text)
         self._store.add_log_entry(project, task, entry)
-        _draft_file(found, pane).unlink(missing_ok=True)
-        self.close_pane(project, task, pane)
 
     def send_to_master(self, project: str, task: str, text: str) -> None:
         """Type a message into the terminal of the task's master, as if the user wrote it."""
@@ -758,9 +735,12 @@ class Workspaces:
         where the task's log is shown.
 
         Starts the service of the pane's tool if it does not run yet, which can take a while.
+        A diff pane shows the diffle started for it.
         """
         found = self._store.task(project, task)
         shown = found.workspace.panes.get(pane)
+        if shown is not None and shown.kind == "diff":
+            return self._review_page(project, task, pane)
         if shown is None or shown.kind != "web":
             raise PaneNotFound(pane)
         tool = self._tools(project, task).get(shown.tool)
@@ -781,6 +761,8 @@ class Workspaces:
         """
         found = self._store.task(project, task)
         shown = found.workspace.panes.get(pane)
+        if shown is not None and shown.kind == "diff":
+            return None  # diffle follows the changes itself
         if shown is None or shown.kind != "web":
             raise PaneNotFound(pane)
         tool = self._tools(project, task).get(shown.tool)
@@ -835,6 +817,9 @@ class Workspaces:
         with self._lock:
             keys = [key for key in self._ptys if key[0] == project and task in (None, key[1])]
         self._end(keys)
+        self._diffle.stop(
+            [key for key in self._diffle.running() if key[0] == project and task in (None, key[1])]
+        )
 
     def shutdown(self) -> None:
         with self._lock:
@@ -842,6 +827,7 @@ class Workspaces:
             keys = list(self._ptys)
         self._end(keys)
         self._services.shutdown()
+        self._diffle.shutdown()
 
 
 def _directory(tool: Tool, task: Task) -> Path:
@@ -852,8 +838,9 @@ def _directory(tool: Tool, task: Task) -> Path:
     return directory
 
 
-def _draft_file(task: Task, pane: str) -> Path:
-    return Path(task.path) / METADATA_DIR / REVIEWS_DIR / f"{pane}.json"
+def _mode(pane: Pane) -> DiffMode:
+    """What a diff pane compares: the whole branch, unless it asks for the uncommitted changes."""
+    return "uncommitted" if pane.values.get("mode") == "uncommitted" else "branch"
 
 
 def _stamp(file: Path) -> str:

@@ -24,9 +24,6 @@ from bytearmy.models import (
     Agent,
     AgentSpawn,
     AppState,
-    Diff,
-    DiffFile,
-    DiffMode,
     Focus,
     Highlight,
     InboxState,
@@ -45,7 +42,6 @@ from bytearmy.models import (
     ProjectOrder,
     ProjectSummary,
     ReadChange,
-    Review,
     ReviewRequest,
     ReviewState,
     Task,
@@ -398,33 +394,6 @@ def create_app(
     def pane_page_version(project: str, task: str, pane: str) -> PageVersion:
         """Asked again and again by a web pane, which loads its page anew on a change."""
         return PageVersion(version=workspaces.page_version(project, task, pane))
-
-    @api.get(PANES + "/{pane}/diff")
-    def pane_diff(project: str, task: str, pane: str, mode: DiffMode = "branch") -> Diff:
-        """The changes a diff pane shows."""
-        return workspaces.diff(project, task, pane, mode)
-
-    @api.get(PANES + "/{pane}/diff/file")
-    def pane_diff_file(
-        project: str, task: str, pane: str, path: str, old_path: str = "", mode: DiffMode = "branch"
-    ) -> DiffFile:
-        """The changes of one file a diff pane shows, with all its lines, also the unchanged ones."""
-        return workspaces.full_file(project, task, pane, mode, path, old_path)
-
-    @api.get(PANES + "/{pane}/review")
-    def pane_review(project: str, task: str, pane: str) -> Review:
-        """The comments written in a diff pane so far."""
-        return workspaces.draft(project, task, pane)
-
-    @api.put(PANES + "/{pane}/review")
-    def save_review(project: str, task: str, pane: str, review: Review) -> None:
-        workspaces.save_draft(project, task, pane, review)
-
-    @api.post(PANES + "/{pane}/review")
-    def submit_review(project: str, task: str, pane: str, review: Review) -> AppState:
-        """Finish a review: its comments go to the agent that asked for it, or the master."""
-        workspaces.submit_review(project, task, pane, review)
-        return state()
 
     @api.put("/projects/{project}/tasks/{task}/layout")
     def set_layout(project: str, task: str, layout: Layout) -> AppState:
