@@ -807,3 +807,75 @@ def test_a_tool_the_config_disables_is_not_offered(core, bytearmy):
     configure(core.store, "[tools.bot]\nenabled = false\n")
     assert "bot" not in {listed.id for listed in core.workspaces.tools("demo", "work")}
     assert bytearmy(me, "pane", "open", "bot")[0] == 1
+
+
+# -- event listeners -------------------------------------------------------------
+
+# An agent that writes down what is typed into it.
+LISTENING_BOT = {
+    "name": "Bot",
+    "agent": True,
+    "command": f'{KEEP_ENV}; cat -v > "$BYTEARMY_PANE.got"',
+}
+
+
+def typed(live, pane: str) -> str:
+    file = Path(live.store.task("demo", "work").path) / f"{pane}.got"
+    return file.read_text() if file.exists() else ""
+
+
+def two_agents(live) -> tuple[dict[str, str], dict[str, str]]:
+    """A master in p1 and a second agent in p2, both writing down what they are told."""
+    tool(live.store, "bot", **LISTENING_BOT)
+    for _ in range(2):
+        pane = live.workspaces.open_pane("demo", "work", PaneOpen(tool="bot"))
+        live.workspaces.start("demo", "work", pane.id)
+    return key_of(live, "p1"), key_of(live, "p2")
+
+
+def test_an_event_listener_tells_the_agent_that_opened_it(core, bytearmy):
+    _, helper = two_agents(core)
+    command = "printf 'checks: \\033[1mfailed\\033[0m\\r\\n'; exit 8"
+
+    code, said = bytearmy(helper, "listen", "CI of PR #12", command)
+    assert (code, said.split(";")[0]) == (0, "listening in hidden pane p3")
+    wait_until(lambda: "^[[201~" in typed(core, "p2"), "the agent is told")
+
+    message = typed(core, "p2")
+    assert "The event listener in pane p3 ended with exit code 8." in message
+    assert f"Its command was: {command}" in message
+    assert message.startswith("^[[200~Event: CI of PR #12.")
+    assert "The last lines it printed:\n\nchecks: failed\n^[[201~" in message
+    assert "Event:" not in typed(core, "p1")  # not the master: it did not ask
+    # Its message tells how it ended, so the pane is gone even after an error.
+    wait_until(lambda: "p3" not in workspace(core.store).panes, "the listener's pane closes")
+    assert core.store.log("demo", "work")[-1].text == (
+        "CI of PR #12: happened (exit code 8); told demo-work-agent-2"
+    )
+
+
+def test_an_event_listener_tells_the_master_when_its_opener_is_gone(core, bytearmy):
+    _, helper = two_agents(core)
+    assert bytearmy(helper, "listen", "the build", "read line")[0] == 0  # waits for a line
+    core.workspaces.close_pane("demo", "work", "p2")
+
+    core.workspaces.attach("demo", "work", "p3", 24, 80).write(b"done\n")
+
+    wait_until(lambda: "^[[200~Event: the build." in typed(core, "p1"), "the master is told")
+    assert "exit code 0" in typed(core, "p1")
+
+
+def test_closing_an_event_listener_tells_nobody(core, bytearmy):
+    master, _ = two_agents(core)
+    assert bytearmy(master, "listen", "forever", "sleep 60")[0] == 0
+    assert workspace(core.store).panes["p3"].hidden
+
+    core.workspaces.close_pane("demo", "work", "p3")
+
+    assert "p3" not in workspace(core.store).panes
+    assert "Event:" not in typed(core, "p1")
+
+
+def test_only_agents_open_event_listeners(core):
+    listener = next(tool for tool in core.workspaces.tools() if tool.id == "event_listener")
+    assert (listener.callers, listener.notify) == (["agent"], True)

@@ -95,6 +95,20 @@ def log(args: argparse.Namespace) -> str:
     return "added the entry to the task's log"
 
 
+def listen(args: argparse.Namespace) -> str:
+    """Short for `bytearmy pane open event_listener --hidden <event> <command>`."""
+    body = {
+        "tool": "event_listener",
+        "args": [f"event={args.event}", f"command={args.command}"],
+        "hidden": True,
+    }
+    opened = call("POST", "/panes", body)
+    return (
+        f"listening in hidden pane {opened['pane']}; you get a message when it ends."
+        " Do not wait for it: go on with other work, or end your turn."
+    )
+
+
 def pane_close(args: argparse.Namespace) -> str:
     call("DELETE", f"/panes/{args.id}")
     return f"closed {args.id}"
@@ -366,7 +380,7 @@ def parser() -> argparse.ArgumentParser:
     groups = main.add_subparsers(
         dest="group",
         required=True,
-        metavar="{pane,tool,task,agent,log,review,pr,project,tasks,inbox}",
+        metavar="{pane,tool,task,agent,log,listen,review,pr,project,tasks,inbox}",
     )
 
     def command(group, name: str, run, help: str):
@@ -434,6 +448,17 @@ def parser() -> argparse.ArgumentParser:
     )
     logging.set_defaults(run=log)
     logging.add_argument("entry", help="the text of the entry; the time is taken from the clock")
+
+    listening = groups.add_parser(
+        "listen",
+        help="wait for an event in a hidden pane; you get a message when it happens",
+        description="Run a command that ends when an event happens, e.g. `gh pr checks 12 "
+        "--watch`, in a hidden event_listener pane. When it ends, bytearmy sends you a message "
+        "with its exit code and the last lines it printed.",
+    )
+    listening.set_defaults(run=listen)
+    listening.add_argument("event", help="what it waits for, e.g. 'CI of PR #12'")
+    listening.add_argument("command", help="a shell command that ends when the event happens")
 
     # The orchestrator's commands; the core refuses them to the panes.
     project = groups.add_parser("project", help="the projects (orchestrator only)").add_subparsers(

@@ -26,6 +26,7 @@ EARLIER_INSTRUCTIONS = {
     "4ea89da126237af99b51e14cc1992b07ec5d81b70850bc2b5604ebf878f70376",
     "27cc28f29d94da91a13c943fc41a133bb23e8ac9df0132d61c1aabc82761d78b",
     "fd9f4c1e41be73b132fa252d56f9d623ab9cc7a45507b56c6e0ea80b38668e61",
+    "c472a0526311f36efa32b29a3ee43b1feb9da3c88a0997059cbb80e418f45439",
 }
 EARLIER_ORCHESTRATOR_INSTRUCTIONS: set[str] = set()
 
@@ -78,6 +79,21 @@ of your own task; it cannot reach other tasks.
   pane with `bytearmy pane close <pane>`. Its pane is in `bytearmy agent list`.
 - Talk to the agents of your task with the SendMessage tool, by their names. Do not message
   sessions that `bytearmy agent list` does not name: they belong to other work.
+
+## Waiting for events
+
+- When you have to wait for something outside your control, e.g. CI on GitHub to finish,
+  a deployment, or a long build, do not watch it yourself: no polling loops, no
+  `sleep`, no `--watch` in your own shell. Hand it to an event listener:
+  `bytearmy listen "<what you wait for>" "<command>"`. The command must end when the
+  event happens, e.g. `bytearmy listen "CI of PR #12" "gh pr checks 12 --watch"`, or
+  `until <check>; do sleep 30; done`. It runs in a hidden pane, `event_listener`.
+- When the command ends, bytearmy sends you a message that starts with "Event:", with
+  its exit code and the last lines it printed. Until then, go on with other work, or end
+  your turn; the message wakes you. If you are the master, set the status to
+  "Waiting for <event>" with `--color none` while nothing else is left to do.
+- To stop waiting, close the listener's pane with `bytearmy pane close <pane>`; it then
+  sends nothing.
 
 ## Reviews
 

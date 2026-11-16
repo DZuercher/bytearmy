@@ -117,6 +117,11 @@ class Pty:
         with self._lock:
             self._listeners.pop(queue, None)
 
+    def output(self) -> bytes:
+        """What the program printed so far; the last REPLAY_BYTES of it."""
+        with self._lock:
+            return bytes(self._replay)
+
     def write(self, data: bytes) -> None:
         with self._terminal:
             try:

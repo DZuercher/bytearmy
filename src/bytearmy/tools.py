@@ -48,6 +48,8 @@ HEADER = """\
 #               log as a page) and {service}.
 #   directory   "task" (default) or "repo": the clone, if the task has one
 #   callers     who may open the tool: ["user", "agent"] (default)
+#   notify      terminal: true sends the end of its program, with the last lines it
+#               printed, as a message to the agent that opened it, or else to the master
 #   [[parameters]] with name, label, path = true for a file below the task directory
 #               and default = what is used if nothing is entered ({github_page}: the
 #               page of the project; {task_page}: the pull request of the task's branch,
@@ -129,6 +131,22 @@ PREMADE = {
     "log": ('name = "Log"\nkind = "log"\n\n[[parameters]]\nname = "entry"\nlabel = "Log entry"\n'),
     "show-log": 'name = "Show Log"\nkind = "web"\nurl = "{log}"\n',
     "diff": 'name = "Review Changes"\nkind = "diff"\ndirectory = "repo"\n',
+    "event_listener": (
+        'name = "Event Listener"\n'
+        'directory = "repo"\n'
+        'callers = ["agent"]\n'
+        "notify = true\n"
+        "# `command` runs until the event happens, e.g. `gh pr checks 12 --watch`.\n"
+        'command = "sh -c {command}"\n'
+        "\n"
+        "[[parameters]]\n"
+        'name = "event"\n'
+        'label = "What it waits for"\n'
+        "\n"
+        "[[parameters]]\n"
+        'name = "command"\n'
+        'label = "Command that ends when the event happens"\n'
+    ),
 }
 
 
@@ -142,6 +160,7 @@ EARLIER = {
         "10d3a02ae7e257a83dde8466d06cb3aa69ce5b16be7cad6cf95fc9c10105cbc2",
         "e519a0f5ab5e0e24aaee9889ce46b645a6e726a0068b327e59a85dfe529110e5",
         "b70b936f401128c2b61243e6308977c8d5ae137ba07b496ff5be7f27b1f1e3f5",
+        "af9a947c223fc4fdae3f32d946f5b8049698984d9a80dfa4f54943cba4ef360d",
     },
     "claude": {
         "853e7b4147fdd6c899fcc0cbf62bebd01e0584797ee836d31067558760cce5c1",
@@ -151,6 +170,7 @@ EARLIER = {
         "660c111d8f09c6687459da6c5745eabf6996a5d53546d0e8c178c8bdac8d9787",
         "1b6b70a1079a6a47a095943fc174f57108f803c014d459e26c875458ca85df21",
         "9df6bae2d882fa5b2e987fd9233a2d2c23ef27dd96ddae4bc8aa073bb4c06c39",
+        "128458216a1b0a25c75b3314819e7e7289434d55f0c8ce6470452274cd7e8ed6",
     },
     "vim": {
         "eb5b624575842e280a1f807756a723dc74be432b0c4e479d9718d7911b516114",
@@ -159,6 +179,7 @@ EARLIER = {
         "3d8b8bc452a96af36ec005c125cc86f671b2f932df1c16b13048b29501597522",
         "65b58ecd3483cc13ab771275d5bc661ac59dcd6fe7aea9ec7ba37484a4b983be",
         "b2689242ab169d225b1a1cb1abc54f3a1c64d240616f0ed4e4a2211cfcf3369c",
+        "18b2717861a8f2d8152dc326b27fcb97bd006b1e8e467a05dcac88f8e6369c3d",
     },
     "webpage": {
         "8140c3ef66b8e098021dbbb777d41a480fc9673a0765c76029cdd835e92e0665",
@@ -166,6 +187,7 @@ EARLIER = {
         "705df4429ae7deffa29983a004841598fc886ff21c157afecc6fabc464b6492c",
         "3b1880380bb2a7a2ef15b8aaa2bb27d2ab2ca5272647b872fa0cfbf130bdc776",
         "71e69a2c10328ddb61c40bc8072bb9804ba56ed83ab72d23393927c25a11e430",
+        "cc621084fc73612c658aeb59f0c3b0840b7a3e8ab1c875db513c78a2295be558",
     },
     "html": {
         "67cb2d82c4660e7d4ae9e26fcb960b8ba456b5cbf92878a1729730619e785539",
@@ -173,6 +195,7 @@ EARLIER = {
         "b3a6dbbbcd40fbc127ecf5d48983bbbc9b9afa92fbb0d64c618d69b46002a5ba",
         "55f0d657abf889e40c6ed4fd8d79cf9ce336783d40ace731b70b9cc2758c5cf8",
         "ce34c0c1f86a1c2571b1f45072e6e922b144fcdd41a2491b752d783d245edbfc",
+        "fc70c0b29d3689294021dd6fe26f0e84021ab1589cf869450b280425529c8104",
     },
     "vscode": {
         "33ffe7931183a4c7e00e7b2e1600d0a4d36e6167d0a8005c6fad486621570a27",
@@ -181,6 +204,7 @@ EARLIER = {
         "8834054b8f1d2b2232c93cfa8480a66bd73f1a919a66d207bacadedb75bc738a",
         "1a3287df953cbc3125976c05b933e0be41e9fb662c075d4bb214d6b578ee6448",
         "74bdb0e78765c764bafb94a11ca4df235f35a0f1236915f0a0a40f32bf1c7a22",
+        "10d4856d01c7c411845aface54c1d9beffa29e7d3e6ba7feb0da036cf6b5ee35",
     },
     "explorer": {
         "123b6b37c169a431418c0fe6dc96e168679d22a32fc3d7ca402df9f6afaab07a",
@@ -193,6 +217,7 @@ EARLIER = {
         "6a43a59f5a7d7b492e14fdabacc86b19008bb117714cf7e92a879e2ffa130843",
         "da92a21a0388f30cd1f19b93e1303c909d9e8a3d16fd1ec74f11ef5ef2d2aa96",
         "e6c186d02e48f9734ed5a7e6d3e4d74eea126631c7801e5fd65ab53a6a921b62",
+        "a56cdb26956652e6319b3cdbd0c4e1d365425d20fe29489587d8a0f3b3a387e0",
     },
     "pycharm": {
         "cb020c375e6e205f6ebb51a1766ddca5bed54766562d7dc1ddf604d6b4aec07c",
@@ -201,19 +226,29 @@ EARLIER = {
         "80c05a6a8f27735365cc0ab7c5f33a07302cbac121af36ef959c590fd6e3453d",
         "1e72de460c19588320173059e2382e3707a6f202aa09a7323a4c05b7c35119eb",
         "915ebed46753df1b214005cc6f9a098afdfa201630d36958086a12a6b165e6fe",
+        "ed74822330e5c74b6fe3eb27da1176db0dd93b256bc93b2f72b25cca5b5a483b",
     },
     "log": {
         "f947639546c1d58bdddaf494b2b7017cb132524079a62d440659d0c1f922dd8d",
         "5fdb16949044ebe125eb23d23a746daa0fa40e16884ef87515b4247033312aaf",
         "9cdaeadab1d48d11900ad3bad7ace8367679f7ccb02d6127a2ea14c4d736780b",
+        "05e2f2b33948a9931cec3c2705d4d954ee0293d7c418969dfff276d26156bd65",
     },
     "show-log": {
         "5b21bc617bacd2b99831b5b03ec168c5d1abca8c77256182093a8ffcf3eafc6e",
         "1a91372c6576af6afc7f321584a93074a9690c7c88583ccfa97d181bce51a0b0",
         "57a5e0d990044d0d99188947cc228c1e046a66b313899acd702aa0f58639b71c",
+        "b1f326bf70d7c91ddc2004878b20d51f28890a5100b86e7b6498e0fad651065d",
     },
-    "diff": {"fb8fe92329d5b49b199628004cf638b6eaaa43569a9942256720ab814b125400"},
-    "lazygit": {"c3e26fbf05fe83d9a257e61aed23bb2b425c9689031c0bf4d9eb8a2829b6913c"},
+    "diff": {
+        "fb8fe92329d5b49b199628004cf638b6eaaa43569a9942256720ab814b125400",
+        "daf403c8efe4fdc1a69c39831f41f4d20d608206eecc3a3ba7d884e62fa8e279",
+    },
+    "lazygit": {
+        "c3e26fbf05fe83d9a257e61aed23bb2b425c9689031c0bf4d9eb8a2829b6913c",
+        "ef5172616dbb4f694885a3c5a2ba33b3caa843beed8b601407973f5ee58addd1",
+    },
+    "event_listener": set(),
 }
 
 
