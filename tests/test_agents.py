@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import httpx
@@ -18,6 +20,7 @@ from websockets.exceptions import InvalidStatus
 from websockets.sync.client import connect
 
 from bytearmy import cli
+from bytearmy import workspaces as workspaces_module
 from bytearmy.agents import HAS_MASTER, INSTRUCTIONS, IS_MASTER, NO_MASTER, SPAWNED
 from bytearmy.api import create_app
 from bytearmy.models import PaneOpen, ProjectMeta, Split, TaskCreate
@@ -848,7 +851,7 @@ def two_agents(live) -> tuple[dict[str, str], dict[str, str]]:
 
 def test_an_event_listener_tells_the_agent_that_opened_it(core, bytearmy):
     _, helper = two_agents(core)
-    command = "printf 'checks: \\033[1mfailed\\033[0m\\r\\n'; exit 8"
+    command = "sleep 0.6; printf 'checks: \\033[1mfailed\\033[0m\\r\\n'; exit 8"
 
     code, said = bytearmy(helper, "listen", "CI of PR #12", command)
     assert (code, said.split(";")[0]) == (0, "listening in hidden pane p3")
@@ -892,3 +895,110 @@ def test_closing_an_event_listener_tells_nobody(core, bytearmy):
 def test_only_agents_open_event_listeners(core):
     listener = next(tool for tool in core.workspaces.tools() if tool.id == "event_listener")
     assert (listener.callers, listener.notify) == (["agent"], True)
+
+
+def test_an_event_waits_until_a_starting_agent_takes_typing(core, bytearmy, monkeypatch):
+    monkeypatch.setattr(workspaces_module, "READY_AFTER_SECONDS", 1.5)
+    _, helper = two_agents(core)
+    started = core.workspaces.attach("demo", "work", "p2", 24, 80).started
+
+    assert bytearmy(helper, "listen", "soon", "sleep 0.5")[0] == 0
+
+    wait_until(lambda: "Event: soon." in typed(core, "p2"), "the agent is told")
+    assert time.monotonic() - started >= 1.5
+
+
+def test_a_starting_program_is_typed_into_once_it_printed_nothing_for_a_while(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(workspaces_module, "QUIET_SECONDS", 0.5)
+    printing = "for i in 1 2 3 4 5; do echo line$i; sleep 0.2; done; stty -echo; cat -v"
+    pty = Pty(["sh", "-c", printing], tmp_path, dict(os.environ), 24, 80, lambda _: None)
+    try:
+        workspaces_module._type_into(pty, "hello")
+        said = output_until(pty, rb"201~")
+    finally:
+        pty.kill()
+    assert said.index("line5") < said.index("200~hello")
+
+
+def test_a_restarted_agent_learns_which_of_its_listeners_run_again(store, workspaces, task):
+    first = workspaces
+    tool(store, "bot", **BOT)
+    try:
+        master = open_pane(first, task, "bot")
+        helper = open_pane(first, task, "bot")
+        for opener, event in [
+            (master, "the deploy"),
+            (helper, "CI of PR #12"),
+            (None, "a gone one"),
+        ]:
+            first.open_pane(
+                *task,
+                PaneOpen(
+                    tool="event_listener",
+                    values={"event": event, "command": "sleep 60"},
+                    hidden=True,
+                ),
+                spawned_by=opener.agent if opener else "demo-work-gone",
+            )
+    finally:
+        first.shutdown()
+
+    second = Workspaces(store, shell=["/bin/sh"])
+    second.start_all()
+    try:
+        assert second.attach(*task, "p3", 24, 80).exit_code is None  # the listener runs again
+        to_master, to_helper = told(store, task, "p1"), told(store, task, "p2")
+    finally:
+        second.shutdown()
+    assert "## Your event listeners" in to_helper
+    assert "- p4: CI of PR #12, running `sleep 60`" in to_helper
+    assert "the deploy" not in to_helper
+    assert "- p3: the deploy, running `sleep 60`" in to_master
+    assert "- p5: a gone one" in to_master  # its opener is gone: the master gets it
+    assert "p4:" not in to_master
+
+
+def test_an_agent_without_listeners_gets_no_list_of_them(store, workspaces, task):
+    tool(store, "bot", **BOT)
+    pane = open_pane(workspaces, task, "bot")
+    workspaces.start(*task, pane.id)
+    assert "Your event listeners" not in told(store, task, pane.id)
+
+
+def test_a_listener_that_fails_at_once_fails_the_call_and_sends_nothing(core, bytearmy):
+    _, helper = two_agents(core)
+
+    code, said = bytearmy(helper, "listen", "CI of PR #12", "echo 'gh: not logged in'; exit 4")
+
+    assert code == 1
+    assert "failed at once with exit code 4, so nothing listens" in said
+    assert "The last lines it printed:\n\ngh: not logged in" in said
+    assert "p3" not in workspace(core.store).panes
+    time.sleep(0.5)
+    assert "Event:" not in typed(core, "p2") + typed(core, "p1")
+    assert core.store.log("demo", "work")[-1].text == (
+        "CI of PR #12: the listener ended at once (exit code 4)"
+    )
+
+
+def test_a_listener_whose_event_already_happened_says_so_at_once(core, bytearmy):
+    _, helper = two_agents(core)
+
+    code, said = bytearmy(helper, "listen", "the build", "echo built")
+
+    assert code == 0
+    assert said.startswith("the listener's command ended at once with exit code 0")
+    assert said.rstrip().endswith("built")
+    time.sleep(0.5)
+    assert "Event:" not in typed(core, "p2")
+
+
+def test_a_listener_that_runs_past_the_start_check_is_reported_as_listening(core, bytearmy):
+    _, helper = two_agents(core)
+
+    code, said = bytearmy(helper, "listen", "the deploy", "sleep 60")
+
+    assert (code, said.split(";")[0]) == (0, "listening in hidden pane p3")
+    assert core.workspaces.attach("demo", "work", "p3", 24, 80).exit_code is None

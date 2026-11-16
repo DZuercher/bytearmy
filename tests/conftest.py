@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from bytearmy import cli
+from bytearmy import cli, workspaces
 
 # The fixture repositories must not depend on the git configuration of the machine.
 ISOLATED = {**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_SYSTEM": os.devnull}
@@ -40,6 +40,15 @@ def claude_config(tmp_path_factory, monkeypatch) -> Path:
     directory = tmp_path_factory.mktemp("claude-config")
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(directory))
     return directory / ".claude.json"
+
+
+@pytest.fixture(autouse=True)
+def agents_ready_at_once(monkeypatch):
+    """The stand-in agents of the checks take typing at once, not only after the seconds a
+    Claude session needs to start; the checks of that wait set it themselves."""
+    monkeypatch.setattr(workspaces, "READY_AFTER_SECONDS", 0)
+    monkeypatch.setattr(workspaces, "QUIET_SECONDS", 0)
+    monkeypatch.setattr(workspaces, "START_CHECK_SECONDS", 0.3)  # a listener's start check
 
 
 @pytest.fixture(autouse=True)

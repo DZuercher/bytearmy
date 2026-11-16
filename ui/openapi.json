@@ -2881,6 +2881,22 @@
             "type": "boolean",
             "title": "Logged",
             "default": false
+          },
+          "exit_code": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exit Code"
+          },
+          "output": {
+            "type": "string",
+            "title": "Output",
+            "default": ""
           }
         },
         "type": "object",

@@ -28,6 +28,7 @@ EARLIER_INSTRUCTIONS = {
     "fd9f4c1e41be73b132fa252d56f9d623ab9cc7a45507b56c6e0ea80b38668e61",
     "c472a0526311f36efa32b29a3ee43b1feb9da3c88a0997059cbb80e418f45439",
     "f77f69815c518217860136e6673c43ff1e9b5dbce734941669a7ec21ee674440",
+    "c2bab0f04cec72f0563b15668aaed1bf12368932ab37e7668d9dfb65c96df033",
 }
 EARLIER_ORCHESTRATOR_INSTRUCTIONS: set[str] = set()
 
@@ -97,12 +98,23 @@ of your own task; it cannot reach other tasks.
   `bytearmy listen "<what you wait for>" "<command>"`. The command must end when the
   event happens, e.g. `bytearmy listen "CI of PR #12" "gh pr checks 12 --watch"`, or
   `until <check>; do sleep 30; done`. It runs in a hidden pane, `event_listener`.
+- `bytearmy listen` watches the command for its first 3 seconds. If it ends by then, the
+  call says so itself and no message follows: with exit code 0 the event has already
+  happened; otherwise the call fails, with the command's last lines, because nothing
+  listens. Then fix the command (often a missing permission or login) and listen again.
 - When the command ends, bytearmy sends you a message that starts with "Event:", with
   its exit code and the last lines it printed. Until then, go on with other work, or end
   your turn; the message wakes you. If you are the master, set the status to
   "Waiting for <event>" with `--color none` while nothing else is left to do.
 - To stop waiting, close the listener's pane with `bytearmy pane close <pane>`; it then
   sends nothing.
+- An event listener belongs to bytearmy, not to you: when bytearmy quits it stops, and
+  when bytearmy starts again, also after a reboot, it runs the same command again and
+  still sends you its message. So the command must be safe to run more than once. After
+  such a restart, the end of these instructions lists your listeners that run again.
+- Do not wait for an event with a background task of your own (Bash with
+  `run_in_background`, or Monitor): it ends when bytearmy quits, is not started again,
+  and you are never told. Keep those for work that ends within your current turn.
 
 ## Reviews
 
@@ -258,6 +270,13 @@ BY_ORCHESTRATOR = (
     "The orchestrator started you with the prompt you got as your first message. When you\n"
     "are done, or stuck, tell `orchestrator` with SendMessage."
 )
+LISTENERS = """
+## Your event listeners
+
+bytearmy runs these event listeners for you; each sends you its "Event:" message when its
+command ends:
+{listed}
+"""
 HAS_MASTER = "The master agent of this task is `{master}`."
 NO_MASTER = "The task has no master agent right now."
 
@@ -302,11 +321,13 @@ def write_instructions(
     pane: Pane,
     denied: Sequence[str] = (),
     forbidden: Sequence[str] = (),
+    listeners: Sequence[Pane] = (),
 ) -> Path:
     """The instructions an agent starts with: the root's file, what the config forbids it,
-    then who it is.
+    then who it is and the event listeners that tell it.
 
-    Written anew at every start, so a restarted agent learns who the master is now.
+    Written anew at every start, so a restarted agent learns who the master is now and
+    which of its listeners run again.
     """
     master = task.workspace.panes.get(task.workspace.master or "")
     if task.workspace.master == pane.id:
@@ -330,8 +351,23 @@ def write_instructions(
         text
         + not_allowed(denied, key, forbidden)
         + ABOUT_YOU.format(name=pane.agent, pane=pane.id, task=task.name, relation=relation)
+        + listening(listeners)
     )
     return file
+
+
+def listening(listeners: Sequence[Pane]) -> str:
+    """The part of the instructions that lists an agent's event listeners."""
+    if not listeners:
+        return ""
+    lines = []
+    for listener in listeners:
+        event = listener.values.get("event") or listener.title
+        line = f"- {listener.id}: {event}"
+        if listener.values.get("command"):
+            line += f", running `{listener.values['command']}`"
+        lines.append(line)
+    return LISTENERS.format(listed="\n".join(lines))
 
 
 def write_orchestrator_instructions(

@@ -1140,6 +1140,13 @@ export interface components {
              * @default false
              */
             logged: boolean;
+            /** Exit Code */
+            exit_code?: number | null;
+            /**
+             * Output
+             * @default
+             */
+            output: string;
         };
         /**
          * OrchestratorState

@@ -11,6 +11,7 @@ import subprocess
 import sys
 import termios
 import threading
+import time
 from collections.abc import Callable
 from pathlib import Path
 
@@ -66,6 +67,8 @@ class Pty:
         self._replay = bytearray()
         self._listeners: dict[asyncio.Queue, asyncio.AbstractEventLoop] = {}
         self.exit_code: int | None = None
+        self.started = time.monotonic()
+        self.last_output = self.started  # when the program last printed something
         self._reader = threading.Thread(target=self._read, daemon=True)
         self._reader.start()
 
@@ -78,6 +81,7 @@ class Pty:
             if not data:
                 break
             with self._lock:
+                self.last_output = time.monotonic()
                 self._replay += data
                 del self._replay[: max(0, len(self._replay) - REPLAY_BYTES)]
                 self._tell(data)
