@@ -1193,7 +1193,7 @@ export interface components {
              * @default terminal
              * @enum {string}
              */
-            kind: "terminal" | "web" | "diff";
+            kind: "terminal" | "web" | "diff" | "answer";
             /** Title */
             title: string;
             /**

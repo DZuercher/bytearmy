@@ -379,6 +379,23 @@ def review(args: argparse.Namespace) -> str:
         time.sleep(REVIEW_POLL_SECONDS)
 
 
+def answer_draft(args: argparse.Namespace) -> str:
+    """Show the conversation with the draft to the user; the decision comes as a message."""
+    if (args.body is None) == (args.body_file is None):
+        raise Failed("give the draft as --body or --body-file, not both")
+    body = args.body if args.body is not None else Path(args.body_file).read_text()
+    opened = call("POST", "/answers", {"url": args.url, "body": body})
+    return (
+        f"opened the draft answer {opened['pane']} for the user. When they approve or discard"
+        ' it, you get a message that starts with "Draft answer". Do not wait for it: go on'
+        " with other work, or end your turn."
+    )
+
+
+def answer_send(args: argparse.Namespace) -> str:
+    return call("POST", f"/answers/{args.id}/send")["text"]
+
+
 def pr_create(args: argparse.Namespace) -> str:
     body = Path(args.body_file).read_text() if args.body_file else args.body
     request = {"title": args.title, "body": body, "base": args.base, "draft": args.draft}
@@ -442,7 +459,7 @@ def parser() -> argparse.ArgumentParser:
     groups = main.add_subparsers(
         dest="group",
         required=True,
-        metavar="{pane,tool,task,agent,log,listen,review,pr,workflow,project,tasks,inbox}",
+        metavar="{pane,tool,task,agent,log,listen,review,answer,pr,workflow,project,tasks,inbox}",
     )
 
     def command(group, name: str, run, help: str):
@@ -586,6 +603,25 @@ def parser() -> argparse.ArgumentParser:
         help="show only what changed since the last commit, not all since the default branch",
     )
     reviewing.add_argument("--note", help="what the user should look at")
+
+    answering = groups.add_parser(
+        "answer", help="answer a comment on GitHub, once the user approves your draft"
+    ).add_subparsers(dest="action", required=True)
+    drafting = command(
+        answering,
+        "draft",
+        answer_draft,
+        "show the user a GitHub conversation with your draft answer below it, to edit and "
+        "approve or discard; you get a message when they decide",
+    )
+    drafting.add_argument(
+        "url", help="the comment to answer, e.g. https://github.com/o/r/pull/12#discussion_r34"
+    )
+    drafting.add_argument("--body", help="the draft answer, in GitHub Markdown")
+    drafting.add_argument("--body-file", help="read the draft answer from this file")
+    command(
+        answering, "send", answer_send, "post an answer the user approved; sets the task waiting"
+    ).add_argument("id", help="the draft's id, as the approval message names it")
 
     pulls = groups.add_parser(
         "pr", help="the pull request of the task's branch, with gh"

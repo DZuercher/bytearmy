@@ -2383,6 +2383,83 @@
         }
       }
     },
+    "/agent/answers": {
+      "post": {
+        "summary": "Agent Draft Answer",
+        "operationId": "agent_draft_answer_agent_answers_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnswerDraft"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Opened"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agent/answers/{draft}/send": {
+      "post": {
+        "summary": "Agent Send Answer",
+        "operationId": "agent_send_answer_agent_answers__draft__send_post",
+        "parameters": [
+          {
+            "name": "draft",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Draft"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnswerSent"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/agent/reviews/{pane}": {
       "get": {
         "summary": "Agent Review State",
@@ -2565,6 +2642,211 @@
           }
         }
       }
+    },
+    "/answers/{key}/{project}/{task}/{pane}": {
+      "get": {
+        "summary": "Answer Page",
+        "description": "The page of an answer pane: the conversation and the draft, to edit and decide.",
+        "operationId": "answer_page_answers__key___project___task___pane__get",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          },
+          {
+            "name": "project",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project"
+            }
+          },
+          {
+            "name": "task",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task"
+            }
+          },
+          {
+            "name": "pane",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pane"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/answers/{key}/{project}/{task}/{pane}/approve": {
+      "post": {
+        "summary": "Approve Answer",
+        "description": "The user approves the draft, as they edited it; the agent is told.",
+        "operationId": "approve_answer_answers__key___project___task___pane__approve_post",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          },
+          {
+            "name": "project",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project"
+            }
+          },
+          {
+            "name": "task",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task"
+            }
+          },
+          {
+            "name": "pane",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pane"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnswerDecision"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/answers/{key}/{project}/{task}/{pane}/discard": {
+      "post": {
+        "summary": "Discard Answer",
+        "description": "The user discards the draft and answers on their own; the agent is told.",
+        "operationId": "discard_answer_answers__key___project___task___pane__discard_post",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          },
+          {
+            "name": "project",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project"
+            }
+          },
+          {
+            "name": "task",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task"
+            }
+          },
+          {
+            "name": "pane",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pane"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2626,6 +2908,53 @@
           "prompt"
         ],
         "title": "AgentSpawn"
+      },
+      "AnswerDecision": {
+        "properties": {
+          "answer": {
+            "type": "string",
+            "title": "Answer",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "AnswerDecision",
+        "description": "The user approves a draft answer, as they edited it, or discards it."
+      },
+      "AnswerDraft": {
+        "properties": {
+          "url": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Url"
+          },
+          "body": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Body"
+          }
+        },
+        "type": "object",
+        "required": [
+          "url",
+          "body"
+        ],
+        "title": "AnswerDraft",
+        "description": "An agent drafts an answer to a GitHub conversation, for the user to approve."
+      },
+      "AnswerSent": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "AnswerSent",
+        "description": "What `bytearmy answer send` did."
       },
       "AppState": {
         "properties": {
@@ -2984,7 +3313,8 @@
             "enum": [
               "terminal",
               "web",
-              "diff"
+              "diff",
+              "answer"
             ],
             "title": "Kind",
             "default": "terminal"
