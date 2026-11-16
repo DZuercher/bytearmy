@@ -86,19 +86,22 @@ class TaskCreate(BaseModel):
 
 
 class TaskEdit(BaseModel):
-    """What the user may change about a task; its branch is fixed once it is cloned.
+    """What the user may change about a task.
 
     A task in the backlog keeps the status Backlog, a started one cannot go back there.
+    A task without a branch may get one; an empty branch keeps the task's, which is fixed
+    once it is set.
     """
 
     name: str
     description: str = ""
+    branch: str = ""
     status: str
     color: Color = ""
     reminder: date | None = None
     dependencies: list[str] = []  # slugs of tasks in the same project
 
-    @field_validator("name", "description", "status")
+    @field_validator("name", "description", "branch", "status")
     @classmethod
     def _strip(cls, value: str) -> str:
         return value.strip()

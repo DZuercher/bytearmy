@@ -53,6 +53,35 @@ class Cloner:
         )
         return check.returncode == 0
 
+    def switch(self, project: str, task: Task, branch: str) -> None:
+        """Put the task's finished clone on `branch`: origin's if there is one, else a new one
+        from where the clone stands. Uncommitted changes come along."""
+        repo = Path(task.path) / task.repo
+        env = {**os.environ, **self._github_env(project), "GIT_TERMINAL_PROMPT": "0"}
+
+        def git(*arguments: str) -> subprocess.CompletedProcess[str]:
+            return subprocess.run(
+                [*self._git, "-C", str(repo), *arguments],
+                stdin=subprocess.DEVNULL,
+                capture_output=True,
+                text=True,
+                env=env,
+                timeout=120,
+                check=False,
+            )
+
+        def exists(ref: str) -> bool:
+            return git("rev-parse", "--verify", "--quiet", ref).returncode == 0
+
+        # The clone knows origin's branches as of its cloning; without a connection those do.
+        git("fetch", "--quiet", "origin", f"+refs/heads/{branch}:refs/remotes/origin/{branch}")
+        if exists(f"refs/heads/{branch}") or exists(f"refs/remotes/origin/{branch}"):
+            switched = git("switch", branch)
+        else:
+            switched = git("switch", "-c", branch)
+        if switched.returncode != 0:
+            raise CloneFailed(switched.stderr.strip()[-ERROR_CHARACTERS:] or "git switch failed")
+
     def start(
         self, project: str, task: Task, url: str, then: Callable[[], None] | None = None
     ) -> None:

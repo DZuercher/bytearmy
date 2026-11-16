@@ -258,7 +258,11 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Edit Task */
+        /**
+         * Edit Task
+         * @description Change a task. A branch given to a task without one is checked out in its clone;
+         *     a clone that failed gets it when it is tried again.
+         */
         put: operations["edit_task_api_projects__project__tasks__task__put"];
         post?: never;
         /** Delete Task */
@@ -1466,9 +1470,11 @@ export interface components {
         };
         /**
          * TaskEdit
-         * @description What the user may change about a task; its branch is fixed once it is cloned.
+         * @description What the user may change about a task.
          *
          *     A task in the backlog keeps the status Backlog, a started one cannot go back there.
+         *     A task without a branch may get one; an empty branch keeps the task's, which is fixed
+         *     once it is set.
          */
         TaskEdit: {
             /** Name */
@@ -1478,6 +1484,11 @@ export interface components {
              * @default
              */
             description: string;
+            /**
+             * Branch
+             * @default
+             */
+            branch: string;
             /** Status */
             status: string;
             /**

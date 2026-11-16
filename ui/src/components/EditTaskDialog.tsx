@@ -31,6 +31,7 @@ export function EditTaskDialog({
   const [edit, setEdit] = useState({
     name: task.name,
     description: task.description,
+    branch: task.branch,
     status: task.status,
     color: task.color,
     reminder: task.reminder ?? '',
@@ -39,6 +40,8 @@ export function EditTaskDialog({
   const [error, setError] = useState<string | null>(null)
   const others = [...project.backlog, ...project.tasks].filter((other) => other.slug !== task.slug)
   const inBacklog = project.backlog.some((other) => other.slug === task.slug)
+  // A branch is fixed once it is set; until then it can be added, after the clone is done.
+  const branchOpen = !task.branch && task.clone !== 'cloning'
 
   function submit(event: FormEvent) {
     event.preventDefault()
@@ -58,7 +61,9 @@ export function EditTaskDialog({
         <form onSubmit={submit} className="grid gap-4">
           <DialogHeader>
             <DialogTitle>Edit task in {project.name}</DialogTitle>
-            <DialogDescription>The directory keeps its name. The branch cannot be changed.</DialogDescription>
+            <DialogDescription>
+              The directory keeps its name. {task.branch ? 'The branch cannot be changed.' : 'A branch, once added, cannot be changed.'}
+            </DialogDescription>
           </DialogHeader>
           <div className="grid gap-2">
             <Label htmlFor="edit-task-name">Name</Label>
@@ -80,7 +85,13 @@ export function EditTaskDialog({
           {project.github_url && (
             <div className="grid gap-2">
               <Label htmlFor="edit-task-branch">Branch</Label>
-              <Input id="edit-task-branch" value={task.branch} disabled />
+              <Input
+                id="edit-task-branch"
+                value={edit.branch}
+                disabled={!branchOpen}
+                placeholder={task.clone === 'cloning' ? 'available once the clone is done' : 'none'}
+                onChange={(event) => setEdit({ ...edit, branch: event.target.value })}
+              />
             </div>
           )}
           {!inBacklog && (

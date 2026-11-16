@@ -625,6 +625,7 @@
     "/api/projects/{project}/tasks/{task}": {
       "put": {
         "summary": "Edit Task",
+        "description": "Change a task. A branch given to a task without one is checked out in its clone;\na clone that failed gets it when it is tried again.",
         "operationId": "edit_task_api_projects__project__tasks__task__put",
         "parameters": [
           {
@@ -3412,6 +3413,11 @@
             "title": "Description",
             "default": ""
           },
+          "branch": {
+            "type": "string",
+            "title": "Branch",
+            "default": ""
+          },
           "status": {
             "type": "string",
             "title": "Status"
@@ -3456,7 +3462,7 @@
           "status"
         ],
         "title": "TaskEdit",
-        "description": "What the user may change about a task; its branch is fixed once it is cloned.\n\nA task in the backlog keeps the status Backlog, a started one cannot go back there."
+        "description": "What the user may change about a task.\n\nA task in the backlog keeps the status Backlog, a started one cannot go back there.\nA task without a branch may get one; an empty branch keeps the task's, which is fixed\nonce it is set."
       },
       "TaskOrder": {
         "properties": {

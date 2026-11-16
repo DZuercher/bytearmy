@@ -480,6 +480,8 @@ class Store:
                 raise InvalidEdit("a task in the backlog gets a status when it is started")
             if file.status != BACKLOG and edit.status == BACKLOG:
                 raise InvalidEdit("a started task cannot go back to the backlog")
+            if edit.branch and file.branch and edit.branch != file.branch:
+                raise InvalidEdit("the branch of a task cannot be changed once it is set")
             dependencies = list(dict.fromkeys(edit.dependencies))
             for dependency in dependencies:
                 if dependency not in files:
@@ -498,6 +500,7 @@ class Store:
                         if dependency in files
                     )
             fields = edit.model_dump()
+            fields["branch"] = file.branch or edit.branch
             fields["dependencies"] = dependencies
             self._save_task(project_dir, slug, file.model_copy(update=fields))
 

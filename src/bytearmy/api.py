@@ -16,7 +16,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from bytearmy.agents import ORCHESTRATOR
-from bytearmy.clones import AlreadyCloning, Cloner
+from bytearmy.clones import AlreadyCloning, CloneFailed, Cloner
 from bytearmy.config import ACCOUNTS, load_config
 from bytearmy.inbox import Inbox, MessageNotFound
 from bytearmy.logpage import render
@@ -374,6 +374,27 @@ def create_app(
 
     @api.put("/projects/{project}/tasks/{task}")
     def edit_task(project: str, task: str, edit: TaskEdit) -> AppState:
+        """Change a task. A branch given to a task without one is checked out in its clone;
+        a clone that failed gets it when it is tried again."""
+        found = store.task(project, task)
+        if edit.branch and not found.branch:
+            if not cloner.valid_branch(edit.branch):
+                raise HTTPException(
+                    status_code=400, detail=f'"{edit.branch}" is not a valid branch name.'
+                )
+            if found.clone == "cloning":
+                raise HTTPException(
+                    status_code=409,
+                    detail=f'"{found.name}" is still being cloned; give it a branch afterwards.',
+                )
+            if found.clone == "ready":
+                try:
+                    cloner.switch(project, found, edit.branch)
+                except CloneFailed as failure:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f'The clone could not switch to "{edit.branch}": {failure}',
+                    ) from failure
         store.edit_task(project, task, edit)
         return state()
 
