@@ -136,6 +136,14 @@
 .mosaic.mosaic-blueprint-theme :is(.mosaic-window, .mosaic-preview) .mosaic-window-toolbar .mosaic-window-title {
     color: var(--foreground);
 }
+/* A maximized pane covers the others; its amber title bar tells that they are only covered. */
+.mosaic.mosaic-blueprint-theme .mosaic-window.pane-maximized .mosaic-window-toolbar {
+    background: var(--task-amber-mark);
+    color: black;
+}
+.mosaic.mosaic-blueprint-theme .mosaic-window.pane-maximized .mosaic-window-toolbar .mosaic-window-title {
+    color: black;
+}
 .mosaic.mosaic-blueprint-theme .mosaic-tile :is(.mosaic-window, .mosaic-preview) .mosaic-window-body {
     background: var(--background);
 }

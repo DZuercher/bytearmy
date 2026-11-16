@@ -72,6 +72,7 @@ export function Workspace({ project, task, visible, run, onArrange, onActivePane
               // An agent wants the user to look here; clicking into the pane ends it. The frame
               // is a layer above the pane, as its title bar and content would cover an outline.
               className={cn(
+                maximized && 'pane-maximized',
                 pane.highlighted &&
                   "relative after:pointer-events-none after:absolute after:inset-0 after:z-30 after:border-4 after:border-amber-500 after:content-['']",
               )}
