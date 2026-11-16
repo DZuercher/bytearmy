@@ -3,6 +3,7 @@ import { type AppState, type Bar, type Tree, type UiChange, api, listenForChange
 import { BacklogBar } from '@/components/BacklogBar'
 import { DeleteDialog, type Doomed } from '@/components/DeleteDialog'
 import { EditTaskDialog } from '@/components/EditTaskDialog'
+import { FocusTab } from '@/components/FocusTab'
 import { InboxTab } from '@/components/InboxTab'
 import { InboxView } from '@/components/InboxView'
 import { OrchestratorTab } from '@/components/OrchestratorTab'
@@ -98,6 +99,17 @@ export function App() {
   const inboxShown = ui.view === 'inbox'
   const orchestratorShown = ui.view === 'orchestrator'
   const workspaceShown = ui.view === 'workspace'
+  // In focus mode every bar shows collapsed; the bars' own flags keep what shows after it.
+  const leftOpen = ui.left_open && !ui.focus
+  const rightOpen = ui.right_open && !ui.focus
+  const bottomOpen = ui.bottom_open && !ui.focus
+  // Expanding a bar in focus mode ends it, with only that bar open.
+  const toggleBar = (bar: 'left_open' | 'right_open' | 'bottom_open') =>
+    setUi(
+      ui.focus
+        ? { focus: false, left_open: false, right_open: false, bottom_open: false, [bar]: true }
+        : { [bar]: !ui[bar] },
+    )
   const unread = state.inbox.messages.filter((message) => message.unread && !message.dismissed).length
   // Choosing a project, a task or a pane leaves the inbox and the orchestrator.
   const showWorkspace = () => {
@@ -171,20 +183,20 @@ export function App() {
       <div className="flex min-h-0 flex-1">
         <div className="flex shrink-0 flex-col">
           <OrchestratorTab
-            open={ui.left_open}
+            open={leftOpen}
             active={orchestratorShown}
             running={state.orchestrator.running}
             onClick={() => setUi({ view: 'orchestrator' })}
           />
           <InboxTab
-            open={ui.left_open}
+            open={leftOpen}
             active={inboxShown}
-            unread={unread}
+            unread={ui.focus ? 0 : unread}
             onClick={() => setUi({ view: 'inbox' })}
           />
           <ProjectBar
-            open={ui.left_open}
-            onToggle={() => setUi({ left_open: !ui.left_open })}
+            open={leftOpen}
+            onToggle={() => toggleBar('left_open')}
             projects={projects}
             focused={workspaceShown ? state.focused_project : null}
             onFocus={(slug) => {
@@ -198,8 +210,8 @@ export function App() {
           />
         </div>
         <TaskBar
-          open={ui.bottom_open}
-          onToggle={() => setUi({ bottom_open: !ui.bottom_open })}
+          open={bottomOpen}
+          onToggle={() => toggleBar('bottom_open')}
           project={project}
           onFocus={(slug) => {
             showWorkspace()
@@ -269,17 +281,20 @@ export function App() {
             />
           )}
         </main>
-        <BacklogBar
-          open={ui.right_open}
-          onToggle={() => setUi({ right_open: !ui.right_open })}
-          project={project}
-          onCreate={(created, start) => api.createTask(project!.slug, created, start).then(setState)}
-          onStart={(slug) => run(api.startTask(project!.slug, slug))}
-          onCloneAgain={(slug) => run(api.cloneAgain(project!.slug, slug))}
-          onEdit={setEditing}
-          onDelete={setDoomed}
-          onReorder={(order) => reorderTasks('backlog', order)}
-        />
+        <div className="flex shrink-0 flex-col">
+          <FocusTab open={rightOpen} active={ui.focus} onClick={() => setUi({ focus: !ui.focus })} />
+          <BacklogBar
+            open={rightOpen}
+            onToggle={() => toggleBar('right_open')}
+            project={project}
+            onCreate={(created, start) => api.createTask(project!.slug, created, start).then(setState)}
+            onStart={(slug) => run(api.startTask(project!.slug, slug))}
+            onCloneAgain={(slug) => run(api.cloneAgain(project!.slug, slug))}
+            onEdit={setEditing}
+            onDelete={setDoomed}
+            onReorder={(order) => reorderTasks('backlog', order)}
+          />
+        </div>
       </div>
       <DeleteDialog doomed={doomed} onCancel={() => setDoomed(null)} onConfirm={confirmDelete} />
       {project && edited && (

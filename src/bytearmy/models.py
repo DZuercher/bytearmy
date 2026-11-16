@@ -292,6 +292,9 @@ class UiState(BaseModel):
     left_open: bool = True
     right_open: bool = True
     bottom_open: bool = True
+    # focus mode: every bar shows collapsed and the inbox hides its unread count;
+    # the *_open flags keep what the bars show once it ends
+    focus: bool = False
     # what the middle of the window shows
     view: Literal["workspace", "inbox", "orchestrator"] = "workspace"
 
@@ -302,6 +305,7 @@ class UiChange(BaseModel):
     left_open: bool | None = None
     right_open: bool | None = None
     bottom_open: bool | None = None
+    focus: bool | None = None
     view: Literal["workspace", "inbox", "orchestrator"] | None = None
 
 

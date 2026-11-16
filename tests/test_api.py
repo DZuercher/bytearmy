@@ -76,8 +76,14 @@ def test_project_lifecycle_over_http(client):
         "left_open": False,
         "right_open": True,
         "bottom_open": True,
+        "focus": False,
         "view": "workspace",
     }
+
+    # Focus mode leaves the bars' own flags as they are.
+    focus = client.patch("/api/ui", json={"focus": True})
+    assert focus.json()["ui"]["focus"] is True
+    assert focus.json()["ui"]["right_open"] is True
 
     deleted = client.delete("/api/projects/second")
     assert slugs(deleted) == ["project-1"]
