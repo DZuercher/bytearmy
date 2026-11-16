@@ -25,6 +25,7 @@ from bytearmy.models import (
     AgentSpawn,
     AppState,
     Diff,
+    DiffFile,
     DiffMode,
     Focus,
     Highlight,
@@ -402,6 +403,13 @@ def create_app(
     def pane_diff(project: str, task: str, pane: str, mode: DiffMode = "branch") -> Diff:
         """The changes a diff pane shows."""
         return workspaces.diff(project, task, pane, mode)
+
+    @api.get(PANES + "/{pane}/diff/file")
+    def pane_diff_file(
+        project: str, task: str, pane: str, path: str, old_path: str = "", mode: DiffMode = "branch"
+    ) -> DiffFile:
+        """The changes of one file a diff pane shows, with all its lines, also the unchanged ones."""
+        return workspaces.full_file(project, task, pane, mode, path, old_path)
 
     @api.get(PANES + "/{pane}/review")
     def pane_review(project: str, task: str, pane: str) -> Review:

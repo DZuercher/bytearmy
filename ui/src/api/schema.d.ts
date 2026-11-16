@@ -362,6 +362,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{project}/tasks/{task}/panes/{pane}/diff/file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Pane Diff File
+         * @description The changes of one file a diff pane shows, with all its lines, also the unchanged ones.
+         */
+        get: operations["pane_diff_file_api_projects__project__tasks__task__panes__pane__diff_file_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects/{project}/tasks/{task}/panes/{pane}/review": {
         parameters: {
             query?: never;
@@ -2606,6 +2626,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Diff"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    pane_diff_file_api_projects__project__tasks__task__panes__pane__diff_file_get: {
+        parameters: {
+            query: {
+                path: string;
+                old_path?: string;
+                mode?: "branch" | "uncommitted";
+            };
+            header?: never;
+            path: {
+                project: string;
+                task: string;
+                pane: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiffFile"];
                 };
             };
             /** @description Validation Error */

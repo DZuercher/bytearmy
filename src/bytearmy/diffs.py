@@ -13,6 +13,7 @@ from bytearmy.models import Diff, DiffFile, DiffLine, DiffMode, Hunk, ReviewComm
 EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"  # what git compares a new repo with
 DEFAULT_BRANCHES = ("origin/main", "origin/master", "main", "master")
 MAX_FILE_LINES = 5000  # a file with a longer diff is listed without its lines
+ALL_LINES = 1_000_000_000  # context that shows every line of a file
 HUNK_RE = re.compile(r"^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@")
 REVIEW_HEADING = "Review comments from the user"
 # The same output whatever the user configured: no color, no external tool, a/ and b/ prefixes.
@@ -85,6 +86,23 @@ def diff(repo: Path, mode: DiffMode) -> Diff:
         files.extend(parse(added))
     files.sort(key=lambda file: file.path)
     return Diff(mode=mode, base=label, commit=commit, files=files)
+
+
+def full_file(repo: Path, mode: DiffMode, path: str, old_path: str = "") -> DiffFile | None:
+    """The changes of one file with every line of it, the unchanged ones as context.
+
+    None if the file has no changes against `base`.
+    """
+    commit, _ = base(repo, mode)
+    untracked = _git(repo, "ls-files", "--others", "--exclude-standard", "-z", "--", path).split(
+        "\0"
+    )
+    if path in untracked:
+        text = _git(repo, "diff", *DIFF_FLAGS, "--no-index", "--", os.devnull, path, ok=(0, 1))
+    else:
+        paths = [old_path, path] if old_path else [path]
+        text = _git(repo, "diff", *DIFF_FLAGS, "-M", f"-U{ALL_LINES}", commit, "--", *paths)
+    return next((file for file in parse(text) if file.path == path), None)
 
 
 def _path(header: str) -> str:
