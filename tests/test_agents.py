@@ -757,7 +757,7 @@ def test_the_config_says_which_commands_an_agent_may_call(core, bytearmy):
         1,
         (
             "bytearmy: `bytearmy agent spawn` is not allowed to you: `allow` in [master] of "
-            "config.toml lacks it. Ask the user."
+            "config.toml lacks it, or an `allow_*` switch there is off. Ask the user."
         ),
     )
     assert bytearmy(master, "task", "set-status", "Busy")[0] == 1
@@ -793,6 +793,22 @@ def test_the_config_gives_agents_their_command_and_claudes_permissions(core, byt
     assert bytearmy(master, "agent", "spawn", "helper", "Help.")[0] == 0
     said = output_until(core.workspaces.attach("demo", "work", "p3", 24, 80), rb"WebFetch\.")
     assert "configured demo-work-helper --disallowedTools WebFetch." in said
+
+
+def test_the_pull_request_switches_keep_gh_from_the_master(core, bytearmy):
+    tool(core.store, "bot", **{**BOT, "command": f"{KEEP_ENV}; echo {{permissions}}.; {WAIT}"})
+    configure(
+        core.store,
+        '[master]\ndisallowed_tools = ["WebFetch"]\nallow_pr_creation = false\n'
+        "allow_pr_merge = false\n",
+    )
+    me = calling_pane(core)
+    bytearmy(me, "pane", "open", "bot")
+    said = output_until(core.workspaces.attach("demo", "work", "p2", 24, 80), rb"merge \*\)")
+    assert "--disallowedTools WebFetch Bash(gh pr create *) Bash(gh pr merge *)" in said
+    told_master = told(core.store, ("demo", "work"), "p2")
+    assert "You may not create pull requests" in told_master
+    assert "You may not merge pull requests" in told_master
 
 
 def test_a_tool_the_config_disables_is_not_offered(core, bytearmy):

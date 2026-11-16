@@ -220,19 +220,34 @@ def next_role(taken: set[str]) -> str:
     return f"agent-{number}"
 
 
-def not_allowed(commands: Sequence[str], key: str) -> str:
-    """The part of the instructions that names the commands config.toml forbids."""
-    if not commands:
+def not_allowed(commands: Sequence[str], key: str, actions: Sequence[str] = ()) -> str:
+    """The part of the instructions that names the commands and actions config.toml
+    forbids."""
+    if not commands and not actions:
         return ""
-    listed = ", ".join(f"`{command}`" for command in commands)
-    return (
-        "\n## Not allowed by the config\n\n"
-        f"These `bytearmy` commands are not allowed to you (`allow` in `[{key}]` of\n"
-        f"config.toml), so do not call them: {listed}. Ask the user if you need one.\n"
-    )
+    text = "\n## Not allowed by the config\n\n"
+    if commands:
+        listed = ", ".join(f"`{command}`" for command in commands)
+        text += (
+            f"These `bytearmy` commands are not allowed to you (`allow` or an `allow_*`\n"
+            f"switch in `[{key}]` of config.toml), so do not call them: {listed}. Ask the\n"
+            "user if you need one.\n"
+        )
+    for action in actions:
+        text += (
+            f"You may not {action} (an `allow_*` switch in `[{key}]` of config.toml).\n"
+            "Leave it to the user and tell them it is ready.\n"
+        )
+    return text
 
 
-def write_instructions(root: Path, task: Task, pane: Pane, denied: Sequence[str] = ()) -> Path:
+def write_instructions(
+    root: Path,
+    task: Task,
+    pane: Pane,
+    denied: Sequence[str] = (),
+    forbidden: Sequence[str] = (),
+) -> Path:
     """The instructions an agent starts with: the root's file, what the config forbids it,
     then who it is.
 
@@ -258,7 +273,7 @@ def write_instructions(root: Path, task: Task, pane: Pane, denied: Sequence[str]
     key = "master" if task.workspace.master == pane.id else "agents"
     file.write_text(
         text
-        + not_allowed(denied, key)
+        + not_allowed(denied, key, forbidden)
         + ABOUT_YOU.format(name=pane.agent, pane=pane.id, task=task.name, relation=relation)
     )
     return file
