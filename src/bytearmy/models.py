@@ -214,6 +214,8 @@ class Tool(BaseModel):
     url: str = ""  # the page of a web tool
     directory: Literal["task", "repo"] = "task"  # repo: the clone, if the task has one
     callers: list[Literal["user", "agent"]] = ["user", "agent"]  # who may open the tool
+    # terminal: when its program ends, tell the agent that opened it, or else the master
+    notify: bool = False
     parameters: list[Parameter] = []
     service: Service | None = None
 

@@ -121,6 +121,7 @@ def test_pane_lifecycle_over_http(live):
     assert [tool["id"] for tool in opened.json()["tools"]] == [
         "claude",
         "diff",
+        "event_listener",
         "explorer",
         "html",
         "lazygit",

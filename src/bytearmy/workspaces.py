@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import secrets
 import shlex
 import sys
@@ -67,6 +68,12 @@ from bytearmy.trust import trust_directory
 PASTE_START, PASTE_END = b"\x1b[200~", b"\x1b[201~"  # bracketed paste, as terminals send it
 SUBMIT_DELAY_SECONDS = 0.3  # Claude takes a paste as such only if Enter comes after it
 CLOSED_REVIEW = "The user closed the review without sending it; no comments were sent."
+EVENT_LINES = 20  # how much of a listener's output its message holds
+EVENT_CHARS = 2000
+# Terminal control sequences: CSI, OSC and other escapes, and the lone control characters.
+CONTROL = re.compile(
+    r"\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b.|[\x00-\x08\x0b-\x1f\x7f]"
+)
 COULD_NOT_START = 127  # the exit code a shell gives for a command it cannot find
 SPAWNING_TOOL = "claude"  # starts agents for a pane that is not an agent itself
 
@@ -447,7 +454,9 @@ class Workspaces:
         )
         calling = self._store.task(project, task).workspace.panes.get(pane)
         author = calling.agent if calling and calling.agent else "user"
-        opened = self.open_pane(project, task, request, author=author)
+        # A tool that notifies remembers who opened it: that agent gets its message.
+        opener = author if tool.notify and author != "user" else ""
+        opened = self.open_pane(project, task, request, spawned_by=opener, author=author)
         if isinstance(opened, Pane):
             self.start(project, task, opened.id)
         return opened
@@ -635,11 +644,36 @@ class Workspaces:
             pty = self._ptys.get((project, task, master)) if master else None
             if pty is None or pty.exit_code is not None:
                 raise NoMaster()
-        clean = text.replace("\x1b", "").replace("\r\n", "\n").encode()
-        pty.write(PASTE_START + clean + PASTE_END)
-        submit = threading.Timer(SUBMIT_DELAY_SECONDS, pty.write, args=(b"\r",))
-        submit.daemon = True
-        submit.start()
+        _type_into(pty, text)
+
+    def send_to_agent(self, project: str, task: str, agent: str, text: str) -> str:
+        """Type a message into the terminal of an agent of the task; if it does not run,
+        into the master's. Gives the name of the agent that got it."""
+        workspace = self._store.task(project, task).workspace
+        with self._lock:
+            for pane in workspace.panes.values():
+                if agent and pane.agent == agent and self._running((project, task, pane.id)):
+                    _type_into(self._ptys[(project, task, pane.id)], text)
+                    return agent
+        self.send_to_master(project, task, text)
+        return workspace.panes[workspace.master].agent if workspace.master else ""
+
+    def _notify(self, key: Key, pane: Pane, code: int, output: bytes) -> None:
+        """Tell the agent that opened a notifying pane that its program ended."""
+        project, task, pane_id = key
+        event = pane.values.get("event") or pane.title
+        text = f"Event: {event}. The event listener in pane {pane_id} ended with exit code {code}."
+        if pane.values.get("command"):
+            text += f" Its command was: {pane.values['command']}"
+        tail = _tail(output)
+        if tail:
+            text += f"\n\nThe last lines it printed:\n\n{tail}"
+        try:
+            told = self.send_to_agent(project, task, pane.spawned_by, text + "\n")
+        except NoMaster:
+            self._log(project, task, f"{event}: happened, but no agent runs to tell")
+            return
+        self._log(project, task, f"{event}: happened (exit code {code}); told {told}")
 
     def _diff_pane(self, project: str, task: str, pane: str) -> tuple[Task, Pane, Tool]:
         found = self._store.task(project, task)
@@ -831,6 +865,16 @@ class Workspaces:
             self._keys.pop(key, None)
             if self._stopping or key in self._ending:
                 return
+            try:
+                ended = self._store.task(project, task).workspace.panes.get(pane)
+            except (ProjectNotFound, TaskNotFound):
+                return  # deleted meanwhile
+            tool = self._tools(project, task).get(ended.tool) if ended else None
+            pty = self._ptys.get(key)
+            notifies = ended is not None and tool is not None and tool.notify
+            if notifies:
+                self._notify(key, ended, code, pty.output() if pty else b"")
+                code = 0  # its message tells how it ended: the pane is no longer needed
 
             def change(workspace: Workspace) -> None:
                 if pane not in workspace.panes:
@@ -875,6 +919,27 @@ class Workspaces:
         self._end(keys)
         self._services.shutdown()
         self._diffle.shutdown()
+
+
+def _type_into(pty: Pty, text: str) -> None:
+    """Paste a message into an agent's terminal and send it, as if the user wrote it."""
+    clean = text.replace("\x1b", "").replace("\r\n", "\n").encode()
+    pty.write(PASTE_START + clean + PASTE_END)
+    submit = threading.Timer(SUBMIT_DELAY_SECONDS, pty.write, args=(b"\r",))
+    submit.daemon = True
+    submit.start()
+
+
+def _tail(output: bytes) -> str:
+    """The last lines a program printed, without the terminal's control sequences."""
+    text = output.decode(errors="replace").replace("\r\n", "\n")
+    # A line rewritten in place, such as a progress bar, counts as what it says last.
+    lines = [
+        CONTROL.sub("", line.rstrip("\r").split("\r")[-1]).rstrip() for line in text.split("\n")
+    ]
+    while lines and not lines[-1]:
+        lines.pop()
+    return "\n".join(lines[-EVENT_LINES:])[-EVENT_CHARS:]
 
 
 def _directory(tool: Tool, task: Task) -> Path:

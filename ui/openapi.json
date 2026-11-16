@@ -3939,6 +3939,11 @@
               "agent"
             ]
           },
+          "notify": {
+            "type": "boolean",
+            "title": "Notify",
+            "default": false
+          },
           "parameters": {
             "items": {
               "$ref": "#/components/schemas/Parameter"

@@ -1775,6 +1775,11 @@ export interface components {
              */
             callers: ("user" | "agent")[];
             /**
+             * Notify
+             * @default false
+             */
+            notify: boolean;
+            /**
              * Parameters
              * @default []
              */
