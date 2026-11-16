@@ -181,6 +181,10 @@ class Cloner:
 
     def _run(self, key: tuple[str, str], *arguments: str, check: bool = True) -> int:
         with self._lock:
+            # A clone cancelled between two commands, or while it waited for the mirror,
+            # must not start another: nothing would end it.
+            if key in self._cancelled:
+                raise CloneFailed("The clone was cancelled.")
             process = subprocess.Popen(
                 [*self._git, *arguments],
                 stdin=subprocess.DEVNULL,

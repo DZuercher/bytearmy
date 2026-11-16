@@ -1394,6 +1394,11 @@ export interface components {
              * @default
              */
             clone_error: string;
+            /**
+             * Scratchpad
+             * @default false
+             */
+            scratchpad: boolean;
             /** Slug */
             slug: string;
             /** Path */

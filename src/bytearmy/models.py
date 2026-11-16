@@ -10,6 +10,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 BACKLOG = "Backlog"
 NEW = "New"
+SCRATCHPAD = "Scratchpad"  # the name of a project's scratchpad task
+SCRATCHPAD_STATUS = "Explore"
 
 Color = Literal["", "red", "amber", "green", "blue", "purple"]  # of a task's tab; "" is none
 
@@ -123,6 +125,9 @@ class TaskFile(TaskCreate):
     color: Color = ""  # set by an agent to get the user's attention
     repo: str = ""  # directory of the clone below the task directory; empty without a GitHub URL
     clone_error: str = ""
+    # the project's scratchpad: always there, first in the task bar, for exploring the
+    # project and asking general questions; it cannot be deleted
+    scratchpad: bool = False
 
 
 class Split(BaseModel):

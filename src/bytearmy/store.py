@@ -12,6 +12,8 @@ Layout below the root:
     <project>/<task>/<repo>/               clone of the project's GitHub URL, if it has one
 
 A directory is a project or a task if and only if it holds that metadata file.
+Every project has one scratchpad task (`scratchpad` in its task.json): always started,
+first in the task bar, and not to be deleted.
 """
 
 from __future__ import annotations
@@ -32,6 +34,8 @@ from pydantic import BaseModel, ValidationError
 from bytearmy.models import (
     BACKLOG,
     NEW,
+    SCRATCHPAD,
+    SCRATCHPAD_STATUS,
     AppState,
     GlobalState,
     LogEntry,
@@ -351,7 +355,10 @@ class Store:
             )
 
         backlog = [task(slug) for slug in _ordered(project.backlog_order, in_backlog)]
-        tasks = [task(slug) for slug in _ordered(project.task_order, files.keys() - in_backlog)]
+        started = _ordered(project.task_order, files.keys() - in_backlog)
+        # The scratchpad comes first, whatever the stored order says.
+        started.sort(key=lambda slug: not files[slug].scratchpad)
+        tasks = [task(slug) for slug in started]
         return backlog, tasks
 
     def _clone_state(
@@ -397,6 +404,42 @@ class Store:
             project_file.backlog_order = [*_ordered(project_file.backlog_order, in_backlog), slug]
             self._save_project(project_dir, project_file)
             return self.task(project, slug)
+
+    def _add_scratchpad(self, project_dir: Path) -> str | None:
+        """Give the project its scratchpad if it has none; the slug of a new one, else None."""
+        files = self._task_files(project_dir)
+        if any(file.scratchpad for file in files.values()):
+            return None
+        names = {file.name for file in files.values()}
+        name, counter = SCRATCHPAD, 1
+        while name in names:
+            counter += 1
+            name = f"{SCRATCHPAD} {counter}"
+        taken = {entry.name.lower() for entry in project_dir.iterdir()}
+        slug = unique_slug(slugify(SCRATCHPAD), taken)
+        (project_dir / slug / METADATA_DIR).mkdir(parents=True)
+        project_file = self._project_file(project_dir)
+        file = TaskFile(
+            name=name,
+            description="Explore the project and ask general questions.",
+            status=SCRATCHPAD_STATUS,
+            scratchpad=True,
+        )
+        if project_file.github_url:
+            file.repo = repo_directory(project_file.github_url)
+        self._save_task(project_dir, slug, file)
+        started = [other for other, other_file in files.items() if other_file.status != BACKLOG]
+        project_file.task_order = [slug, *_ordered(project_file.task_order, started)]
+        if project_file.focused_task is None:
+            project_file.focused_task = slug
+        self._save_project(project_dir, project_file)
+        return slug
+
+    def add_scratchpad(self, project: str) -> Task | None:
+        """Give the project its scratchpad if it has none; the new one, else None."""
+        with self._lock:
+            slug = self._add_scratchpad(self._project_dir(project))
+            return self.task(project, slug) if slug else None
 
     def start_task(self, project: str, slug: str) -> None:
         """Move a task from the backlog to the end of the task bar."""
@@ -462,7 +505,10 @@ class Store:
         """Remove the task's directory with everything in it."""
         with self._lock:
             project_dir = self._project_dir(project)
-            shutil.rmtree(self._task_dir(project_dir, slug))
+            directory = self._task_dir(project_dir, slug)
+            if self._task_files(project_dir)[slug].scratchpad:
+                raise InvalidEdit("the scratchpad of a project cannot be deleted")
+            shutil.rmtree(directory)
             self._changed()
             # Nothing can wait for a task that no longer exists.
             for other, file in self._task_files(project_dir).items():
@@ -478,6 +524,9 @@ class Store:
             project_file = self._project_file(project_dir)
             backlog, tasks = self._list_tasks(project_dir, project_file)
             members = backlog if bar == "backlog" else tasks
+            # The scratchpad keeps its place at the top: an order may leave it out.
+            pinned = [task.slug for task in members if task.scratchpad]
+            order = [*pinned, *(slug for slug in order if slug not in pinned)]
             if sorted(order) != sorted(task.slug for task in members):
                 raise InvalidOrder("the order must name every task of the bar exactly once")
             if bar == "backlog":

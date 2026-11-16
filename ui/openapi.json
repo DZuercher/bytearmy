@@ -3265,6 +3265,11 @@
             "title": "Clone Error",
             "default": ""
           },
+          "scratchpad": {
+            "type": "boolean",
+            "title": "Scratchpad",
+            "default": false
+          },
           "slug": {
             "type": "string",
             "title": "Slug"
