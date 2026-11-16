@@ -93,12 +93,12 @@ def test_it_starts_with_bytearmy_and_is_told_who_it_is(store, orchestrator):
     told = Path(said.split("start orchestrator ")[1].split(".\r")[0].rstrip("."))
     assert told.read_text().startswith(ORCHESTRATOR_INSTRUCTIONS)
     assert "Your name is `orchestrator`." in told.read_text()
-    assert (store.root / ".claude" / "orchestrator.md").read_text() == ORCHESTRATOR_INSTRUCTIONS
+    assert (store.root / ".bytearmy" / "orchestrator.md").read_text() == ORCHESTRATOR_INSTRUCTIONS
     assert orchestrator.state().running
 
 
 def test_the_users_instructions_file_is_kept_and_used(store, workspaces):
-    (store.root / ".claude" / "orchestrator.md").write_text("Mine.\n")
+    (store.root / ".bytearmy" / "orchestrator.md").write_text("Mine.\n")
     Workspaces(store, shell=["/bin/sh"])
     made = Orchestrator(store, workspaces, shell=["/bin/sh"], autostart=True)
     try:

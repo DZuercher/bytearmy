@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from datetime import date, datetime
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -274,10 +274,20 @@ class Project(ProjectMeta):
     focused_task: str | None
 
 
+# The width in pixels of an open bar; the user drags its edge to change it.
+BAR_WIDTH = 224
+BarWidth = Annotated[int, Field(ge=160, le=640)]
+
+
 class UiState(BaseModel):
     left_open: bool = True
     right_open: bool = True
     bottom_open: bool = True
+    # left: the projects bar and the tabs above it; bottom: the tasks bar;
+    # right: the backlog bar and the focus tab above it
+    left_width: BarWidth = BAR_WIDTH
+    right_width: BarWidth = BAR_WIDTH
+    bottom_width: BarWidth = BAR_WIDTH
     # focus mode: every bar shows collapsed and the inbox hides its unread count;
     # the *_open flags keep what the bars show once it ends
     focus: bool = False
@@ -291,6 +301,9 @@ class UiChange(BaseModel):
     left_open: bool | None = None
     right_open: bool | None = None
     bottom_open: bool | None = None
+    left_width: BarWidth | None = None
+    right_width: BarWidth | None = None
+    bottom_width: BarWidth | None = None
     focus: bool | None = None
     view: Literal["workspace", "inbox", "orchestrator"] | None = None
 

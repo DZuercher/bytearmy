@@ -17,15 +17,23 @@ from pathlib import Path
 
 from bytearmy import themes
 from bytearmy.agents import (
-    EARLIER_INSTRUCTIONS,
+    AGENT_FILE,
+    AGENT_INSTRUCTIONS,
+    EARLIER_AGENT_INSTRUCTIONS,
+    EARLIER_MASTER_INSTRUCTIONS,
     EARLIER_ORCHESTRATOR_INSTRUCTIONS,
-    INSTRUCTIONS,
-    INSTRUCTIONS_FILE,
+    EARLIER_SCRATCHPAD_INSTRUCTIONS,
     MASTER,
+    MASTER_FILE,
+    MASTER_INSTRUCTIONS,
     ORCHESTRATOR_FILE,
     ORCHESTRATOR_INSTRUCTIONS,
+    SCRATCHPAD_FILE,
+    SCRATCHPAD_INSTRUCTIONS,
     agent_name,
+    is_master,
     next_role,
+    remove_legacy,
     write_instructions,
 )
 from bytearmy.config import ACCOUNTS, AGENT_COMMANDS, Config, config_of, ensure_config
@@ -192,7 +200,12 @@ class Workspaces:
         self._diffle = Reviews(self._logs)
         self._bin = pane_command(store.root / METADATA_DIR / "bin").parent
         ensure_premade(store.root)
-        write_premade(store.root / INSTRUCTIONS_FILE, INSTRUCTIONS, EARLIER_INSTRUCTIONS)
+        remove_legacy(store.root)
+        write_premade(store.root / MASTER_FILE, MASTER_INSTRUCTIONS, EARLIER_MASTER_INSTRUCTIONS)
+        write_premade(store.root / AGENT_FILE, AGENT_INSTRUCTIONS, EARLIER_AGENT_INSTRUCTIONS)
+        write_premade(
+            store.root / SCRATCHPAD_FILE, SCRATCHPAD_INSTRUCTIONS, EARLIER_SCRATCHPAD_INSTRUCTIONS
+        )
         write_premade(
             store.root / ORCHESTRATOR_FILE,
             ORCHESTRATOR_INSTRUCTIONS,
@@ -447,7 +460,7 @@ class Workspaces:
         if calling is None or not calling.agent:
             return
         config = self.config(project, task)
-        key = "master" if found.workspace.master == pane else "agents"
+        key = "master" if is_master(found, pane) else "agents"
         if not getattr(config, key).allows(command):
             raise CommandNotAllowed(command, key)
 
@@ -827,7 +840,7 @@ class Workspaces:
         permissions = ""
         if tool.agent:
             config = self.config(project, task)
-            settings = config.master if found.workspace.master == pane_id else config.agents
+            settings = config.master if is_master(found, pane_id) else config.agents
             tool = as_configured(tool, settings)
             permissions = settings.flags()
             instructions = write_instructions(

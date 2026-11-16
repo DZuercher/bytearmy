@@ -11,7 +11,7 @@ type Props = {
 // every bar is collapsed and the inbox does not show how many messages are unread.
 export function FocusTab({ open, active, onClick }: Props) {
   return (
-    <div className={cn('shrink-0 border-b border-l', open ? 'w-56 px-4 py-3' : 'flex w-12 justify-center py-3')}>
+    <div className={cn('shrink-0 border-b border-l', open ? 'w-full px-4 py-3' : 'flex w-12 justify-center py-3')}>
       <button
         type="button"
         aria-pressed={active}

@@ -78,9 +78,19 @@ def test_project_lifecycle_over_http(client):
         "left_open": False,
         "right_open": True,
         "bottom_open": True,
+        "left_width": 224,
+        "right_width": 224,
+        "bottom_width": 224,
         "focus": False,
         "view": "workspace",
     }
+
+    # A bar's width changes alone, and only within its limits.
+    widened = client.patch("/api/ui", json={"bottom_width": 400})
+    assert widened.json()["ui"]["bottom_width"] == 400
+    assert widened.json()["ui"]["left_width"] == 224
+    assert client.patch("/api/ui", json={"left_width": 20}).status_code == 422
+    assert client.patch("/api/ui", json={"right_width": 5000}).status_code == 422
 
     # Focus mode leaves the bars' own flags as they are.
     focus = client.patch("/api/ui", json={"focus": True})

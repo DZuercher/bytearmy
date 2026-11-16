@@ -558,6 +558,8 @@ class Store:
             file = self._task_files(project_dir)[slug]
             if file.state == "backlog":
                 raise InvalidEdit("a task in the backlog is changed only by the user")
+            if file.scratchpad and change.model_fields_set & {"status", "state"}:
+                raise InvalidEdit("the scratchpad has no state or status")
             merged = "state" in change.model_fields_set and change.state == "merged"
             if merged and not self._project_file(project_dir).github_url:
                 raise InvalidEdit("only a task of a project with a GitHub URL can be merged")

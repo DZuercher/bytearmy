@@ -4151,6 +4151,45 @@
             ],
             "title": "Bottom Open"
           },
+          "left_width": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 640.0,
+                "minimum": 160.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Left Width"
+          },
+          "right_width": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 640.0,
+                "minimum": 160.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Right Width"
+          },
+          "bottom_width": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 640.0,
+                "minimum": 160.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bottom Width"
+          },
           "focus": {
             "anyOf": [
               {
@@ -4199,6 +4238,27 @@
             "type": "boolean",
             "title": "Bottom Open",
             "default": true
+          },
+          "left_width": {
+            "type": "integer",
+            "maximum": 640.0,
+            "minimum": 160.0,
+            "title": "Left Width",
+            "default": 224
+          },
+          "right_width": {
+            "type": "integer",
+            "maximum": 640.0,
+            "minimum": 160.0,
+            "title": "Right Width",
+            "default": 224
+          },
+          "bottom_width": {
+            "type": "integer",
+            "maximum": 640.0,
+            "minimum": 160.0,
+            "title": "Bottom Width",
+            "default": 224
           },
           "focus": {
             "type": "boolean",

@@ -21,11 +21,20 @@ from websockets.sync.client import connect
 
 from bytearmy import cli
 from bytearmy import workspaces as workspaces_module
-from bytearmy.agents import HAS_MASTER, INSTRUCTIONS, IS_MASTER, NO_MASTER, SPAWNED
+from bytearmy.agents import (
+    AGENT_INSTRUCTIONS,
+    HAS_MASTER,
+    IN_SCRATCHPAD,
+    IS_MASTER,
+    MASTER_INSTRUCTIONS,
+    NO_MASTER,
+    SCRATCHPAD_INSTRUCTIONS,
+    SPAWNED,
+)
 from bytearmy.api import create_app
-from bytearmy.models import PaneOpen, ProjectMeta, Split, TaskCreate
+from bytearmy.models import PaneOpen, ProjectMeta, Split, TaskChange, TaskCreate
 from bytearmy.ptys import Pty
-from bytearmy.store import Store
+from bytearmy.store import InvalidEdit, Store
 from bytearmy.workspaces import InvalidValues, RoleTaken, Workspaces, values_from_args
 
 WAIT = "sleep 60"
@@ -127,8 +136,10 @@ def test_two_agents_of_a_task_cannot_have_the_same_role(store, workspaces, task)
 
 
 def test_every_agent_is_told_who_it_is_and_who_its_master_is(store, workspaces, task):
-    assert (store.root / ".claude" / "bytearmy.md").read_text() == INSTRUCTIONS
-    (store.root / ".claude" / "bytearmy.md").write_text("Steer bytearmy like this.\n")
+    assert (store.root / ".bytearmy" / "master.md").read_text() == MASTER_INSTRUCTIONS
+    assert (store.root / ".bytearmy" / "agent.md").read_text() == AGENT_INSTRUCTIONS
+    (store.root / ".bytearmy" / "master.md").write_text("Lead the task like this.\n")
+    (store.root / ".bytearmy" / "agent.md").write_text("Steer bytearmy like this.\n")
     tool(store, "bot", **BOT)
     # While the task has no master: an agent the user opened, and one that was spawned.
     open_pane(workspaces, task, "bot", role="early")
@@ -144,7 +155,12 @@ def test_every_agent_is_told_who_it_is_and_who_its_master_is(store, workspaces, 
 
     texts = {pane: told(store, task, pane) for pane in ("p1", "p2", "p3", "p4", "p5", "p6")}
 
-    assert all(text.startswith("Steer bytearmy like this.\n") for text in texts.values())
+    assert texts["p3"].startswith("Lead the task like this.\n")
+    assert all(
+        text.startswith("Steer bytearmy like this.\n")
+        for pane, text in texts.items()
+        if pane != "p3"
+    )
     assert 'Your name is `demo-work-early`, your pane is p1, your task is "Work".' in texts["p1"]
     assert {pane: relations(text) for pane, text in texts.items()} == {
         "p1": {"no master"},
@@ -155,10 +171,73 @@ def test_every_agent_is_told_who_it_is_and_who_its_master_is(store, workspaces, 
         "p6": {"spawned by demo-work-master"},
     }
 
-    (store.root / ".claude" / "bytearmy.md").unlink()  # deleted while bytearmy runs
+    (store.root / ".bytearmy" / "agent.md").unlink()  # deleted while bytearmy runs
     open_pane(workspaces, task, "bot")
     workspaces.start(*task, "p7")
-    assert told(store, task, "p7").startswith(INSTRUCTIONS)
+    assert told(store, task, "p7").startswith(AGENT_INSTRUCTIONS)
+
+
+def test_only_the_master_is_told_the_masters_duties():
+    assert "## Status and log of the master" in MASTER_INSTRUCTIONS
+    assert "`bytearmy pr create" in MASTER_INSTRUCTIONS
+    for duty in ("## Status and log of the master", "`bytearmy pr create", "`bytearmy task done"):
+        assert duty not in AGENT_INSTRUCTIONS
+    for both in ("## Panes", "## Other agents", "## Waiting for events", "## Reviews"):
+        assert both in MASTER_INSTRUCTIONS and both in AGENT_INSTRUCTIONS
+
+
+def test_the_scratchpad_is_told_it_has_no_status_and_no_hierarchy():
+    for duty in (
+        "## Status and log of the master",
+        "`bytearmy task done",
+        "`bytearmy task working",
+    ):
+        assert duty not in SCRATCHPAD_INSTRUCTIONS
+    for kept in ("## Other agents", "## Reviews", "`bytearmy pr create", "## The orchestrator"):
+        assert kept in SCRATCHPAD_INSTRUCTIONS
+
+
+def test_every_agent_in_the_scratchpad_is_a_master(store, workspaces, task):
+    assert (store.root / ".bytearmy" / "scratchpad.md").read_text() == SCRATCHPAD_INSTRUCTIONS
+    project, _ = task
+    scratchpad = (project, store.add_scratchpad(project).slug)
+    tool(store, "bot", **BOT)
+    configure(store, '[master]\nallow = ["*"]\n[agents]\nallow = ["pane.*"]\n')
+    open_pane(workspaces, scratchpad, "bot")
+    open_pane(workspaces, scratchpad, "bot")
+    open_pane(workspaces, scratchpad, "bot", role="x", prompt="Do x.", spawned_by="demo-x-master")
+    for pane in ("p1", "p2", "p3"):
+        workspaces.start(*scratchpad, pane)
+
+    for pane in ("p1", "p2", "p3"):
+        text = told(store, scratchpad, pane)
+        assert text.startswith(SCRATCHPAD_INSTRUCTIONS) and IN_SCRATCHPAD in text, pane
+        workspaces.check_allowed((*scratchpad, pane), "agent.spawn")  # [master] binds them all
+    assert relations(told(store, scratchpad, "p1")) == set()
+    assert relations(told(store, scratchpad, "p3")) == {"spawned by demo-x-master"}
+
+    for change in (TaskChange(status="Busy"), TaskChange(state="done")):
+        with pytest.raises(InvalidEdit):
+            store.change_task(*scratchpad, change)
+    store.change_task(*scratchpad, TaskChange(description="Trying things."))
+    assert store.task(*scratchpad).description == "Trying things."
+
+
+def test_the_instructions_files_of_earlier_versions_are_deleted(store):
+    root = store.root
+    (root / ".claude").mkdir()
+    (root / ".claude" / "bytearmy.md").write_text("old\n")
+    (root / ".claude" / "orchestrator.md").write_text("old\n")
+    Workspaces(store, shell=["/bin/sh"]).shutdown()
+    assert not (root / ".claude").exists()
+    assert (root / ".bytearmy" / "master.md").is_file()
+    assert not (root / "CLAUDE.md").exists()  # the user's to write
+
+    (root / ".claude").mkdir()
+    (root / ".claude" / "bytearmy.md").write_text("old\n")
+    (root / ".claude" / "settings.json").write_text("{}\n")
+    Workspaces(store, shell=["/bin/sh"]).shutdown()
+    assert sorted(path.name for path in (root / ".claude").iterdir()) == ["settings.json"]
 
 
 def relations(text: str) -> set[str]:
