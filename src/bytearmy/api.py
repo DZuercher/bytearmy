@@ -251,11 +251,13 @@ def create_app(
         workspaces.stop(project)
         store.delete_project(project)
 
+    def check_branches(new: TaskCreate) -> None:
+        for name in filter(None, [new.branch, new.base]):
+            if not cloner.valid_branch(name):
+                raise HTTPException(status_code=400, detail=f'"{name}" is not a valid branch name.')
+
     def new_task(project: str, new: TaskCreate) -> Task:
-        if new.branch and not cloner.valid_branch(new.branch):
-            raise HTTPException(
-                status_code=400, detail=f'"{new.branch}" is not a valid branch name.'
-            )
+        check_branches(new)
         task = store.create_task(project, new)
         if task.repo:
             cloner.start(project, task, store.project(project).github_url)
@@ -304,6 +306,11 @@ def create_app(
         new_project(meta)
         return state()
 
+    @api.get("/projects/{project}/branches")
+    def list_branches(project: str) -> list[str]:
+        """The branches a new task can start from, the default branch first."""
+        return cloner.branches(project)
+
     @api.put("/projects/order")
     def reorder_projects(body: ProjectOrder) -> AppState:
         store.reorder_projects(body.order)
@@ -323,10 +330,7 @@ def create_app(
     def create_task(project: str, new: TaskCreate, start: bool = False) -> AppState:
         """Create a task in the backlog. With `start`, start it and its master agent at once,
         with the description as the agent's first message; with a clone, after the clone."""
-        if new.branch and not cloner.valid_branch(new.branch):
-            raise HTTPException(
-                status_code=400, detail=f'"{new.branch}" is not a valid branch name.'
-            )
+        check_branches(new)
         if start:
             waiting = [
                 other.name

@@ -44,6 +44,12 @@ def test_the_branch_is_compared_with_the_default_branch(clone):
     assert reviews.comparison(clone, "uncommitted") == ("working", "HEAD")
 
 
+def test_the_branch_is_compared_with_its_base_branch(clone):
+    assert reviews.comparison(clone, "branch", "feature") == ("origin/feature", "origin/feature")
+    # A base origin does not know falls back to the default branch.
+    assert reviews.comparison(clone, "branch", "gone") == ("origin/main", "origin/main")
+
+
 def test_without_a_default_branch_the_changes_are_those_since_head(tmp_path):
     git("init", "-b", "work", cwd=tmp_path)
     assert reviews.comparison(tmp_path, "branch") == ("working", "HEAD")  # no commit yet

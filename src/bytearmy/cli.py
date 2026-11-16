@@ -270,6 +270,7 @@ def tasks_create(args: argparse.Namespace) -> str:
         "name": args.name,
         "description": args.description,
         "branch": args.branch,
+        "base": args.base,
         "dependencies": args.depends_on,
         "reminder": args.reminder,
     }
@@ -457,6 +458,9 @@ def parser() -> argparse.ArgumentParser:
     creating.add_argument("name")
     creating.add_argument("--description", default="")
     creating.add_argument("--branch", default="", help="checked out in the task's clone")
+    creating.add_argument(
+        "--base", default="", help="the branch a new --branch starts from; default: the default"
+    )
     creating.add_argument(
         "--depends-on", nargs="*", default=[], metavar="TASK", help="tasks it waits for"
     )

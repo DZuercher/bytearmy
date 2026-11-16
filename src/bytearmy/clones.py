@@ -25,6 +25,7 @@ from bytearmy.store import METADATA_DIR, ProjectNotFound, Store
 
 ERROR_CHARACTERS = 500  # how much of git's complaint is kept
 MIRROR = "mirror.git"
+FETCH_SECONDS = 15  # how long a list of the branches waits for origin
 
 
 class CloneFailed(Exception):
@@ -52,6 +53,43 @@ class Cloner:
             [*self._git, "check-ref-format", "--branch", name], capture_output=True, check=False
         )
         return check.returncode == 0
+
+    def branches(self, project: str) -> list[str]:
+        """The branches of the project's repository, the default one first, then the most
+        recently committed to. The mirror fetches first, unless a clone holds it; without a
+        mirror there are none."""
+        mirror = Path(self._store.project(project).path) / METADATA_DIR / MIRROR
+        if not mirror.exists():
+            return []
+        env = {**os.environ, **self._github_env(project), "GIT_TERMINAL_PROMPT": "0"}
+
+        def git(*arguments: str, timeout: float = 30) -> str:
+            try:
+                done = subprocess.run(
+                    [*self._git, "-C", str(mirror), *arguments],
+                    stdin=subprocess.DEVNULL,
+                    capture_output=True,
+                    text=True,
+                    env=env,
+                    timeout=timeout,
+                    check=False,
+                )
+            except subprocess.TimeoutExpired:
+                return ""
+            return done.stdout if done.returncode == 0 else ""
+
+        with self._lock:
+            lock = self._mirror_locks.setdefault(project, threading.Lock())
+        if lock.acquire(blocking=False):
+            try:
+                git("fetch", "--quiet", "--prune", "origin", timeout=FETCH_SECONDS)
+            finally:
+                lock.release()
+        names = git(
+            "for-each-ref", "--sort=-committerdate", "--format=%(refname:short)", "refs/heads"
+        ).split()
+        default = git("symbolic-ref", "--quiet", "--short", "HEAD").strip()
+        return sorted(names, key=lambda name: name != default)  # stable: dates stay in order
 
     def switch(self, project: str, task: Task, branch: str) -> None:
         """Put the task's finished clone on `branch`: origin's if there is one, else a new one
@@ -90,7 +128,7 @@ class Cloner:
         self._store.clone_started(*key)
         thread = threading.Thread(
             target=self._clone,
-            args=(key, url, task.branch, Path(task.path), task.repo, then),
+            args=(key, url, task.branch, task.base, Path(task.path), task.repo, then),
             daemon=True,
         )
         with self._lock:
@@ -130,6 +168,7 @@ class Cloner:
         key: tuple[str, str],
         url: str,
         branch: str,
+        base: str,
         task_dir: Path,
         repo: str,
         then: Callable[[], None] | None,
@@ -143,15 +182,14 @@ class Cloner:
                 mirror = self._update_mirror(key, url, task_dir.parent / METADATA_DIR / MIRROR)
                 self._run(key, "clone", "--", str(mirror), str(temporary))
             self._run(key, "-C", str(temporary), "remote", "set-url", "origin", url)
-            if branch:
-                on_remote = self._run(
-                    key,
-                    *("-C", str(temporary)),
-                    *("rev-parse", "--verify", "--quiet", f"refs/remotes/origin/{branch}"),
-                    check=False,
-                )
-                switch = ["switch", branch] if on_remote == 0 else ["switch", "-c", branch]
-                self._run(key, "-C", str(temporary), *switch)
+            if branch or base:
+
+                def on_remote(name: str) -> bool:
+                    ref = f"refs/remotes/origin/{name}"
+                    verify = ("-C", str(temporary), "rev-parse", "--verify", "--quiet", ref)
+                    return self._run(key, *verify, check=False) == 0
+
+                self._run(key, "-C", str(temporary), *_switch(branch, base, on_remote))
             if self._run(key, "lfs", "version", check=False) == 0:
                 self._run(key, "-C", str(temporary), "lfs", "pull")
             temporary.rename(task_dir / repo)
@@ -239,3 +277,16 @@ class Cloner:
         if check and process.returncode != 0:
             raise CloneFailed(complaint.strip()[-ERROR_CHARACTERS:])
         return process.returncode
+
+
+def _switch(branch: str, base: str, on_remote: Callable[[str], bool]) -> list[str]:
+    """How a fresh clone gets onto the task's branch: origin's if it has one, else a new one
+    from `base`, or from the default branch without one. A base alone is checked out."""
+    if not branch:
+        return ["switch", base]
+    if on_remote(branch):
+        return ["switch", branch]
+    if base:
+        # Without tracking: the new branch is pushed under its own name, not into the base.
+        return ["switch", "--no-track", "-c", branch, f"origin/{base}"]
+    return ["switch", "-c", branch]

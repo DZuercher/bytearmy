@@ -73,6 +73,51 @@ def test_a_branch_the_remote_does_not_have_is_created_from_the_default_branch(st
     assert not (repo / "feature.txt").exists()
 
 
+def test_a_new_branch_can_start_from_another_branch(store, project):
+    start(store, Cloner(store), project, branch="fix/feature", base="feature")
+    repo = Path(finished(store, project).path) / "widgets"
+
+    assert git("branch", "--show-current", cwd=repo) == "fix/feature"
+    assert git("rev-parse", "HEAD", cwd=repo) == git("rev-parse", "origin/feature", cwd=repo)
+    assert (repo / "feature.txt").exists()
+    # It is pushed under its own name, not into its base.
+    assert "branch.fix/feature.merge" not in git("config", "--list", "--local", cwd=repo)
+
+
+def test_a_branch_the_remote_has_ignores_the_base(store, project):
+    start(store, Cloner(store), project, branch="main", base="feature")
+    repo = Path(finished(store, project).path) / "widgets"
+
+    assert git("branch", "--show-current", cwd=repo) == "main"
+    assert not (repo / "feature.txt").exists()
+
+
+def test_a_base_without_a_branch_is_checked_out(store, project):
+    start(store, Cloner(store), project, base="feature")
+    repo = Path(finished(store, project).path) / "widgets"
+
+    assert git("branch", "--show-current", cwd=repo) == "feature"
+
+
+def test_a_base_the_remote_does_not_have_fails_the_clone(store, project):
+    start(store, Cloner(store), project, branch="fix", base="no-such-branch")
+    task = finished(store, project)
+
+    assert task.clone == "failed"
+    assert task.clone_error
+
+
+def test_the_branches_come_from_the_mirror_the_default_first(store, project):
+    cloner = Cloner(store)
+    assert cloner.branches(project) == []  # no mirror yet
+    start(store, cloner, project)
+    finished(store, project)
+
+    branches = cloner.branches(project)
+    assert branches[0] == "main"
+    assert sorted(branches) == ["feature", "main"]
+
+
 def test_a_failed_clone_is_reported_and_leaves_nothing_behind(store, tmp_path):
     missing = tmp_path / "no-such-repository.git"
     project = store.create_project(ProjectMeta(name="Broken", github_url=str(missing))).slug

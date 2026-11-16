@@ -57,15 +57,18 @@ def default_branch(repo: Path) -> str | None:
     return None
 
 
-def comparison(repo: Path, mode: DiffMode) -> tuple[str, str]:
+def comparison(repo: Path, mode: DiffMode, base: str = "") -> tuple[str, str]:
     """What diffle compares, as its revision argument, and a label for the base.
 
-    branch: everything since HEAD left the default branch, uncommitted changes included.
+    branch: everything since HEAD left the task's base branch (the default branch without
+    one), uncommitted changes included.
     uncommitted: what changed since the last commit. Without a default branch, or without
     a commit to fork from, branch is the same as uncommitted.
     """
     if mode == "branch" and _git(repo, "rev-parse", "--verify", "--quiet", "HEAD"):
-        branch = default_branch(repo)
+        based = f"origin/{base}"
+        on_base = base and _git(repo, "rev-parse", "--verify", "--quiet", f"{based}^{{commit}}")
+        branch = based if on_base else default_branch(repo)
         if branch is not None and _git(repo, "merge-base", "HEAD", branch):
             return branch, branch
     return "working", "HEAD"
@@ -95,19 +98,21 @@ class Reviews:
         self._servers: dict[Key, _Server] = {}
         self._stopping = False
 
-    def url(self, key: Key, repo: Path, mode: DiffMode, env: Mapping[str, str]) -> str:
+    def url(
+        self, key: Key, repo: Path, mode: DiffMode, env: Mapping[str, str], base: str = ""
+    ) -> str:
         """Where the pane's diffle answers; starts it if it does not run."""
-        return self._server(key, repo, mode, env).url
+        return self._server(key, repo, mode, env, base).url
 
     def finish(
-        self, key: Key, repo: Path, mode: DiffMode, env: Mapping[str, str]
+        self, key: Key, repo: Path, mode: DiffMode, env: Mapping[str, str], base: str = ""
     ) -> tuple[str, int]:
         """The review written in the pane, as a message to an agent, and how many threads
         it has.
 
         Its open threads are resolved, so the next review starts without them.
         """
-        server = self._server(key, repo, mode, env)
+        server = self._server(key, repo, mode, env, base)
         try:
             threads = json.loads(self._call(server, "GET", "/api/threads?state=open"))["threads"]
         except (ValueError, KeyError, TypeError) as error:
@@ -134,24 +139,28 @@ class Reviews:
             self._stopping = True
         self.stop(self.running())
 
-    def _server(self, key: Key, repo: Path, mode: DiffMode, env: Mapping[str, str]) -> _Server:
+    def _server(
+        self, key: Key, repo: Path, mode: DiffMode, env: Mapping[str, str], base: str
+    ) -> _Server:
         with self._lock:
             start = self._starts.setdefault(key, threading.Lock())
         with start:  # a pane that asks twice at once gets one server
             with self._lock:
                 server = self._servers.get(key)
             if server is None or server.process.poll() is not None:
-                server = self._start(key, repo, mode, env)
+                server = self._start(key, repo, mode, env, base)
             return server
 
-    def _start(self, key: Key, repo: Path, mode: DiffMode, env: Mapping[str, str]) -> _Server:
+    def _start(
+        self, key: Key, repo: Path, mode: DiffMode, env: Mapping[str, str], base: str
+    ) -> _Server:
         # The pane's environment leaves out bytearmy's own, where pixi installs diffle.
         program = shutil.which(PROGRAM) or shutil.which(PROGRAM, path=env.get("PATH"))
         if program is None:
             raise ToolFailed(
                 "diffle is not installed: the diff pane needs it. See https://diffle.app."
             )
-        revision, label = comparison(repo, mode)
+        revision, label = comparison(repo, mode, base)
         port = free_port()
         self._log_dir.mkdir(parents=True, exist_ok=True)
         log = self._log_dir / f"diffle-{'-'.join(key)}.log"

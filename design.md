@@ -34,7 +34,7 @@ The task is created at `<bytearmy_root>/<project_slug>/<task_slug>` where the pr
 If a Github URL is provided for the current project the repository is cloned into `<bytearmy_root>/<project_slug>/<task_slug>`.
 The repository is downloaded only once per project: the first clone creates a bare mirror of its branches in the projects `.bytearmy` directory, every clone first fetches into the mirror and then clones from it. A clone from the mirror shares its files by hard links, so it needs no download and hardly any disk, yet it is a repository of its own whose `origin` is the Github URL.
 The clone lands in `<bytearmy_root>/<project_slug>/<task_slug>/<repo_name>`, so the tasks `.bytearmy` directory stays outside of the repository.
-If a branch name was provided the branch is checked out after the clone if it exists on the remote, otherwise it is created from the default branch.
+If a branch name was provided the branch is checked out after the clone if it exists on the remote, otherwise it is created from the default branch, or from the branch chosen under "Branch off from". That list holds the remote's branches, read from the project's mirror after a fetch; the default branch is preselected. A base branch without a branch name is checked out itself. The diff pane of such a task compares with its base branch instead of the default branch.
 If the clone fails, the task shows a warning marker and its data says why. Its right-click menu then offers to clone again, with the projects Github URL and the tasks branch.
 The task then becomes visible in the backlog task bar. The status of the task should be set to `Backlog`.
 The status, name, description, branch, reminder date, dependencies of a task is tracked in its metadata (.bytearmy directory).
