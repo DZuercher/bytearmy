@@ -4300,6 +4300,17 @@
             ],
             "title": "Bottom Open"
           },
+          "focus": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Focus"
+          },
           "view": {
             "anyOf": [
               {
@@ -4337,6 +4348,11 @@
             "type": "boolean",
             "title": "Bottom Open",
             "default": true
+          },
+          "focus": {
+            "type": "boolean",
+            "title": "Focus",
+            "default": false
           },
           "view": {
             "type": "string",

@@ -205,9 +205,10 @@ def test_state_survives_a_restart(store):
     store.focus_project("a")
     store.update_ui(UiChange(left_open=False))
     store.update_ui(UiChange(bottom_open=False))
+    store.update_ui(UiChange(focus=True))
 
     reopened = Store(store.root).app_state()
 
     assert [project.slug for project in reopened.projects] == ["c", "a", "b"]
     assert reopened.focused_project == "a"
-    assert reopened.ui == UiState(left_open=False, right_open=True, bottom_open=False)
+    assert reopened.ui == UiState(left_open=False, right_open=True, bottom_open=False, focus=True)

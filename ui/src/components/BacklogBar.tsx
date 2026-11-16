@@ -20,7 +20,7 @@ type Props = {
   onReorder: (order: string[]) => void
 }
 
-// Right-hand bar: the tasks of the focused project that have not been started.
+// Right-hand bar, below the focus tab: the tasks of the focused project that have not been started.
 export function BacklogBar({
   open,
   onToggle,
@@ -36,7 +36,7 @@ export function BacklogBar({
 
   if (!open) {
     return (
-      <nav aria-label="Backlog tasks (collapsed)" className="flex w-12 shrink-0 flex-col items-center gap-3 border-l py-3">
+      <nav aria-label="Backlog tasks (collapsed)" className="flex min-h-0 w-12 flex-1 flex-col items-center gap-3 border-l py-3">
         <Button variant="ghost" size="icon-sm" aria-label="Expand backlog bar" onClick={onToggle}>
           <ChevronLeft />
         </Button>
@@ -46,7 +46,7 @@ export function BacklogBar({
   }
 
   return (
-    <nav aria-label="Backlog tasks" className="flex w-56 shrink-0 flex-col gap-2 border-l p-4">
+    <nav aria-label="Backlog tasks" className="flex min-h-0 w-56 flex-1 flex-col gap-2 border-l p-4">
       <div className="flex items-center gap-1">
         <Button variant="ghost" size="icon-sm" aria-label="Collapse backlog bar" onClick={onToggle}>
           <ChevronRight />

@@ -48,6 +48,10 @@ When right-clicking on a task the tasks data should be shown as well as a button
 When deleting a task show a warning informing the user that all the data associated with the task will be deleted and ask for confirmation.
 It should be possible to drag and drop tasks to change their order, the order should be persistet when restarting the program.
 
+#### Focus mode
+
+A small `Focus mode` tab sits above the backlog task bar. Clicking it turns focus mode on or off. In focus mode the project bar, the task bar and the backlog task bar are collapsed and the `Inbox` tab does not show the number of unread messages, so the user can work on one task without distraction. Turning focus mode off brings back the bars as they were. Expanding a bar in focus mode ends it, with only that bar open. Focus mode is kept with the state of the bars.
+
 ### Tasks
 Every task has a status. When a task is placed from the backlog into the task bar it is set to `New`.
 The status is shown as a small tag below the task name in the task bar.

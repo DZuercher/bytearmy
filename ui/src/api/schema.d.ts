@@ -1836,6 +1836,8 @@ export interface components {
             right_open?: boolean | null;
             /** Bottom Open */
             bottom_open?: boolean | null;
+            /** Focus */
+            focus?: boolean | null;
             /** View */
             view?: ("workspace" | "inbox" | "orchestrator") | null;
         };
@@ -1856,6 +1858,11 @@ export interface components {
              * @default true
              */
             bottom_open: boolean;
+            /**
+             * Focus
+             * @default false
+             */
+            focus: boolean;
             /**
              * View
              * @default workspace
