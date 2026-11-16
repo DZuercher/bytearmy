@@ -14,7 +14,11 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu'
+import { STATES } from '@/lib/states'
 import { cn } from '@/lib/utils'
+
+// A project with a task whose master waits for the user takes that task's amber color.
+const needsInput = (project: Project) => project.tasks.some((task) => task.state === 'needs_input')
 
 type Props = {
   open: boolean
@@ -72,9 +76,10 @@ export function ProjectBar({ open, onToggle, projects, focused, onFocus, onAdd, 
                     aria-current={project.slug === focused}
                     className={cn(
                       'w-full truncate rounded-md px-3 py-1.5 text-left outline-none focus-visible:ring-2',
-                      project.slug === focused
-                        ? 'bg-primary font-medium text-primary-foreground shadow-sm'
-                        : 'text-muted-foreground hover:bg-hover hover:text-foreground',
+                      project.slug !== focused && 'text-muted-foreground hover:bg-hover hover:text-foreground',
+                      needsInput(project) && cn('border-l-4 text-foreground', STATES.needs_input.color),
+                      // After the color, so that a focused project stays dark; it keeps its amber left border.
+                      project.slug === focused && 'bg-primary font-medium text-primary-foreground shadow-sm',
                       isDragging && 'relative z-10 cursor-grabbing shadow-md',
                     )}
                     onClick={() => onFocus(project.slug)}
