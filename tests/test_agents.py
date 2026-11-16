@@ -18,7 +18,14 @@ from websockets.exceptions import InvalidStatus
 from websockets.sync.client import connect
 
 from bytearmy import cli
-from bytearmy.agents import HAS_MASTER, INSTRUCTIONS, IS_MASTER, NO_MASTER, SPAWNED
+from bytearmy.agents import (
+    AGENT_INSTRUCTIONS,
+    HAS_MASTER,
+    IS_MASTER,
+    MASTER_INSTRUCTIONS,
+    NO_MASTER,
+    SPAWNED,
+)
 from bytearmy.api import create_app
 from bytearmy.models import PaneOpen, ProjectMeta, Split, TaskCreate
 from bytearmy.ptys import Pty
@@ -124,8 +131,10 @@ def test_two_agents_of_a_task_cannot_have_the_same_role(store, workspaces, task)
 
 
 def test_every_agent_is_told_who_it_is_and_who_its_master_is(store, workspaces, task):
-    assert (store.root / ".claude" / "bytearmy.md").read_text() == INSTRUCTIONS
-    (store.root / ".claude" / "bytearmy.md").write_text("Steer bytearmy like this.\n")
+    assert (store.root / ".bytearmy" / "master.md").read_text() == MASTER_INSTRUCTIONS
+    assert (store.root / ".bytearmy" / "agent.md").read_text() == AGENT_INSTRUCTIONS
+    (store.root / ".bytearmy" / "master.md").write_text("Lead the task like this.\n")
+    (store.root / ".bytearmy" / "agent.md").write_text("Steer bytearmy like this.\n")
     tool(store, "bot", **BOT)
     # While the task has no master: an agent the user opened, and one that was spawned.
     open_pane(workspaces, task, "bot", role="early")
@@ -141,7 +150,12 @@ def test_every_agent_is_told_who_it_is_and_who_its_master_is(store, workspaces, 
 
     texts = {pane: told(store, task, pane) for pane in ("p1", "p2", "p3", "p4", "p5", "p6")}
 
-    assert all(text.startswith("Steer bytearmy like this.\n") for text in texts.values())
+    assert texts["p3"].startswith("Lead the task like this.\n")
+    assert all(
+        text.startswith("Steer bytearmy like this.\n")
+        for pane, text in texts.items()
+        if pane != "p3"
+    )
     assert 'Your name is `demo-work-early`, your pane is p1, your task is "Work".' in texts["p1"]
     assert {pane: relations(text) for pane, text in texts.items()} == {
         "p1": {"no master"},
@@ -152,10 +166,36 @@ def test_every_agent_is_told_who_it_is_and_who_its_master_is(store, workspaces, 
         "p6": {"spawned by demo-work-master"},
     }
 
-    (store.root / ".claude" / "bytearmy.md").unlink()  # deleted while bytearmy runs
+    (store.root / ".bytearmy" / "agent.md").unlink()  # deleted while bytearmy runs
     open_pane(workspaces, task, "bot")
     workspaces.start(*task, "p7")
-    assert told(store, task, "p7").startswith(INSTRUCTIONS)
+    assert told(store, task, "p7").startswith(AGENT_INSTRUCTIONS)
+
+
+def test_only_the_master_is_told_the_masters_duties():
+    assert "## Status and log of the master" in MASTER_INSTRUCTIONS
+    assert "`bytearmy pr create" in MASTER_INSTRUCTIONS
+    for duty in ("## Status and log of the master", "`bytearmy pr create", "`bytearmy task done"):
+        assert duty not in AGENT_INSTRUCTIONS
+    for both in ("## Panes", "## Other agents", "## Waiting for events", "## Reviews"):
+        assert both in MASTER_INSTRUCTIONS and both in AGENT_INSTRUCTIONS
+
+
+def test_the_instructions_files_of_earlier_versions_are_deleted(store):
+    root = store.root
+    (root / ".claude").mkdir()
+    (root / ".claude" / "bytearmy.md").write_text("old\n")
+    (root / ".claude" / "orchestrator.md").write_text("old\n")
+    Workspaces(store, shell=["/bin/sh"]).shutdown()
+    assert not (root / ".claude").exists()
+    assert (root / ".bytearmy" / "master.md").is_file()
+    assert not (root / "CLAUDE.md").exists()  # the user's to write
+
+    (root / ".claude").mkdir()
+    (root / ".claude" / "bytearmy.md").write_text("old\n")
+    (root / ".claude" / "settings.json").write_text("{}\n")
+    Workspaces(store, shell=["/bin/sh"]).shutdown()
+    assert sorted(path.name for path in (root / ".claude").iterdir()) == ["settings.json"]
 
 
 def relations(text: str) -> set[str]:

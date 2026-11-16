@@ -11,27 +11,19 @@ from bytearmy.store import METADATA_DIR
 
 MASTER = "master"  # the role of the first agent of a task
 ORCHESTRATOR = "orchestrator"  # the name of the one agent above all tasks
-INSTRUCTIONS_FILE = Path(".claude") / "bytearmy.md"  # below the root; the user may change it
-ORCHESTRATOR_FILE = (
-    Path(".claude") / "orchestrator.md"
-)  # the orchestrator's; the user may change it
+# The instructions files below the root; the user may change them.
+MASTER_FILE = Path(METADATA_DIR) / "master.md"  # for the master of every task
+AGENT_FILE = Path(METADATA_DIR) / "agent.md"  # for every other agent of a task
+ORCHESTRATOR_FILE = Path(METADATA_DIR) / "orchestrator.md"  # for the orchestrator
+# Where earlier versions kept the instructions; bytearmy deletes these files.
+LEGACY_FILES = (Path(".claude") / "bytearmy.md", Path(".claude") / "orchestrator.md")
 # Fingerprints of the texts earlier versions wrote; a file that still has one is replaced.
-EARLIER_INSTRUCTIONS = {
-    "5a7c0096acfde4478895afd3c3e9a0b1cfb287ee383c80fed17c652cc5e3a409",
-    "d7a36eaffaba2303152a7f90c326f369ee7fd4a64b206998340f5a7b0c6b748d",
-    "eecb0bf8db8e3ff676687dd6b9cca39e2a4f5ff837f857b6c077a73e25049bae",
-    "f0145d493c3577037d99a27b342dcdd9644010ad67a8626104be3e7dad4fbd77",
-    "d7b7e2ff9de55b90644b86a495241721af6ed7405a674dfa89d702b49bee815f",
-    "75400f6d42471783dd12939ab458350e54dd7a6809b4112f5b36cb9562a8c3ec",
-    "4ea89da126237af99b51e14cc1992b07ec5d81b70850bc2b5604ebf878f70376",
-    "27cc28f29d94da91a13c943fc41a133bb23e8ac9df0132d61c1aabc82761d78b",
-    "fd9f4c1e41be73b132fa252d56f9d623ab9cc7a45507b56c6e0ea80b38668e61",
-    "c472a0526311f36efa32b29a3ee43b1feb9da3c88a0997059cbb80e418f45439",
-    "f77f69815c518217860136e6673c43ff1e9b5dbce734941669a7ec21ee674440",
-}
+EARLIER_MASTER_INSTRUCTIONS: set[str] = set()
+EARLIER_AGENT_INSTRUCTIONS: set[str] = set()
 EARLIER_ORCHESTRATOR_INSTRUCTIONS: set[str] = set()
 
-INSTRUCTIONS = """\
+# The parts both kinds of task agents are told.
+INTRO = """\
 # bytearmy
 
 You run in a pane of bytearmy, a desktop app in which the user follows several agents that
@@ -39,6 +31,8 @@ work on tasks side by side. Every task has a workspace of panes: terminals, Clau
 like you, web pages and an editor. The `bytearmy` command on your PATH steers the workspace
 of your own task; it cannot reach other tasks.
 
+"""
+PANES = """\
 ## Panes
 
 - `bytearmy pane list`: the panes of your task, with their ids.
@@ -57,6 +51,26 @@ of your own task; it cannot reach other tasks.
 - `bytearmy pane highlight <id>`: draw the user's eye to a pane; it ends when the user
   clicks into the pane, or with `bytearmy pane unhighlight <id>`.
 
+"""
+OTHER_AGENTS = """\
+## Other agents
+
+- `bytearmy agent list`: the agents of your task, with their names and panes.
+- `bytearmy agent spawn <role> "<prompt>"`: start a new agent in a hidden pane of its own,
+  in the same directory as you, with the prompt as its first message. Its name is
+  `<project>-<task>-<role>`. Give it everything it needs to know in the prompt, and tell it
+  what to report back.
+- Once an agent you spawned has reported back and you need nothing more from it, close its
+  pane with `bytearmy pane close <pane>`. Its pane is in `bytearmy agent list`.
+- Talk to the agents of your task with the SendMessage tool, by their names. Do not message
+  sessions that `bytearmy agent list` does not name: they belong to other work.
+
+"""
+
+MASTER_INSTRUCTIONS = (
+    INTRO
+    + PANES
+    + """\
 ## The task
 
 - `bytearmy task show`: name, status, description and the other data of your task.
@@ -77,18 +91,9 @@ of your own task; it cannot reach other tasks.
   and you are named as its author. The user writes to the same log, and
   `bytearmy pane open show-log` shows it.
 
-## Other agents
-
-- `bytearmy agent list`: the agents of your task, with their names and panes.
-- `bytearmy agent spawn <role> "<prompt>"`: start a new agent in a hidden pane of its own,
-  in the same directory as you, with the prompt as its first message. Its name is
-  `<project>-<task>-<role>`. Give it everything it needs to know in the prompt, and tell it
-  what to report back.
-- Once an agent you spawned has reported back and you need nothing more from it, close its
-  pane with `bytearmy pane close <pane>`. Its pane is in `bytearmy agent list`.
-- Talk to the agents of your task with the SendMessage tool, by their names. Do not message
-  sessions that `bytearmy agent list` does not name: they belong to other work.
-
+"""
+    + OTHER_AGENTS
+    + """\
 ## Waiting for events
 
 - When you have to wait for something outside your control, e.g. CI on GitHub to finish,
@@ -99,11 +104,13 @@ of your own task; it cannot reach other tasks.
   `until <check>; do sleep 30; done`. It runs in a hidden pane, `event_listener`.
 - When the command ends, bytearmy sends you a message that starts with "Event:", with
   its exit code and the last lines it printed. Until then, go on with other work, or end
-  your turn; the message wakes you. If you are the master, set the status to
-  "Waiting for <event>" with `--color none` while nothing else is left to do.
+  your turn; the message wakes you. While nothing else is left to do, run
+  `bytearmy task waiting "<event>"`.
 - To stop waiting, close the listener's pane with `bytearmy pane close <pane>`; it then
   sends nothing.
 
+"""
+    + """\
 ## Reviews
 
 - Before you commit changes, always ask the user to review them first: run
@@ -117,6 +124,8 @@ of your own task; it cannot reach other tasks.
 - The user can also review the changes on their own. The master then gets their comments
   as a message that starts with "Review comments from the user"; act on them likewise.
 
+"""
+    + """\
 ## Pull requests
 
 - The master opens and merges the pull request of the task's branch with `bytearmy pr`,
@@ -142,7 +151,7 @@ of your own task; it cannot reach other tasks.
 
 ## Status and log of the master
 
-If you are the master agent of your task, the status and the log tell the user at a glance
+As the master of your task, keep the status and the log telling the user at a glance
 where the task stands. Update both every time you start or stop working:
 
 - When you start working, and whenever you continue after an answer from the user or a
@@ -170,6 +179,52 @@ that you may message. If it started your task, it gave you your first prompt: te
 SendMessage when you are done, when you are stuck, or when you need something from outside
 your task. Answer it when it asks you something.
 """
+)
+
+AGENT_INSTRUCTIONS = (
+    INTRO
+    + PANES
+    + """\
+## The task
+
+- `bytearmy task show`: name, state, status, description and the other data of your task.
+- `bytearmy log "<text>"`: add an entry to the task's log; the time is taken from the clock
+  and you are named as its author. The user writes to the same log, and
+  `bytearmy pane open show-log` shows it.
+- The task's state and status tag, its pull request and its GitHub workflows are the
+  master's job. Leave them to the master, or ask it with SendMessage.
+
+"""
+    + OTHER_AGENTS
+    + """\
+## Waiting for events
+
+- When you have to wait for something outside your control, e.g. CI on GitHub to finish,
+  a deployment, or a long build, do not watch it yourself: no polling loops, no
+  `sleep`, no `--watch` in your own shell. Hand it to an event listener:
+  `bytearmy listen "<what you wait for>" "<command>"`. The command must end when the
+  event happens, e.g. `bytearmy listen "CI of PR #12" "gh pr checks 12 --watch"`, or
+  `until <check>; do sleep 30; done`. It runs in a hidden pane, `event_listener`.
+- When the command ends, bytearmy sends you a message that starts with "Event:", with
+  its exit code and the last lines it printed. Until then, go on with other work, or end
+  your turn; the message wakes you.
+- To stop waiting, close the listener's pane with `bytearmy pane close <pane>`; it then
+  sends nothing.
+
+"""
+    + """\
+## Reviews
+
+- Before you commit changes, always ask the user to review them first: run
+  `bytearmy review --uncommitted` in the background (Bash with `run_in_background`), which
+  compares only the uncommitted changes with the current state of the branch. Commit only
+  after the review has ended, and act on its comments before you do.
+- When you want the user to review your changes, run `bytearmy review` in the background
+  (Bash with `run_in_background`); add `--note "<what to look at>"`, and `--uncommitted` to
+  show only what changed since the last commit. It opens the changes in a pane and ends when
+  the user finishes the review; its output holds their comments. Act on them.
+"""
+)
 
 ORCHESTRATOR_INSTRUCTIONS = """\
 # bytearmy orchestrator
@@ -303,8 +358,8 @@ def write_instructions(
     denied: Sequence[str] = (),
     forbidden: Sequence[str] = (),
 ) -> Path:
-    """The instructions an agent starts with: the root's file, what the config forbids it,
-    then who it is.
+    """The instructions an agent starts with: the root's file for masters or for the other
+    agents, what the config forbids it, then who it is.
 
     Written anew at every start, so a restarted agent learns who the master is now.
     """
@@ -321,11 +376,13 @@ def write_instructions(
         relation = HAS_MASTER.format(master=master.agent)
     else:
         relation = NO_MASTER
-    general = root / INSTRUCTIONS_FILE
-    text = general.read_text() if general.is_file() else INSTRUCTIONS
+    is_master = task.workspace.master == pane.id
+    general = root / (MASTER_FILE if is_master else AGENT_FILE)
+    default = MASTER_INSTRUCTIONS if is_master else AGENT_INSTRUCTIONS
+    text = general.read_text() if general.is_file() else default
     file = Path(task.path) / METADATA_DIR / "agents" / f"{pane.id}.md"
     file.parent.mkdir(parents=True, exist_ok=True)
-    key = "master" if task.workspace.master == pane.id else "agents"
+    key = "master" if is_master else "agents"
     file.write_text(
         text
         + not_allowed(denied, key, forbidden)
@@ -347,3 +404,13 @@ def write_orchestrator_instructions(
         text + not_allowed(denied, "orchestrator") + f"\n## You\n\nYour name is `{ORCHESTRATOR}`.\n"
     )
     return file
+
+
+def remove_legacy(root: Path) -> None:
+    """Delete the instructions files of earlier versions, and their folder if it is empty."""
+    for legacy in LEGACY_FILES:
+        (root / legacy).unlink(missing_ok=True)
+    try:
+        (root / LEGACY_FILES[0].parent).rmdir()
+    except OSError:  # missing, or holds files of the user
+        pass
