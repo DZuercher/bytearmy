@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { type AppState, type Bar, type Tree, type UiChange, api, listenForChanges } from '@/api/client'
 import { BacklogBar } from '@/components/BacklogBar'
+import { CreateProjectDialog } from '@/components/CreateProjectDialog'
+import { CreateTaskDialog } from '@/components/CreateTaskDialog'
 import { DeleteDialog, type Doomed } from '@/components/DeleteDialog'
 import { EditTaskDialog } from '@/components/EditTaskDialog'
 import { FocusTab } from '@/components/FocusTab'
@@ -34,6 +36,9 @@ export function App() {
   const [error, setError] = useState<string | null>(null)
   const [doomed, setDoomed] = useState<Doomed | null>(null)
   const [editing, setEditing] = useState<string | null>(null) // the slug of the task being edited
+  // The creation dialog that is open. It covers only the main area, so the bars stay usable;
+  // a task is created in the project the dialog was opened for, even if another one is focused since.
+  const [creating, setCreating] = useState<{ kind: 'project' } | { kind: 'task'; project: string } | null>(null)
   const [paletteOpen, setPaletteOpen] = useState(false)
   // Workspaces stay mounted once opened, so their terminals keep their content.
   const [opened, setOpened] = useState<string[]>([])
@@ -84,6 +89,8 @@ export function App() {
   const task = project?.tasks.find((candidate) => candidate.slug === project.focused_task)
   const focused = project && task ? `${project.slug}/${task.slug}` : null
   const edited = project && [...project.backlog, ...project.tasks].find((candidate) => candidate.slug === editing)
+  const creatingIn =
+    creating?.kind === 'task' ? state?.projects.find((candidate) => candidate.slug === creating.project) : undefined
   useEffect(() => {
     if (focused) setOpened((keys) => (keys.includes(focused) ? keys : [...keys, focused]))
   }, [focused])
@@ -203,7 +210,7 @@ export function App() {
               showWorkspace()
               run(api.focusProject(slug))
             }}
-            onCreate={(meta) => api.createProject(meta).then(setState)}
+            onAdd={() => setCreating({ kind: 'project' })}
             onEdit={(slug, edit) => api.editProject(slug, edit).then(setState)}
             onDelete={setDoomed}
             onReorder={reorderProjects}
@@ -230,7 +237,7 @@ export function App() {
             run(api.hidePane(project!.slug, slug, pane, false, beside))
           }}
         />
-        <main className="flex min-w-0 flex-1 flex-col bg-background">
+        <main className="relative isolate flex min-w-0 flex-1 flex-col bg-background">
           <div className="flex items-baseline gap-3 px-4 pt-4 pb-3">
             <h1 className="text-lg font-semibold">
               {inboxShown ? 'Inbox' : orchestratorShown ? 'Orchestrator' : 'Workspace'}
@@ -280,6 +287,20 @@ export function App() {
               onRefresh={() => run(api.refreshInbox())}
             />
           )}
+          {creating?.kind === 'project' && (
+            <CreateProjectDialog
+              onClose={() => setCreating(null)}
+              onCreate={(meta) => api.createProject(meta).then(setState)}
+            />
+          )}
+          {creatingIn && (
+            <CreateTaskDialog
+              key={creatingIn.slug}
+              project={creatingIn}
+              onClose={() => setCreating(null)}
+              onCreate={(created, start) => api.createTask(creatingIn.slug, created, start).then(setState)}
+            />
+          )}
         </main>
         <div className="flex shrink-0 flex-col">
           <FocusTab open={rightOpen} active={ui.focus} onClick={() => setUi({ focus: !ui.focus })} />
@@ -287,7 +308,7 @@ export function App() {
             open={rightOpen}
             onToggle={() => toggleBar('right_open')}
             project={project}
-            onCreate={(created, start) => api.createTask(project!.slug, created, start).then(setState)}
+            onAdd={() => setCreating({ kind: 'task', project: project!.slug })}
             onStart={(slug) => run(api.startTask(project!.slug, slug))}
             onCloneAgain={(slug) => run(api.cloneAgain(project!.slug, slug))}
             onEdit={setEditing}

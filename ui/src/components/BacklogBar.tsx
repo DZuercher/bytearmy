@@ -1,8 +1,6 @@
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
-import { useState } from 'react'
-import type { Project, TaskCreate } from '@/api/client'
+import type { Project } from '@/api/client'
 import { BarHeading } from '@/components/BarHeading'
-import { CreateTaskDialog } from '@/components/CreateTaskDialog'
 import type { Doomed } from '@/components/DeleteDialog'
 import { SortableItem, SortableList } from '@/components/Sortable'
 import { TaskItem } from '@/components/TaskItem'
@@ -12,7 +10,7 @@ type Props = {
   open: boolean
   onToggle: () => void
   project: Project | undefined // the focused project
-  onCreate: (task: TaskCreate, start: boolean) => Promise<void>
+  onAdd: () => void // opens the dialog that creates a backlog task
   onStart: (slug: string) => void
   onCloneAgain: (slug: string) => void
   onEdit: (slug: string) => void
@@ -25,15 +23,13 @@ export function BacklogBar({
   open,
   onToggle,
   project,
-  onCreate,
+  onAdd,
   onStart,
   onCloneAgain,
   onEdit,
   onDelete,
   onReorder,
 }: Props) {
-  const [creating, setCreating] = useState(false)
-
   if (!open) {
     return (
       <nav aria-label="Backlog tasks (collapsed)" className="flex min-h-0 w-12 flex-1 flex-col items-center gap-3 border-l py-3">
@@ -55,7 +51,7 @@ export function BacklogBar({
           <BarHeading>Backlog tasks</BarHeading>
         </div>
         {project && (
-          <Button variant="ghost" size="icon-sm" aria-label="Add backlog task" onClick={() => setCreating(true)}>
+          <Button variant="ghost" size="icon-sm" aria-label="Add backlog task" onClick={onAdd}>
             <Plus />
           </Button>
         )}
@@ -90,7 +86,6 @@ export function BacklogBar({
             ))}
           </SortableList>
           {project.backlog.length === 0 && <p className="text-muted-foreground">No backlog tasks.</p>}
-          <CreateTaskDialog project={project} open={creating} onOpenChange={setCreating} onCreate={onCreate} />
         </>
       )}
     </nav>
