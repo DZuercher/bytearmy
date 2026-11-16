@@ -19,9 +19,11 @@ ORCHESTRATOR_FILE = Path(METADATA_DIR) / "orchestrator.md"  # for the orchestrat
 # Where earlier versions kept the instructions; bytearmy deletes these files.
 LEGACY_FILES = (Path(".claude") / "bytearmy.md", Path(".claude") / "orchestrator.md")
 # Fingerprints of the texts earlier versions wrote; a file that still has one is replaced.
-EARLIER_MASTER_INSTRUCTIONS: set[str] = set()
-EARLIER_AGENT_INSTRUCTIONS: set[str] = set()
-EARLIER_SCRATCHPAD_INSTRUCTIONS: set[str] = set()
+EARLIER_MASTER_INSTRUCTIONS = {"68533b8c34506ed9a42b0146af0ddfa0dc1cfb665a58b26c137b7aca8c190acb"}
+EARLIER_AGENT_INSTRUCTIONS = {"fa5c6e76df3285087f69afc366254fb5df8baaf0b6726c533f3751fde67801f2"}
+EARLIER_SCRATCHPAD_INSTRUCTIONS = {
+    "d9cd67459bdae048adedda2edc1bd26d9418ce783fe4a6d2e3345f9fe9baff78"
+}
 EARLIER_ORCHESTRATOR_INSTRUCTIONS: set[str] = set()
 
 # The parts both kinds of task agents are told.
@@ -113,11 +115,22 @@ WAITING = """\
   `bytearmy listen "<what you wait for>" "<command>"`. The command must end when the
   event happens, e.g. `bytearmy listen "CI of PR #12" "gh pr checks 12 --watch"`, or
   `until <check>; do sleep 30; done`. It runs in a hidden pane, `event_listener`.
+- `bytearmy listen` watches the command for its first 3 seconds. If it ends by then, the
+  call says so itself and no message follows: with exit code 0 the event has already
+  happened; otherwise the call fails, with the command's last lines, because nothing
+  listens. Then fix the command (often a missing permission or login) and listen again.
 - When the command ends, bytearmy sends you a message that starts with "Event:", with
   its exit code and the last lines it printed. Until then, go on with other work, or end
   your turn; the message wakes you.
 - To stop waiting, close the listener's pane with `bytearmy pane close <pane>`; it then
   sends nothing.
+- An event listener belongs to bytearmy, not to you: when bytearmy quits it stops, and
+  when bytearmy starts again, also after a reboot, it runs the same command again and
+  still sends you its message. So the command must be safe to run more than once. After
+  such a restart, the end of these instructions lists your listeners that run again.
+- Do not wait for an event with a background task of your own (Bash with
+  `run_in_background`, or Monitor): it ends when bytearmy quits, is not started again,
+  and you are never told. Keep those for work that ends within your current turn.
 
 """
 REVIEWS = """\
@@ -168,12 +181,23 @@ MASTER_INSTRUCTIONS = (
   `bytearmy listen "<what you wait for>" "<command>"`. The command must end when the
   event happens, e.g. `bytearmy listen "CI of PR #12" "gh pr checks 12 --watch"`, or
   `until <check>; do sleep 30; done`. It runs in a hidden pane, `event_listener`.
+- `bytearmy listen` watches the command for its first 3 seconds. If it ends by then, the
+  call says so itself and no message follows: with exit code 0 the event has already
+  happened; otherwise the call fails, with the command's last lines, because nothing
+  listens. Then fix the command (often a missing permission or login) and listen again.
 - When the command ends, bytearmy sends you a message that starts with "Event:", with
   its exit code and the last lines it printed. Until then, go on with other work, or end
   your turn; the message wakes you. While nothing else is left to do, run
   `bytearmy task waiting "<event>"`.
 - To stop waiting, close the listener's pane with `bytearmy pane close <pane>`; it then
   sends nothing.
+- An event listener belongs to bytearmy, not to you: when bytearmy quits it stops, and
+  when bytearmy starts again, also after a reboot, it runs the same command again and
+  still sends you its message. So the command must be safe to run more than once. After
+  such a restart, the end of these instructions lists your listeners that run again.
+- Do not wait for an event with a background task of your own (Bash with
+  `run_in_background`, or Monitor): it ends when bytearmy quits, is not started again,
+  and you are never told. Keep those for work that ends within your current turn.
 
 """
     + """\
@@ -352,6 +376,13 @@ BY_ORCHESTRATOR = (
     "are done, or stuck, tell `orchestrator` with SendMessage."
 )
 IN_SCRATCHPAD = "You are one of the masters of the scratchpad: every agent in it is one."
+LISTENERS = """
+## Your event listeners
+
+bytearmy runs these event listeners for you; each sends you its "Event:" message when its
+command ends:
+{listed}
+"""
 HAS_MASTER = "The master agent of this task is `{master}`."
 NO_MASTER = "The task has no master agent right now."
 
@@ -402,11 +433,14 @@ def write_instructions(
     pane: Pane,
     denied: Sequence[str] = (),
     forbidden: Sequence[str] = (),
+    listeners: Sequence[Pane] = (),
 ) -> Path:
     """The instructions an agent starts with: the root's file for masters, for the other
-    agents or for the agents of a scratchpad, what the config forbids it, then who it is.
+    agents or for the agents of a scratchpad, what the config forbids it, then who it is
+    and the event listeners that tell it.
 
-    Written anew at every start, so a restarted agent learns who the master is now.
+    Written anew at every start, so a restarted agent learns who the master is now and
+    which of its listeners run again.
     """
     master = task.workspace.panes.get(task.workspace.master or "")
     if task.scratchpad:
@@ -441,8 +475,23 @@ def write_instructions(
         text
         + not_allowed(denied, key, forbidden)
         + ABOUT_YOU.format(name=pane.agent, pane=pane.id, task=task.name, relation=relation)
+        + listening(listeners)
     )
     return file
+
+
+def listening(listeners: Sequence[Pane]) -> str:
+    """The part of the instructions that lists an agent's event listeners."""
+    if not listeners:
+        return ""
+    lines = []
+    for listener in listeners:
+        event = listener.values.get("event") or listener.title
+        line = f"- {listener.id}: {event}"
+        if listener.values.get("command"):
+            line += f", running `{listener.values['command']}`"
+        lines.append(line)
+    return LISTENERS.format(listed="\n".join(lines))
 
 
 def write_orchestrator_instructions(

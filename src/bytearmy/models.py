@@ -575,6 +575,9 @@ class Opened(BaseModel):
     pane: str
     agent: str = ""
     logged: bool = False  # the tool added an entry to the task's log
+    # A notifying tool whose program ended within the start check: how, and its last lines.
+    exit_code: int | None = None
+    output: str = ""
 
 
 # -- what the `bytearmy` command of the orchestrator sends and gets ------------

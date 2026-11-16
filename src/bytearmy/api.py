@@ -81,6 +81,7 @@ from bytearmy.workflows import DEFAULT_RUN_LIMIT
 from bytearmy.workspaces import (
     SPAWNING_TOOL,
     CommandNotAllowed,
+    Ended,
     InvalidLayout,
     InvalidValues,
     Key,
@@ -576,6 +577,8 @@ def create_app(
         opened = workspaces.open_for(caller, call)
         if isinstance(opened, LogEntry):
             return Opened(pane="", logged=True)
+        if isinstance(opened, Ended):
+            return Opened(pane=opened.pane, exit_code=opened.code, output=opened.output)
         return Opened(pane=opened.id if opened else "")
 
     @agent.delete("/panes/{pane}", dependencies=[agent_may("pane.close")])

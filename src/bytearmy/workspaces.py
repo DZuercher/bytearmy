@@ -8,8 +8,10 @@ import secrets
 import shlex
 import sys
 import threading
+import time
 import uuid
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -76,7 +78,17 @@ from bytearmy.workflows import WorkflowCommands, WorkflowFailed
 
 PASTE_START, PASTE_END = b"\x1b[200~", b"\x1b[201~"  # bracketed paste, as terminals send it
 SUBMIT_DELAY_SECONDS = 0.3  # Claude takes a paste as such only if Enter comes after it
+# A program that just started, such as a Claude session that resumes after a restart, is
+# typed into only once it has run this long and then printed nothing for QUIET_SECONDS;
+# before, what is typed may be lost. After READY_AT_LATEST_SECONDS it counts as ready.
+READY_AFTER_SECONDS = 2.0
+QUIET_SECONDS = 1.0
+READY_AT_LATEST_SECONDS = 30.0
 CLOSED_REVIEW = "The user closed the review without sending it; no comments were sent."
+# A notifying program that ends this soon after an agent opened it is reported to the agent
+# in the answer to its call, not as a message: it most likely failed, e.g. for a missing
+# permission or login, and listens for nothing.
+START_CHECK_SECONDS = 3.0
 EVENT_LINES = 20  # how much of a listener's output its message holds
 EVENT_CHARS = 2000
 # Terminal control sequences: CSI, OSC and other escapes, and the lone control characters.
@@ -178,6 +190,8 @@ class Workspaces:
         self._lock = threading.RLock()
         self._ptys: dict[Key, Pty] = {}
         self._ending: set[Key] = set()  # panes whose program is being ended on purpose
+        # Notifying panes in their start check: set when the program ends, with how it ended.
+        self._checking: dict[Key, tuple[threading.Event, list[Ended]]] = {}
         self._keys: dict[Key, str] = {}  # the key each pane's program calls the core with
         self._reviews: dict[Key, str] = {}  # finished reviews an agent asked for, until it reads
         self._stopping = False
@@ -450,10 +464,12 @@ class Workspaces:
         if not getattr(config, key).allows(command):
             raise CommandNotAllowed(command, key)
 
-    def open_for(self, caller: Key, call: PaneCall) -> Pane | LogEntry | None:
+    def open_for(self, caller: Key, call: PaneCall) -> Pane | LogEntry | Ended | None:
         """Open a tool for the program of a pane, beside that pane, and start it at once.
 
         A log entry is written by the pane's agent; a pane without one is used by the user.
+        A notifying tool is watched for START_CHECK_SECONDS: if its program ends by then, the
+        answer tells how instead of a message.
         """
         project, task, pane = caller
         tool = self._tools(project, task).get(call.tool)
@@ -474,8 +490,23 @@ class Workspaces:
         opener = author if tool.notify and author != "user" else ""
         opened = self.open_pane(project, task, request, spawned_by=opener, author=author)
         if isinstance(opened, Pane):
+            if tool.notify and tool.kind == "terminal":
+                return self._start_checked((project, task, opened.id), opened)
             self.start(project, task, opened.id)
         return opened
+
+    def _start_checked(self, key: Key, pane: Pane) -> Pane | Ended:
+        """Start a notifying pane and wait whether its program ends at once."""
+        ended, result = threading.Event(), []
+        with self._lock:
+            self._checking[key] = (ended, result)
+        try:
+            self.start(*key)
+            ended.wait(START_CHECK_SECONDS)
+        finally:
+            with self._lock:  # from here on, `_ended` sends its message as usual
+                self._checking.pop(key, None)
+        return result[0] if result else pane
 
     def spawn(self, caller: Key, request: AgentSpawn) -> Pane:
         """Start an agent with a prompt, in a hidden pane of its own; shown, it goes beside
@@ -818,6 +849,7 @@ class Workspaces:
                 pane,
                 settings.denied(AGENT_COMMANDS),
                 settings.forbidden_actions(),
+                self._listeners_of(project, task, found.workspace, pane),
             )
         line = command_line(tool, pane, restoring, instructions, permissions)
         argv = [*self._shell, "-c", line] if line else self._shell
@@ -832,6 +864,23 @@ class Workspaces:
             cols,
             on_exit=lambda code: self._ended(key, code),
         )
+
+    def _listeners_of(
+        self, project: str, task: str, workspace: Workspace, agent: Pane
+    ) -> list[Pane]:
+        """The notifying panes whose message goes to an agent: those it opened, and for the
+        master also those whose opener is gone."""
+        tools = self._tools(project, task)
+        agents = {pane.agent for pane in workspace.panes.values() if pane.agent}
+        is_master = workspace.master == agent.id
+        return [
+            pane
+            for pane in workspace.panes.values()
+            if (tool := tools.get(pane.tool)) is not None
+            and tool.notify
+            and pane.exit_code is None
+            and (pane.spawned_by == agent.agent or (is_master and pane.spawned_by not in agents))
+        ]
 
     def _env(self, key: Key) -> dict[str, str]:
         """The environment of a pane's program: the user's, and how to reach the core.
@@ -913,7 +962,17 @@ class Workspaces:
             pty = self._ptys.get(key)
             notifies = ended is not None and tool is not None and tool.notify
             if notifies:
-                self._notify(key, ended, code, pty.output() if pty else b"")
+                output = pty.output() if pty else b""
+                checking = self._checking.get(key)
+                if checking is not None:  # the agent that opened it is still told in the answer
+                    checking[1].append(Ended(pane, code, _tail(output)))
+                    checking[0].set()
+                    event = ended.values.get("event") or ended.title
+                    self._log(
+                        project, task, f"{event}: the listener ended at once (exit code {code})"
+                    )
+                else:
+                    self._notify(key, ended, code, output)
                 code = 0  # its message tells how it ended: the pane is no longer needed
 
             def change(workspace: Workspace) -> None:
@@ -961,8 +1020,36 @@ class Workspaces:
         self._diffle.shutdown()
 
 
+@dataclass
+class Ended:
+    """A notifying pane whose program ended during its start check."""
+
+    pane: str
+    code: int
+    output: str  # its last lines
+
+
+def _ready_in(pty: Pty) -> float:
+    """Seconds until a program takes typing; 0 if it does now."""
+    now = time.monotonic()
+    age = now - pty.started
+    if age >= READY_AT_LATEST_SECONDS:
+        return 0
+    wait = max(READY_AFTER_SECONDS - age, QUIET_SECONDS - (now - pty.last_output), 0)
+    return min(wait, READY_AT_LATEST_SECONDS - age)
+
+
 def _type_into(pty: Pty, text: str) -> None:
-    """Paste a message into an agent's terminal and send it, as if the user wrote it."""
+    """Paste a message into an agent's terminal and send it, as if the user wrote it.
+
+    An agent that is still starting gets it once it is ready (see READY_AFTER_SECONDS).
+    """
+    delay = _ready_in(pty)
+    if delay > 0:
+        later = threading.Timer(delay, _type_into, args=(pty, text))
+        later.daemon = True
+        later.start()
+        return
     clean = text.replace("\x1b", "").replace("\r\n", "\n").encode()
     pty.write(PASTE_START + clean + PASTE_END)
     submit = threading.Timer(SUBMIT_DELAY_SECONDS, pty.write, args=(b"\r",))

@@ -92,6 +92,8 @@ def pane_open(args: argparse.Namespace) -> str:
     opened = call("POST", "/panes", body)
     if opened["logged"]:
         return "added the entry to the task's log"
+    if opened.get("exit_code") is not None:
+        return ended_at_once(opened)
     return (
         f"opened {opened['pane']}" if opened["pane"] else f"started {args.tool} in its own window"
     )
@@ -103,6 +105,23 @@ def log(args: argparse.Namespace) -> str:
     return "added the entry to the task's log"
 
 
+def ended_at_once(opened: dict) -> str:
+    """What to say of a listener whose command ended right after it started: an error if it
+    failed, as it then listens for nothing."""
+    code, output = opened["exit_code"], opened.get("output", "")
+    printed = f"\n\nThe last lines it printed:\n\n{output}" if output else ""
+    if code != 0:
+        raise Failed(
+            f"the listener's command failed at once with exit code {code}, so nothing"
+            " listens and no message follows. Fix the command, e.g. a missing permission or"
+            f" login, and start the listener again.{printed}"
+        )
+    return (
+        "the listener's command ended at once with exit code 0: the event has already"
+        f" happened, and no message follows.{printed}"
+    )
+
+
 def listen(args: argparse.Namespace) -> str:
     """Short for `bytearmy pane open event_listener --hidden <event> <command>`."""
     body = {
@@ -111,6 +130,8 @@ def listen(args: argparse.Namespace) -> str:
         "hidden": True,
     }
     opened = call("POST", "/panes", body)
+    if opened.get("exit_code") is not None:
+        return ended_at_once(opened)
     return (
         f"listening in hidden pane {opened['pane']}; you get a message when it ends."
         " Do not wait for it: go on with other work, or end your turn."
