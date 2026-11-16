@@ -59,6 +59,9 @@ When a task is clicked on in the task bar the workspace of the task is shown.
 The agents working in a task can change its status, its color, its description and its reminder with the `bytearmy` command line tool; its name, branch and dependencies stay as the user set them.
 The status is free text; only `Backlog` is not allowed, as a started task cannot go back.
 The color (red, amber, green, blue, purple or none) colors the task in the bars, to get the user's attention.
+
+#### Scratchpad
+Every project has a task called `Scratchpad`, with the status `Explore`, for the user to explore the project and ask general questions. It is created with the project (projects made before it existed get theirs at the next start) and, if the project has a GitHub URL, holds a clone of the default branch. It is always shown at the very top of the task bar, apart from the other tasks: it cannot be dragged, and the others cannot be dragged above it. It cannot be deleted; otherwise it is a task like any other.
 When right-clicking on a task the tasks data should be shown as well as a button allowing to delete the task.
 When deleting a task show a warning informing the user that all the data associated with the task will be deleted and ask for confirmation.
 It should be possible to drag and drop tasks to change their order, the order should be persistet when restarting the program.

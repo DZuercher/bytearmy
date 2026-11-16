@@ -55,7 +55,9 @@ class Live:
         return connect(f"{address}{PANES}/{pane}/terminal?{query}")
 
     def workspace(self) -> dict:
-        return self.http.get("/api/state").json()["projects"][0]["tasks"][0]["workspace"]
+        """The workspace of the first task of the first project, past its scratchpad."""
+        tasks = self.http.get("/api/state").json()["projects"][0]["tasks"]
+        return next(task for task in tasks if not task["scratchpad"])["workspace"]
 
 
 @pytest.fixture
@@ -115,7 +117,7 @@ def send(socket, **message) -> None:
 def test_pane_lifecycle_over_http(live):
     opened = live.http.post(PANES, json={"tool": "terminal"})
     assert opened.status_code == 201
-    assert opened.json()["projects"][0]["tasks"][0]["workspace"]["tree"] == "p1"
+    assert opened.json()["projects"][0]["tasks"][-1]["workspace"]["tree"] == "p1"
     assert [tool["id"] for tool in opened.json()["tools"]] == [
         "claude",
         "diff",
@@ -142,7 +144,7 @@ def test_pane_lifecycle_over_http(live):
         "splitPercentages": [30, 70],
     }
     arranged = live.http.put("/api/projects/demo/tasks/work/layout", json={"tree": layout})
-    assert arranged.json()["projects"][0]["tasks"][0]["workspace"]["tree"] == layout
+    assert arranged.json()["projects"][0]["tasks"][-1]["workspace"]["tree"] == layout
 
     live.http.put("/api/projects/demo/tasks/work/maximized", json={"slug": "p2"})
     assert live.workspace()["maximized"] == "p2"

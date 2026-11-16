@@ -13,6 +13,7 @@ from bytearmy.store import (
     INTERRUPTED_CLONE,
     Blocked,
     DuplicateName,
+    InvalidEdit,
     InvalidOrder,
     Store,
     TaskNotFound,
@@ -82,6 +83,7 @@ def test_create_writes_task_metadata_into_a_slug_directory(store, project):
         "color": "",
         "repo": "",
         "clone_error": "",
+        "scratchpad": False,
     }
 
 
@@ -359,3 +361,49 @@ def test_a_clone_may_finish_after_its_task_or_project_was_deleted(store, project
 
     store.clone_finished(project, "b", "cancelled")
     assert store.app_state().projects == []
+
+
+# -- the scratchpad ---------------------------------------------------------
+
+
+def test_a_scratchpad_is_added_once_and_comes_first_in_the_task_bar(store, project):
+    add(store, project, "A")
+    store.start_task(project, "a")
+
+    added = store.add_scratchpad(project)
+
+    assert (added.slug, added.name, added.status, added.scratchpad) == (
+        "scratchpad",
+        "Scratchpad",
+        "Explore",
+        True,
+    )
+    assert store.add_scratchpad(project) is None
+    assert bars(store, project) == ([], ["scratchpad", "a"])
+    add(store, project, "B")
+    store.start_task(project, "b")
+    assert bars(store, project) == ([], ["scratchpad", "a", "b"])
+
+
+def test_a_scratchpad_takes_the_project_repository_and_free_names(store):
+    slug = store.create_project(ProjectMeta(name="Web", github_url="git@github.com:o/web.git")).slug
+    add(store, slug, "Scratchpad")
+
+    added = store.add_scratchpad(slug)
+
+    assert (added.slug, added.name, added.repo) == ("scratchpad-2", "Scratchpad 2", "web")
+    assert store.project(slug).focused_task == "scratchpad-2"
+
+
+def test_the_scratchpad_cannot_be_deleted_or_moved_from_the_top(store, project):
+    store.add_scratchpad(project)
+    for name in ("a", "b"):
+        add(store, project, name)
+        store.start_task(project, name)
+
+    with pytest.raises(InvalidEdit):
+        store.delete_task(project, "scratchpad")
+    store.reorder_tasks(project, "tasks", ["b", "a"])
+    assert bars(store, project) == ([], ["scratchpad", "b", "a"])
+    store.reorder_tasks(project, "tasks", ["a", "scratchpad", "b"])
+    assert bars(store, project) == ([], ["scratchpad", "a", "b"])

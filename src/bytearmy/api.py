@@ -235,8 +235,16 @@ def create_app(
 
     # What the window and the orchestrator both do; the orchestrator gets no state back.
 
+    def add_scratchpad(project: str) -> None:
+        """Give the project its scratchpad, with a clone of its repository, if it has none."""
+        scratchpad = store.add_scratchpad(project)
+        if scratchpad and scratchpad.repo:
+            cloner.start(project, scratchpad, store.project(project).github_url)
+
     def new_project(meta: ProjectMeta) -> Project:
-        return store.create_project(meta)
+        project = store.create_project(meta)
+        add_scratchpad(project.slug)
+        return store.project(project.slug)
 
     def drop_project(project: str) -> None:
         cloner.cancel(project)
@@ -254,6 +262,8 @@ def create_app(
         return task
 
     def drop_task(project: str, task: str) -> None:
+        if store.task(project, task).scratchpad:
+            raise InvalidEdit("the scratchpad of a project cannot be deleted")
         cloner.cancel(project, task)
         workspaces.stop(project, task)
         store.delete_task(project, task)
@@ -616,6 +626,9 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
+        # Projects made before scratchpads existed get theirs now.
+        for project in store.app_state().projects:
+            add_scratchpad(project.slug)
         workspaces.start_all()
         orchestrator.start()
         inbox.start()

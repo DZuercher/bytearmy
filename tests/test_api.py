@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 
 from bytearmy.api import create_app
 from bytearmy.clones import Cloner
+from bytearmy.models import ProjectMeta
 from bytearmy.store import Store
 
 TOKEN = "secret"
@@ -104,9 +105,10 @@ def test_errors_map_to_status_codes(client):
 
 
 def bars(response, project: str = "demo") -> tuple[list[str], list[str]]:
-    """The slugs in the backlog and in the task bar of a project."""
+    """The slugs in the backlog and in the task bar of a project, without its scratchpad."""
     found = next(p for p in response.json()["projects"] if p["slug"] == project)
-    return [task["slug"] for task in found["backlog"]], [task["slug"] for task in found["tasks"]]
+    started = [task["slug"] for task in found["tasks"] if not task["scratchpad"]]
+    return [task["slug"] for task in found["backlog"]], started
 
 
 def task(client, slug: str, project: str = "demo") -> dict:
@@ -247,6 +249,11 @@ def test_deleting_a_task_or_its_project_stops_the_running_clone(
     app = create_app(store, token=TOKEN, cloner=Cloner(store, git=gated_git.command))
     with TestClient(app, headers={"Authorization": f"Bearer {TOKEN}"}) as client:
         client.post("/api/projects", json={"name": "Widgets", "github_url": str(remote)})
+        # The project's scratchpad clones first; let it finish before the gate closes again.
+        gated_git.wait_until_running()
+        gated_git.release()
+        wait_while_cloning(client, "scratchpad", "widgets")
+        gated_git.gate.unlink()
         client.post("/api/projects/widgets/tasks", json={"name": "A"})
         gated_git.wait_until_running()
 
@@ -265,3 +272,20 @@ def test_closing_the_app_stops_running_clones(tmp_path, remote, gated_git):
         gated_git.wait_until_running()
 
     assert not gated_git.running()
+
+
+def test_every_project_gets_a_scratchpad_with_a_clone(tmp_path, remote):
+    store = Store(tmp_path / "root")
+    store.create_project(ProjectMeta(name="Old"))  # made before scratchpads existed
+    app = create_app(store, token=TOKEN)
+    with TestClient(app, headers={"Authorization": f"Bearer {TOKEN}"}) as client:
+        assert task(client, "scratchpad", "old")["scratchpad"]
+
+        client.post("/api/projects", json={"name": "Widgets", "github_url": str(remote)})
+        cloned = wait_while_cloning(client, "scratchpad", "widgets")
+        assert (cloned["clone"], cloned["name"]) == ("ready", "Scratchpad")
+        assert (Path(cloned["path"]) / "widgets" / "README.md").exists()
+
+        refused = client.delete("/api/projects/widgets/tasks/scratchpad")
+        assert refused.status_code == 400
+        assert task(client, "scratchpad", "widgets")

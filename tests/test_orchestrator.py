@@ -295,6 +295,7 @@ def test_the_orchestrator_creates_starts_and_deletes_projects_and_tasks(core, by
     code, listed = bytearmy("tasks", "list", "alpha")
     assert listed.splitlines() == [
         "alpha  Alpha",
+        "  scratchpad  Scratchpad  (Explore)",
         "  prepare  Prepare  (New)",
         "  fix-bug  Fix bug  (New, master alpha-fix-bug-master)",
     ]

@@ -34,6 +34,7 @@ export function TaskItem({
   onEdit,
   onDelete,
   className,
+  icon,
   children,
 }: {
   task: Task
@@ -46,6 +47,7 @@ export function TaskItem({
   onEdit: () => void
   onDelete: (doomed: Doomed) => void
   className?: string
+  icon?: ReactNode // shown before the name
   children?: ReactNode
 }) {
   return (
@@ -67,6 +69,7 @@ export function TaskItem({
           {...handle}
         >
           <span className="flex w-full items-center gap-1.5">
+            {icon}
             <span className="truncate">{task.name}</span>
             <Markers task={task} />
           </span>
@@ -97,10 +100,12 @@ export function TaskItem({
           <Pencil />
           Edit task…
         </ContextMenuItem>
-        <ContextMenuItem variant="destructive" onSelect={() => onDelete({ kind: 'task', ...task })}>
-          <Trash2 />
-          Delete task…
-        </ContextMenuItem>
+        {!task.scratchpad && (
+          <ContextMenuItem variant="destructive" onSelect={() => onDelete({ kind: 'task', ...task })}>
+            <Trash2 />
+            Delete task…
+          </ContextMenuItem>
+        )}
       </ContextMenuContent>
     </ContextMenu>
   )
