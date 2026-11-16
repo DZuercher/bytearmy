@@ -186,6 +186,13 @@ def test_only_the_master_is_told_the_masters_duties():
         assert both in MASTER_INSTRUCTIONS and both in AGENT_INSTRUCTIONS
 
 
+def test_only_the_master_is_told_how_to_handle_what_the_orchestrator_forwards():
+    for forwarded in ("GitHub approval", "GitHub comment", "polish-pr"):
+        assert forwarded in MASTER_INSTRUCTIONS
+        assert forwarded not in AGENT_INSTRUCTIONS
+        assert forwarded not in SCRATCHPAD_INSTRUCTIONS
+
+
 def test_the_scratchpad_is_told_it_has_no_status_and_no_hierarchy():
     for duty in (
         "## Status and log of the master",
