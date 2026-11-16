@@ -17,7 +17,12 @@ TIMEOUT_SECONDS = 120.0
 MERGE_METHODS = ("merge", "squash", "rebase")
 
 
-class PullRequestFailed(RuntimeError):
+class GitHubFailed(RuntimeError):
+    """git or gh failed in a task's clone, or the task lacks what it needs; the message
+    says why."""
+
+
+class PullRequestFailed(GitHubFailed):
     """git or gh failed, or the task cannot have a pull request; the message says why."""
 
 
@@ -72,26 +77,37 @@ class PullRequestCommands:
         return output or f"merged the pull request of {branch}"
 
     def _run(self, command: list[str], clone: Path, env: Mapping[str, str], label: str) -> str:
-        """Run a command in the clone; `label` names it in what a failure says."""
-        try:
-            done = subprocess.run(
-                command,
-                cwd=clone,
-                check=False,  # a failure is told by what it said
-                stdin=subprocess.DEVNULL,
-                capture_output=True,
-                text=True,
-                timeout=TIMEOUT_SECONDS,
-                env={  # fail instead of asking
-                    **os.environ,
-                    **env,
-                    "GIT_TERMINAL_PROMPT": "0",
-                    "GH_PROMPT_DISABLED": "1",
-                },
-            )
-        except (OSError, subprocess.SubprocessError) as error:
-            raise PullRequestFailed(f"`{label}` could not run: {error}") from error
-        if done.returncode != 0:
-            said = done.stderr.strip() or done.stdout.strip() or f"exit code {done.returncode}"
-            raise PullRequestFailed(f"`{label}` failed: {said}")
-        return done.stdout
+        return run_in_clone(command, clone, env, label, PullRequestFailed)
+
+
+def run_in_clone(
+    command: list[str],
+    clone: Path,
+    env: Mapping[str, str],
+    label: str,
+    failed: type[GitHubFailed] = GitHubFailed,
+) -> str:
+    """Run a command in the clone and give what it printed; `label` names it, and `failed`
+    is raised with what it said when it fails."""
+    try:
+        done = subprocess.run(
+            command,
+            cwd=clone,
+            check=False,  # a failure is told by what it said
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            timeout=TIMEOUT_SECONDS,
+            env={  # fail instead of asking
+                **os.environ,
+                **env,
+                "GIT_TERMINAL_PROMPT": "0",
+                "GH_PROMPT_DISABLED": "1",
+            },
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        raise failed(f"`{label}` could not run: {error}") from error
+    if done.returncode != 0:
+        said = done.stderr.strip() or done.stdout.strip() or f"exit code {done.returncode}"
+        raise failed(f"`{label}` failed: {said}")
+    return done.stdout

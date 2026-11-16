@@ -160,5 +160,5 @@ def test_only_the_master_may_create_and_merge():
     assert MasterSettings().denied(["pr.create", "pr.view", "pr.merge"]) == []
     assert MasterSettings(allow_pr_creation=False).denied(["pr.create"]) == ["pr.create"]
     # The rule that lets Claude run them goes to every agent that may run one of them.
-    assert AgentSettings().granted_tools() == ["Bash(bytearmy pr *)"]
+    assert AgentSettings(allow=["pr.*"]).granted_tools() == ["Bash(bytearmy pr *)"]
     assert MasterSettings(allow=["pane.*"]).granted_tools() == []

@@ -69,6 +69,9 @@ AGENT_COMMANDS = (
     "pr.create",
     "pr.view",
     "pr.merge",
+    "workflow.list",
+    "workflow.run",
+    "workflow.runs",
 )
 
 
@@ -144,9 +147,12 @@ class OrchestratorSettings(ClaudeSettings):
         return off
 
 
-# The `bytearmy pr` commands, and the rule that lets Claude run them in any permission mode.
+# The `bytearmy pr` and `bytearmy workflow` commands, and the rules that let Claude run them
+# in any permission mode.
 PR_COMMANDS = ("pr.create", "pr.view", "pr.merge")
 PR_COMMAND_RULE = "Bash(bytearmy pr *)"
+WORKFLOW_COMMANDS = ("workflow.list", "workflow.run", "workflow.runs")
+WORKFLOW_COMMAND_RULE = "Bash(bytearmy workflow *)"
 
 
 class TaskAgentSettings(ClaudeSettings):
@@ -154,17 +160,27 @@ class TaskAgentSettings(ClaudeSettings):
     allow: list[str] = ["*"]
 
     def granted_tools(self) -> list[str]:
-        return [PR_COMMAND_RULE] if any(self.allows(command) for command in PR_COMMANDS) else []
+        rules: list[str] = []
+        for commands, rule in (
+            (PR_COMMANDS, PR_COMMAND_RULE),
+            (WORKFLOW_COMMANDS, WORKFLOW_COMMAND_RULE),
+        ):
+            if any(self.allows(command) for command in commands):
+                rules.append(rule)
+        return rules
 
 
-# The gh commands the pull request switches of [master] keep from Claude, as tool rules.
+# The gh commands the pull request and workflow switches of [master] keep from Claude, as
+# tool rules.
 PR_CREATION_RULES = ("Bash(gh pr create *)",)
 PR_MERGE_RULES = ("Bash(gh pr merge *)",)
+WORKFLOW_DISPATCH_RULES = ("Bash(gh workflow run *)",)
 
 
 class MasterSettings(TaskAgentSettings):
     allow_pr_creation: bool = True
     allow_pr_merge: bool = True
+    allow_workflow_dispatch: bool = True
 
     def switched_off(self) -> set[str]:
         off: set[str] = set()
@@ -172,6 +188,8 @@ class MasterSettings(TaskAgentSettings):
             off.add("pr.create")
         if not self.allow_pr_merge:
             off.add("pr.merge")
+        if not self.allow_workflow_dispatch:
+            off.add("workflow.run")
         return off
 
     def forbidden_tools(self) -> list[str]:
@@ -180,6 +198,8 @@ class MasterSettings(TaskAgentSettings):
             rules += PR_CREATION_RULES
         if not self.allow_pr_merge:
             rules += PR_MERGE_RULES
+        if not self.allow_workflow_dispatch:
+            rules += WORKFLOW_DISPATCH_RULES
         return rules
 
     def forbidden_actions(self) -> list[str]:
@@ -192,13 +212,19 @@ class MasterSettings(TaskAgentSettings):
             actions.append(
                 "merge pull requests (with `bytearmy pr merge`, `gh pr merge` or any other way)"
             )
+        if not self.allow_workflow_dispatch:
+            actions.append(
+                "dispatch GitHub Actions workflows (with `bytearmy workflow run`,"
+                " `gh workflow run` or any other way)"
+            )
         return actions
 
 
 class AgentSettings(TaskAgentSettings):
     def switched_off(self) -> set[str]:
-        """Creating and merging the pull request is the master's: its switches rule it."""
-        return {"pr.create", "pr.merge"}
+        """Creating and merging the pull request and dispatching workflows are the master's:
+        its switches rule them."""
+        return {"pr.create", "pr.merge", "workflow.run"}
 
 
 class ToolSettings(Section):
@@ -298,7 +324,7 @@ spawn = ""
 # pane.maximize, pane.hide, pane.highlight, pane.move, tool.list, task.show,
 # task.set-status, task.working, task.needs-input, task.waiting, task.done, task.merged,
 # task.set-description, task.set-reminder, agent.list, agent.spawn, review, log,
-# pr.create, pr.view, pr.merge.
+# pr.create, pr.view, pr.merge, workflow.list, workflow.run, workflow.runs.
 allow = ["*"]
 # Whether it may create and merge the pull request of the task's branch. `bytearmy pr`
 # does it with gh as the account of [github], for the task's branch only, and Claude is
@@ -307,12 +333,18 @@ allow = ["*"]
 # use, and tells the agent not to.
 allow_pr_creation = true
 allow_pr_merge = true
+# Whether it may dispatch the GitHub Actions workflows of the task's repository.
+# `bytearmy workflow run` does it with gh as the account of [github], on the task's branch
+# unless it names another ref, and Claude is let run it in every permission mode. false
+# forbids it, adds `gh workflow run` to the tools Claude may not use, and tells the agent not to.
+allow_workflow_dispatch = true
 permission_mode = ""
 allowed_tools = []
 disallowed_tools = []
 
 # Every other agent of a task: the ones agents spawn and the ones the user opens. They may
-# not create or merge the pull request (pr.create, pr.merge), whatever allow says.
+# not create or merge the pull request or dispatch workflows (pr.create, pr.merge,
+# workflow.run), whatever allow says.
 [agents]
 command = ""
 resume = ""

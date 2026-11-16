@@ -836,6 +836,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/agent/workflows": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Agent List Workflows */
+        get: operations["agent_list_workflows_agent_workflows_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agent/workflows/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Agent Run Workflow */
+        post: operations["agent_run_workflow_agent_workflows_run_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agent/workflows/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Agent Workflow Runs */
+        get: operations["agent_workflow_runs_agent_workflows_runs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/agent/reviews/{pane}": {
         parameters: {
             query?: never;
@@ -1624,12 +1675,8 @@ export interface components {
             branch: string;
             /** Status */
             status: string;
-            /**
-             * State
-             * @default new
-             * @enum {string}
-             */
-            state: "backlog" | "new" | "working" | "needs_input" | "waiting" | "done" | "merged" | "manual";
+            /** State */
+            state?: ("backlog" | "new" | "working" | "needs_input" | "waiting" | "done" | "merged" | "manual") | null;
             /** Reminder */
             reminder?: string | null;
             /**
@@ -1855,6 +1902,34 @@ export interface components {
             hidden: boolean;
             /** Beside */
             beside?: string | null;
+        };
+        /**
+         * WorkflowAnswer
+         * @description What gh answered: the workflows, the runs, or what it dispatched.
+         */
+        WorkflowAnswer: {
+            /** Text */
+            text: string;
+        };
+        /**
+         * WorkflowDispatch
+         * @description An agent dispatches a GitHub Actions workflow of the task's repository.
+         */
+        WorkflowDispatch: {
+            /** Workflow */
+            workflow: string;
+            /**
+             * Ref
+             * @default
+             */
+            ref: string;
+            /**
+             * Inputs
+             * @default {}
+             */
+            inputs: {
+                [key: string]: string;
+            };
         };
         /**
          * Workspace
@@ -3565,6 +3640,92 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PullRequestAnswer"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_list_workflows_agent_workflows_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowAnswer"];
+                };
+            };
+        };
+    };
+    agent_run_workflow_agent_workflows_run_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkflowDispatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowAnswer"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_workflow_runs_agent_workflows_runs_get: {
+        parameters: {
+            query?: {
+                workflow?: string;
+                branch?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowAnswer"];
                 };
             };
             /** @description Validation Error */

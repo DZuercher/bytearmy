@@ -132,13 +132,19 @@ def test_the_allow_switches_forbid_whatever_allow_says():
     ]
     assert OrchestratorSettings().denied(["tasks.create", "tasks.delete"]) == []
 
-    master = MasterSettings(allow_pr_creation=False, allow_pr_merge=False)
-    assert master.flags() == (
-        "'--allowedTools=Bash(bytearmy pr *)' '--disallowedTools=Bash(gh pr create *)'"
-        " '--disallowedTools=Bash(gh pr merge *)'"
+    master = MasterSettings(
+        allow_pr_creation=False, allow_pr_merge=False, allow_workflow_dispatch=False
     )
-    assert len(master.forbidden_actions()) == 2
-    assert MasterSettings().flags() == "'--allowedTools=Bash(bytearmy pr *)'"
+    assert master.flags() == (
+        "'--allowedTools=Bash(bytearmy pr *)' '--allowedTools=Bash(bytearmy workflow *)'"
+        " '--disallowedTools=Bash(gh pr create *)' '--disallowedTools=Bash(gh pr merge *)'"
+        " '--disallowedTools=Bash(gh workflow run *)'"
+    )
+    assert len(master.forbidden_actions()) == 3
+    assert master.denied(["workflow.list", "workflow.run"]) == ["workflow.run"]
+    assert MasterSettings().flags() == (
+        "'--allowedTools=Bash(bytearmy pr *)' '--allowedTools=Bash(bytearmy workflow *)'"
+    )
     assert MasterSettings().forbidden_actions() == []
     assert MasterSettings(allow_pr_merge=False).forbidden_tools() == ["Bash(gh pr merge *)"]
 

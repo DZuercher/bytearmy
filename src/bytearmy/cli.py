@@ -10,6 +10,7 @@ import os
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -372,6 +373,44 @@ def pr_merge(args: argparse.Namespace) -> str:
     return call("POST", "/pulls/merge", request)["text"]
 
 
+def workflow_list(_args: argparse.Namespace) -> str:
+    return call("GET", "/workflows")["text"]
+
+
+def _inputs(args: argparse.Namespace) -> dict[str, str]:
+    """The workflow's inputs: those of --inputs-file, then each --field over them."""
+    inputs: dict[str, str] = {}
+    if args.inputs_file:
+        try:
+            given = json.loads(Path(args.inputs_file).read_text())
+        except ValueError as error:
+            raise Failed(f"{args.inputs_file} holds no valid JSON: {error}") from None
+        if not isinstance(given, dict):
+            raise Failed(f"{args.inputs_file} must hold a JSON object of inputs by name")
+        for name, value in given.items():
+            if isinstance(value, (dict, list)) or value is None:
+                raise Failed(f"input {name!r} must be a string, number or boolean")
+            inputs[name] = json.dumps(value) if isinstance(value, bool) else str(value)
+    for field in args.field:
+        name, equals, value = field.partition("=")
+        if not equals or not name:
+            raise Failed(f"--field {field!r} is not of the form name=value")
+        inputs[name] = value
+    return inputs
+
+
+def workflow_run(args: argparse.Namespace) -> str:
+    request = {"workflow": args.workflow, "ref": args.ref, "inputs": _inputs(args)}
+    return call("POST", "/workflows/run", request)["text"]
+
+
+def workflow_runs(args: argparse.Namespace) -> str:
+    query = urllib.parse.urlencode(
+        {"workflow": args.workflow or "", "branch": args.branch, "limit": args.limit}
+    )
+    return call("GET", f"/workflows/runs?{query}")["text"]
+
+
 # -- command line --------------------------------------------------------------
 
 
@@ -382,7 +421,7 @@ def parser() -> argparse.ArgumentParser:
     groups = main.add_subparsers(
         dest="group",
         required=True,
-        metavar="{pane,tool,task,agent,log,listen,review,pr,project,tasks,inbox}",
+        metavar="{pane,tool,task,agent,log,listen,review,pr,workflow,project,tasks,inbox}",
     )
 
     def command(group, name: str, run, help: str):
@@ -546,6 +585,39 @@ def parser() -> argparse.ArgumentParser:
     merging.add_argument(
         "--delete-branch", action="store_true", help="delete the branch on GitHub afterwards"
     )
+
+    workflows = groups.add_parser(
+        "workflow", help="the GitHub Actions workflows of the task's repository, with gh"
+    ).add_subparsers(dest="action", required=True)
+    command(workflows, "list", workflow_list, "list the workflows of the repository")
+    running = command(
+        workflows,
+        "run",
+        workflow_run,
+        "dispatch a workflow (it needs a workflow_dispatch trigger) with inputs",
+    )
+    running.add_argument("workflow", help="its name, ID or file name, e.g. deploy.yml")
+    running.add_argument(
+        "--ref",
+        default="",
+        help="the branch or tag to run it on; default: the task's branch, or the default "
+        "branch if the task has none. The ref must be pushed.",
+    )
+    running.add_argument(
+        "-f",
+        "--field",
+        action="append",
+        default=[],
+        metavar="NAME=VALUE",
+        help="an input of the workflow; give it once per input",
+    )
+    running.add_argument(
+        "--inputs-file", help="read the inputs from a JSON object in this file; --field wins"
+    )
+    listing = command(workflows, "runs", workflow_runs, "list the latest workflow runs")
+    listing.add_argument("workflow", nargs="?", help="only the runs of this workflow")
+    listing.add_argument("--branch", default="", help="only the runs on this branch")
+    listing.add_argument("--limit", type=int, default=10, help="how many; default 10")
     return main
 
 
