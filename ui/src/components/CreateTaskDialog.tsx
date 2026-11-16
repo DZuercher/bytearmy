@@ -1,5 +1,5 @@
-import { type FormEvent, useState } from 'react'
-import type { Project, TaskCreate } from '@/api/client'
+import { type FormEvent, useEffect, useState } from 'react'
+import { branches as listBranches, type Project, type TaskCreate } from '@/api/client'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -14,7 +14,14 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 
-const EMPTY = { name: '', description: '', branch: '', reminder: '', dependencies: [] as string[] }
+const EMPTY = {
+  name: '',
+  description: '',
+  branch: '',
+  base: '',
+  reminder: '',
+  dependencies: [] as string[],
+}
 
 export function CreateTaskDialog({
   project,
@@ -30,6 +37,21 @@ export function CreateTaskDialog({
   const [task, setTask] = useState(EMPTY)
   const [error, setError] = useState<string | null>(null)
   const others = [...project.backlog, ...project.tasks]
+  // null while the list is loading; empty without a mirror of the repository yet.
+  const [branches, setBranches] = useState<string[] | null>(null)
+
+  useEffect(() => {
+    if (!open || !project.github_url) return
+    let current = true
+    setBranches(null)
+    listBranches(project.slug).then(
+      (names) => current && setBranches(names),
+      () => current && setBranches([]),
+    )
+    return () => {
+      current = false
+    }
+  }, [open, project.slug, project.github_url])
 
   function close() {
     setTask(EMPTY)
@@ -90,6 +112,28 @@ export function CreateTaskDialog({
                 value={task.branch}
                 onChange={(event) => setTask({ ...task, branch: event.target.value })}
               />
+            </div>
+          )}
+          {project.github_url && (
+            <div className="grid gap-2">
+              <Label htmlFor="task-base">Branch off from</Label>
+              <select
+                id="task-base"
+                className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 md:text-sm"
+                value={task.base}
+                disabled={branches === null}
+                title="A new branch starts here; without a branch name, this branch is checked out"
+                onChange={(event) => setTask({ ...task, base: event.target.value })}
+              >
+                <option value="">
+                  {branches === null ? 'loading branches…' : `the default branch ${branches[0] ?? ''}`.trim()}
+                </option>
+                {(branches ?? []).slice(1).map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
             </div>
           )}
           {others.length > 0 && (

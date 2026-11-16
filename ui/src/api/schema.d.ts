@@ -123,6 +123,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{project}/branches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Branches
+         * @description The branches a new task can start from, the default branch first.
+         */
+        get: operations["list_branches_api_projects__project__branches_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects/order": {
         parameters: {
             query?: never;
@@ -1370,6 +1390,11 @@ export interface components {
              * @default
              */
             branch: string;
+            /**
+             * Base
+             * @default
+             */
+            base: string;
             /** Reminder */
             reminder?: string | null;
             /**
@@ -1460,6 +1485,11 @@ export interface components {
              * @default
              */
             branch: string;
+            /**
+             * Base
+             * @default
+             */
+            base: string;
             /** Reminder */
             reminder?: string | null;
             /**
@@ -1948,6 +1978,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AppState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_branches_api_projects__project__branches_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string[];
                 };
             };
             /** @description Validation Error */

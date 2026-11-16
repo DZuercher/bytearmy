@@ -77,6 +77,7 @@ def test_create_writes_task_metadata_into_a_slug_directory(store, project):
         "name": "Fix login",
         "description": "users cannot log in",
         "branch": "fix/login",
+        "base": "",
         "reminder": "2026-12-01",
         "dependencies": ["design-api"],
         "status": "Backlog",

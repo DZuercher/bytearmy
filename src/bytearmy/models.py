@@ -69,10 +69,11 @@ class TaskCreate(BaseModel):
     name: str
     description: str = ""
     branch: str = ""
+    base: str = ""  # the branch a new branch starts from; empty: the default branch
     reminder: date | None = None
     dependencies: list[str] = []  # slugs of tasks in the same project
 
-    @field_validator("name", "description", "branch")
+    @field_validator("name", "description", "branch", "base")
     @classmethod
     def _strip(cls, value: str) -> str:
         return value.strip()

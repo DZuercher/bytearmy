@@ -28,6 +28,7 @@ const routes = {
   projects: '/api/projects',
   projectOrder: '/api/projects/order',
   project: '/api/projects/{project}',
+  branches: '/api/projects/{project}/branches',
   tasks: '/api/projects/{project}/tasks',
   taskOrder: '/api/projects/{project}/tasks/order',
   taskFocus: '/api/projects/{project}/tasks/focus',
@@ -163,6 +164,12 @@ export function listenForChanges(onChange: () => void): () => void {
     clearTimeout(retry)
     socket?.close()
   }
+}
+
+// The branches a new task can start from, the default branch first. Not queued: the
+// answer is not the state, and it waits for a fetch of the repository.
+export function branches(project: string): Promise<string[]> {
+  return send<string[]>('GET', fill(routes.branches, { project }))
 }
 
 // The page of a web pane. It does not wait in the queue and holds nobody up: the answer

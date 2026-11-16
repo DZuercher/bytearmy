@@ -544,7 +544,11 @@ class Workspaces:
         """Where the diffle of a diff pane answers; starts it if it does not run yet."""
         found, shown, tool = self._diff_pane(project, task, pane)
         return self._diffle.url(
-            (project, task, pane), _directory(tool, found), _mode(shown), self._diffle_env()
+            (project, task, pane),
+            _directory(tool, found),
+            _mode(shown),
+            self._diffle_env(),
+            found.base,
         )
 
     def _finish_review(self, project: str, task: str, pane: str) -> None:
@@ -560,7 +564,7 @@ class Workspaces:
             return
         try:
             text, count = self._diffle.finish(
-                key, _directory(tool, found), _mode(shown), self._diffle_env()
+                key, _directory(tool, found), _mode(shown), self._diffle_env(), found.base
             )
         except (ToolFailed, ReviewFailed) as error:
             self._diffle.stop([key])
