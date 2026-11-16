@@ -12,8 +12,11 @@ import { OrchestratorTab } from '@/components/OrchestratorTab'
 import { OrchestratorView } from '@/components/OrchestratorView'
 import { Palette } from '@/components/Palette'
 import { ProjectBar } from '@/components/ProjectBar'
+import { ResizeHandle } from '@/components/ResizeHandle'
 import { TaskBar } from '@/components/TaskBar'
 import { Workspace } from '@/components/Workspace'
+
+type BarWidth = 'left_width' | 'right_width' | 'bottom_width'
 
 const REFRESH_MS = 60_000 // a reminder becomes due without anyone clicking
 const REFRESH_WHILE_CLONING_MS = 1_000
@@ -45,6 +48,8 @@ export function App() {
   // The orchestrator's terminal stays mounted once shown, so it keeps its content.
   const [orchestratorOpened, setOrchestratorOpened] = useState(false)
   const activePanes = useRef<Record<string, string>>({})
+  // The width of a bar whose edge is being dragged; the core keeps it once the edge is let go.
+  const [drafts, setDrafts] = useState<Partial<Record<BarWidth, number>>>({})
 
   // Every call answers with the complete state: show it, or show why the call failed.
   const run = useCallback((call: Promise<AppState>) => {
@@ -117,6 +122,35 @@ export function App() {
         ? { focus: false, left_open: false, right_open: false, bottom_open: false, [bar]: true }
         : { [bar]: !ui[bar] },
     )
+  const widthOf = (bar: BarWidth) => drafts[bar] ?? ui[bar]
+  // The edge of an open bar, to drag it wider or narrower.
+  const resizer = (bar: BarWidth, side: 'left' | 'right', label: string) => (
+    <ResizeHandle
+      label={label}
+      side={side}
+      width={widthOf(bar)}
+      onResize={(width) => setDrafts((current) => ({ ...current, [bar]: width }))}
+      onCommit={(width) => {
+        setDrafts((current) => ({ ...current, [bar]: width }))
+        // The draft goes together with the answer of the core, so the bar does not jump back.
+        const forget = () =>
+          setDrafts((current) => {
+            const { [bar]: _, ...rest } = current
+            return rest
+          })
+        api.updateUi({ [bar]: width }).then(
+          (answer) => {
+            setState(answer)
+            forget()
+          },
+          (reason: unknown) => {
+            setError(reason instanceof Error ? reason.message : String(reason))
+            forget()
+          },
+        )
+      }}
+    />
+  )
   const unread = state.inbox.messages.filter((message) => message.unread && !message.dismissed).length
   // Choosing a project, a task or a pane leaves the inbox and the orchestrator.
   const showWorkspace = () => {
@@ -188,7 +222,8 @@ export function App() {
         </div>
       )}
       <div className="flex min-h-0 flex-1">
-        <div className="flex shrink-0 flex-col">
+        <div className="relative flex shrink-0 flex-col" style={leftOpen ? { width: widthOf('left_width') } : undefined}>
+          {leftOpen && resizer('left_width', 'right', 'Resize projects bar')}
           <OrchestratorTab
             open={leftOpen}
             active={orchestratorShown}
@@ -216,27 +251,30 @@ export function App() {
             onReorder={reorderProjects}
           />
         </div>
-        <TaskBar
-          open={bottomOpen}
-          onToggle={() => toggleBar('bottom_open')}
-          project={project}
-          onFocus={(slug) => {
-            showWorkspace()
-            run(api.focusTask(project!.slug, slug))
-          }}
-          onCloneAgain={(slug) => run(api.cloneAgain(project!.slug, slug))}
-          onEdit={setEditing}
-          onDelete={setDoomed}
-          onReorder={(order) => reorderTasks('tasks', order)}
-          onListHidden={(slug, open) => run(api.listHidden(project!.slug, slug, open))}
-          onShowPane={(slug, pane) => {
-            // The pane goes beside the one last used in its task, and that task is shown.
-            showWorkspace()
-            if (slug !== project!.focused_task) run(api.focusTask(project!.slug, slug))
-            const beside = activePanes.current[`${project!.slug}/${slug}`] ?? null
-            run(api.hidePane(project!.slug, slug, pane, false, beside))
-          }}
-        />
+        <div className="relative flex shrink-0" style={bottomOpen ? { width: widthOf('bottom_width') } : undefined}>
+          {bottomOpen && resizer('bottom_width', 'right', 'Resize tasks bar')}
+          <TaskBar
+            open={bottomOpen}
+            onToggle={() => toggleBar('bottom_open')}
+            project={project}
+            onFocus={(slug) => {
+              showWorkspace()
+              run(api.focusTask(project!.slug, slug))
+            }}
+            onCloneAgain={(slug) => run(api.cloneAgain(project!.slug, slug))}
+            onEdit={setEditing}
+            onDelete={setDoomed}
+            onReorder={(order) => reorderTasks('tasks', order)}
+            onListHidden={(slug, open) => run(api.listHidden(project!.slug, slug, open))}
+            onShowPane={(slug, pane) => {
+              // The pane goes beside the one last used in its task, and that task is shown.
+              showWorkspace()
+              if (slug !== project!.focused_task) run(api.focusTask(project!.slug, slug))
+              const beside = activePanes.current[`${project!.slug}/${slug}`] ?? null
+              run(api.hidePane(project!.slug, slug, pane, false, beside))
+            }}
+          />
+        </div>
         <main className="relative isolate flex min-w-0 flex-1 flex-col bg-background">
           <div className="flex items-baseline gap-3 px-4 pt-4 pb-3">
             <h1 className="text-lg font-semibold">
@@ -302,7 +340,8 @@ export function App() {
             />
           )}
         </main>
-        <div className="flex shrink-0 flex-col">
+        <div className="relative flex shrink-0 flex-col" style={rightOpen ? { width: widthOf('right_width') } : undefined}>
+          {rightOpen && resizer('right_width', 'left', 'Resize backlog bar')}
           <FocusTab open={rightOpen} active={ui.focus} onClick={() => setUi({ focus: !ui.focus })} />
           <BacklogBar
             open={rightOpen}

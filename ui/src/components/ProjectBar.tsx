@@ -44,7 +44,7 @@ export function ProjectBar({ open, onToggle, projects, focused, onFocus, onAdd, 
   }
 
   return (
-    <nav aria-label="Projects" className="flex min-h-0 w-56 flex-1 flex-col gap-2 border-r p-4">
+    <nav aria-label="Projects" className="flex min-h-0 w-full flex-1 flex-col gap-2 border-r p-4">
       <div className="flex items-center gap-1">
         <div className="grow">
           <BarHeading>Projects</BarHeading>

@@ -109,7 +109,7 @@ export function TaskBar({
   }
 
   return (
-    <nav aria-label="Tasks" className="flex w-56 shrink-0 flex-col gap-2 border-r p-4">
+    <nav aria-label="Tasks" className="flex w-full flex-col gap-2 border-r p-4">
       <div className="flex items-center gap-1">
         <div className="grow">
           <BarHeading>Tasks</BarHeading>
