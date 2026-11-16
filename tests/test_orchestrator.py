@@ -403,6 +403,24 @@ def test_the_config_says_which_commands_the_orchestrator_may_call(store, workspa
         made.shutdown()
 
 
+def test_the_task_switches_keep_the_orchestrator_from_creating_and_deleting(store, workspaces):
+    configure(store, "[orchestrator]\nallow_task_creation = false\nallow_task_deletion = false\n")
+    made = Orchestrator(store, workspaces, shell=["/bin/sh"], autostart=True)
+    with serving(store, workspaces, orchestrator=made, inbox=Inbox(store)) as live:
+        made.start()
+        orchestrator = {"Authorization": f"Bearer {key(store)['BYTEARMY_TOKEN']}"}
+        live.http.post("/orchestrator/projects", headers=orchestrator, json={"name": "Alpha"})
+        refused = live.http.post(
+            "/orchestrator/projects/alpha/tasks", headers=orchestrator, json={"name": "Work"}
+        )
+        assert refused.status_code == 403
+        assert "allow_*" in refused.json()["detail"]
+        told = (store.root / ".bytearmy" / "agents" / "orchestrator.md").read_text()
+        assert "`tasks.create`" in told and "`tasks.delete`" in told
+        assert "`tasks.start`" not in told
+        made.shutdown()
+
+
 def test_the_config_can_keep_the_orchestrator_from_starting_with_bytearmy(store, workspaces):
     configure(store, "[orchestrator]\nautostart = false\n")
     made = Orchestrator(store, workspaces, shell=["/bin/sh"], autostart=True)

@@ -118,7 +118,7 @@ def calling_orchestrator(request: Request) -> None:
 def not_allowed(command: str, key: str) -> str:
     return (
         f"`bytearmy {command.replace('.', ' ')}` is not allowed to you: `allow` in [{key}]"
-        " of config.toml lacks it. Ask the user."
+        " of config.toml lacks it, or an `allow_*` switch there is off. Ask the user."
     )
 
 

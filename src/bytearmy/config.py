@@ -79,8 +79,23 @@ class ClaudeSettings(Section):
     allowed_tools: list[str] = []
     disallowed_tools: list[str] = []
 
+    def switched_off(self) -> set[str]:
+        """The `bytearmy` commands an `allow_*` switch forbids, whatever `allow` says."""
+        return set()
+
+    def forbidden_tools(self) -> list[str]:
+        """Claude tool rules an `allow_*` switch forbids, on top of `disallowed_tools`."""
+        return []
+
+    def forbidden_actions(self) -> list[str]:
+        """What the `allow_*` switches forbid beyond `bytearmy` commands, for the
+        agent's instructions."""
+        return []
+
     def allows(self, command: str) -> bool:
-        return any(fnmatch.fnmatchcase(command, pattern) for pattern in self.allow)
+        return command not in self.switched_off() and any(
+            fnmatch.fnmatchcase(command, pattern) for pattern in self.allow
+        )
 
     def denied(self, commands: Sequence[str]) -> list[str]:
         return [command for command in commands if not self.allows(command)]
@@ -92,24 +107,61 @@ class ClaudeSettings(Section):
             parts += ["--permission-mode", self.permission_mode]
         if self.allowed_tools:
             parts += ["--allowedTools", *self.allowed_tools]
-        if self.disallowed_tools:
-            parts += ["--disallowedTools", *self.disallowed_tools]
+        disallowed = [*self.disallowed_tools, *self.forbidden_tools()]
+        if disallowed:
+            parts += ["--disallowedTools", *disallowed]
         return shlex.join(parts)
 
 
 class OrchestratorSettings(ClaudeSettings):
     autostart: bool = True
     allow: list[str] = ["project.*", "tasks.*", "inbox.*"]
+    allow_task_creation: bool = True
+    allow_task_deletion: bool = True
     announce_inbox: bool = True
     quiet_seconds: float = Field(30.0, ge=0)
 
+    def switched_off(self) -> set[str]:
+        off: set[str] = set()
+        if not self.allow_task_creation:
+            off.add("tasks.create")
+        if not self.allow_task_deletion:
+            off.add("tasks.delete")
+        return off
 
-class MasterSettings(ClaudeSettings):
+
+class TaskAgentSettings(ClaudeSettings):
     spawn: str = ""  # "" = the claude tool's
     allow: list[str] = ["*"]
 
 
-class AgentSettings(MasterSettings):
+# The gh commands the pull request switches of [master] keep from Claude, as tool rules.
+PR_CREATION_RULES = ("Bash(gh pr create *)",)
+PR_MERGE_RULES = ("Bash(gh pr merge *)",)
+
+
+class MasterSettings(TaskAgentSettings):
+    allow_pr_creation: bool = True
+    allow_pr_merge: bool = True
+
+    def forbidden_tools(self) -> list[str]:
+        rules: list[str] = []
+        if not self.allow_pr_creation:
+            rules += PR_CREATION_RULES
+        if not self.allow_pr_merge:
+            rules += PR_MERGE_RULES
+        return rules
+
+    def forbidden_actions(self) -> list[str]:
+        actions: list[str] = []
+        if not self.allow_pr_creation:
+            actions.append("create pull requests (with `gh pr create` or any other way)")
+        if not self.allow_pr_merge:
+            actions.append("merge pull requests (with `gh pr merge` or any other way)")
+        return actions
+
+
+class AgentSettings(TaskAgentSettings):
     pass
 
 
@@ -183,6 +235,10 @@ resume = ""
 # project.delete, tasks.list, tasks.create, tasks.start, tasks.delete, inbox.list,
 # inbox.read, inbox.dismiss. E.g. ["project.list", "tasks.*", "inbox.*"].
 allow = ["project.*", "tasks.*", "inbox.*"]
+# Whether it may create and delete tasks; false forbids tasks.create or tasks.delete,
+# whatever allow says.
+allow_task_creation = true
+allow_task_deletion = true
 # Claude's own permissions, passed as {permissions}: --permission-mode (default,
 # acceptEdits, plan, bypassPermissions), --allowedTools and --disallowedTools.
 permission_mode = ""
@@ -205,6 +261,10 @@ spawn = ""
 # task.set-status, task.set-color, task.set-description, task.set-reminder, agent.list,
 # agent.spawn, review, log.
 allow = ["*"]
+# Whether it may create and merge pull requests. false adds `gh pr create` or
+# `gh pr merge` to the tools Claude may not use, and tells the agent not to.
+allow_pr_creation = true
+allow_pr_merge = true
 permission_mode = ""
 allowed_tools = []
 disallowed_tools = []

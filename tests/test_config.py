@@ -14,6 +14,8 @@ from bytearmy.config import (
     Config,
     GitHubAccounts,
     GitHubSettings,
+    MasterSettings,
+    OrchestratorSettings,
     ToolSettings,
     ensure_config,
     load_config,
@@ -117,6 +119,23 @@ def test_allow_takes_patterns_and_the_flags_are_quoted():
         "--permission-mode acceptEdits --allowedTools 'Bash(git *)' Read --disallowedTools WebFetch"
     )
     assert ClaudeSettings().flags() == ""
+
+
+def test_the_allow_switches_forbid_whatever_allow_says():
+    orchestrator = OrchestratorSettings(
+        allow=["*"], allow_task_creation=False, allow_task_deletion=False
+    )
+    assert orchestrator.denied(["tasks.create", "tasks.delete", "tasks.start"]) == [
+        "tasks.create",
+        "tasks.delete",
+    ]
+    assert OrchestratorSettings().denied(["tasks.create", "tasks.delete"]) == []
+
+    master = MasterSettings(allow_pr_creation=False, allow_pr_merge=False)
+    assert master.flags() == ("--disallowedTools 'Bash(gh pr create *)' 'Bash(gh pr merge *)'")
+    assert len(master.forbidden_actions()) == 2
+    assert MasterSettings().flags() == "" and MasterSettings().forbidden_actions() == []
+    assert MasterSettings(allow_pr_merge=False).forbidden_tools() == ["Bash(gh pr merge *)"]
 
 
 def test_the_tools_section_leaves_out_and_changes_tools(tmp_path):

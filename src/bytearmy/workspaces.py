@@ -715,7 +715,11 @@ class Workspaces:
             tool = as_configured(tool, settings)
             permissions = settings.flags()
             instructions = write_instructions(
-                self._store.root, found, pane, settings.denied(AGENT_COMMANDS)
+                self._store.root,
+                found,
+                pane,
+                settings.denied(AGENT_COMMANDS),
+                settings.forbidden_actions(),
             )
         line = command_line(tool, pane, restoring, instructions, permissions)
         argv = [*self._shell, "-c", line] if line else self._shell
