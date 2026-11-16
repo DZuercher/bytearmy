@@ -1,9 +1,8 @@
 import 'react-mosaic-component/react-mosaic-component.css'
-import { EyeOff, Maximize2, Minimize2, X } from 'lucide-react'
+import { EyeOff, Maximize2, Minimize2, Send, X } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { Mosaic, type MosaicNode, MosaicWindow } from 'react-mosaic-component'
 import { type AppState, type Project, type Task, type Tree, api, openTerminal } from '@/api/client'
-import { DiffPane } from '@/components/diff/DiffPane'
 import { TerminalPane } from '@/components/TerminalPane'
 import { Button } from '@/components/ui/button'
 import { type Browser, WebControls, WebPane } from '@/components/WebPane'
@@ -77,7 +76,19 @@ export function Workspace({ project, task, visible, run, onArrange, onActivePane
                   "relative after:pointer-events-none after:absolute after:inset-0 after:z-30 after:border-4 after:border-amber-500 after:content-['']",
               )}
               toolbarControls={[
-                pane.kind === 'web' && <WebControls key="web" browser={browsers[id]} />,
+                pane.kind !== 'terminal' && <WebControls key="web" browser={browsers[id]} />,
+                pane.kind === 'diff' && (
+                  <Button
+                    key="finish"
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label="Finish review"
+                    title="Finish the review: send its open comments and close the pane"
+                    onClick={() => run(api.closePane(place.project, place.task, id))}
+                  >
+                    <Send />
+                  </Button>
+                ),
                 <Button
                   key="maximize"
                   variant="ghost"
@@ -132,7 +143,7 @@ export function Workspace({ project, task, visible, run, onArrange, onActivePane
                   return () => element.removeEventListener('focus', seen, { capture: true })
                 }}
               >
-                {pane.kind === 'web' ? (
+                {pane.kind === 'web' || pane.kind === 'diff' ? (
                   <WebPane
                     place={{ ...place, pane: id }}
                     onBrowser={(browser) => setBrowser(id, browser)}
@@ -148,8 +159,6 @@ export function Workspace({ project, task, visible, run, onArrange, onActivePane
                       )
                     }
                   />
-                ) : pane.kind === 'diff' ? (
-                  <DiffPane place={{ ...place, pane: id }} pane={pane} run={run} />
                 ) : (
                   <TerminalPane
                     program={`${place.project}/${place.task}/${id}`}

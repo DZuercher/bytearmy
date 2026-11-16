@@ -15,6 +15,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-64/bzip2-1.0.8-hda65f42_10.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/c-ares-1.34.9-hebe6cf0_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/charset-normalizer-3.5.2-h1114479_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/diffle-0.5.3-hf19af3b_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/fastar-0.12.0-py313h9f4c961_2.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/git-lfs-3.8.1-h2c09266_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/httptools-0.9.0-py313h995f894_0.conda
@@ -125,6 +126,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/_openmp_mutex-4.5-20_gnu.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/bzip2-1.0.8-h4777abc_10.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/c-ares-1.34.9-h29ee22c_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/diffle-0.5.3-h328a733_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/fastar-0.12.0-py313hbf74eec_2.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/git-lfs-3.8.1-hcf061c0_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/httptools-0.9.0-py313hc935821_0.conda
@@ -304,6 +306,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/uvicorn-standard-0.54.0-h6c8c7fd_0.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/bzip2-1.0.8-h4e30115_10.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/c-ares-1.34.9-h74c22ad_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/osx-arm64/diffle-0.5.3-ha19a7bb_0.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/fastar-0.12.0-py313hedc2b7d_2.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/git-lfs-3.8.1-hc1ac0ee_0.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/httptools-0.9.0-py313ha083069_0.conda
@@ -401,6 +404,42 @@ packages:
   run_exports: {}
   size: 217200
   timestamp: 1790766086110
+- conda: https://conda.anaconda.org/conda-forge/linux-64/diffle-0.5.3-hf19af3b_0.conda
+  sha256: 569e78af4dc7fe27b204c3e2ade04f11ef7113e72106fb88bfdde908b4286fcb
+  md5: 188c86c6e0b0983829d00231c4f46c0b
+  depends:
+  - libgcc >=15
+  - __glibc >=2.17,<3.0.a0
+  constrains:
+  - __glibc >=2.17
+  extra_depends:
+    go:
+    - gopls
+    java:
+    - jdtls
+    json:
+    - vscode-langservers-extracted
+    lua:
+    - lua-language-server
+    python:
+    - pyrefly >=1.3.0
+    ruby:
+    - ruby-lsp
+    rust:
+    - rust-analyzer
+    terraform:
+    - terraform-ls
+    toml:
+    - tombi
+    typescript:
+    - typescript-language-server
+    yaml:
+    - yaml-language-server
+  license: Apache-2.0
+  purls: []
+  run_exports: {}
+  size: 12215401
+  timestamp: 1794623512309
 - conda: https://conda.anaconda.org/conda-forge/linux-64/fastar-0.12.0-py313h9f4c961_2.conda
   sha256: 174ab7ed3435cc1670f8acf334225ecf40b242b129ca5562dd56bfd4c4442d96
   md5: b34fc5e4ca34204a25c9c1033640ef68
@@ -1035,6 +1074,41 @@ packages:
     - c-ares >=1.34.9,<2.0a0
   size: 246798
   timestamp: 1792507030564
+- conda: https://conda.anaconda.org/conda-forge/linux-aarch64/diffle-0.5.3-h328a733_0.conda
+  sha256: f85a7760608daef37ae4d2aab2cb42a5bc5dc148ffde5b060eaa5c163ee86baa
+  md5: 9de8ef22901d60ffab7814b0ced78369
+  depends:
+  - libgcc >=15
+  constrains:
+  - __glibc >=2.17
+  extra_depends:
+    go:
+    - gopls
+    java:
+    - jdtls
+    json:
+    - vscode-langservers-extracted
+    lua:
+    - lua-language-server
+    python:
+    - pyrefly >=1.3.0
+    ruby:
+    - ruby-lsp
+    rust:
+    - rust-analyzer
+    terraform:
+    - terraform-ls
+    toml:
+    - tombi
+    typescript:
+    - typescript-language-server
+    yaml:
+    - yaml-language-server
+  license: Apache-2.0
+  purls: []
+  run_exports: {}
+  size: 12004926
+  timestamp: 1794623516886
 - conda: https://conda.anaconda.org/conda-forge/linux-aarch64/fastar-0.12.0-py313hbf74eec_2.conda
   sha256: c1da9a17685b893f73f30552251a46057549a392ec671715e1e67ba9ec4fee9f
   md5: 6bbd8d851c2917198b141876b4cd3ed1
@@ -2633,6 +2707,41 @@ packages:
     - c-ares >=1.34.9,<2.0a0
   size: 201979
   timestamp: 1792507050139
+- conda: https://conda.anaconda.org/conda-forge/osx-arm64/diffle-0.5.3-ha19a7bb_0.conda
+  sha256: 9a80d789954f07e5093a15ace3b88e0350b033eb4028dda55c496d5e9286a784
+  md5: 9cf2f423fa8ac0392bb53a3ff6353e1e
+  depends:
+  - __osx >=11.0
+  constrains:
+  - __osx >=11.0
+  extra_depends:
+    go:
+    - gopls
+    java:
+    - jdtls
+    json:
+    - vscode-langservers-extracted
+    lua:
+    - lua-language-server
+    python:
+    - pyrefly >=1.3.0
+    ruby:
+    - ruby-lsp
+    rust:
+    - rust-analyzer
+    terraform:
+    - terraform-ls
+    toml:
+    - tombi
+    typescript:
+    - typescript-language-server
+    yaml:
+    - yaml-language-server
+  license: Apache-2.0
+  purls: []
+  run_exports: {}
+  size: 11598916
+  timestamp: 1794623525556
 - conda: https://conda.anaconda.org/conda-forge/osx-arm64/fastar-0.12.0-py313hedc2b7d_2.conda
   sha256: b191d2ba3cbe3094abab1d4c961c951fe6013a9a91f0e21f3dd152f964ea7272
   md5: 780fc3c9250e9ce6e05ea11a01aee2c7

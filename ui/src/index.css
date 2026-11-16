@@ -125,45 +125,6 @@
     height: 100%;
     }
 }
-/* The diff pane. Its colors mix the marks of the task colors into the background, so they
-   follow every color scheme. */
-:root {
-    --diff-add: color-mix(in oklch, var(--task-green-mark) 14%, transparent);
-    --diff-add-gutter: color-mix(in oklch, var(--task-green-mark) 26%, transparent);
-    --diff-delete: color-mix(in oklch, var(--task-red-mark) 14%, transparent);
-    --diff-delete-gutter: color-mix(in oklch, var(--task-red-mark) 26%, transparent);
-    --diff-selected: color-mix(in oklch, var(--task-amber-mark) 22%, transparent);
-    --diff-selected-gutter: color-mix(in oklch, var(--task-amber-mark) 40%, transparent);
-    --diff-commented-gutter: color-mix(in oklch, var(--task-blue-mark) 30%, transparent);
-    --diff-hunk: color-mix(in oklch, var(--task-blue-mark) 8%, var(--muted));
-}
-
-/* Syntax highlighting (highlight.js classes), light and dark. */
-.hljs-comment, .hljs-quote { color: #6e7781; font-style: italic; }
-.hljs-keyword, .hljs-selector-tag, .hljs-doctag, .hljs-template-tag { color: #cf222e; }
-.hljs-string, .hljs-regexp, .hljs-addition, .hljs-template-variable { color: #0a3069; }
-.hljs-number, .hljs-literal, .hljs-symbol, .hljs-bullet, .hljs-link { color: #0550ae; }
-.hljs-title, .hljs-title.function_, .hljs-section { color: #8250df; }
-.hljs-title.class_, .hljs-type, .hljs-built_in { color: #953800; }
-.hljs-attr, .hljs-attribute, .hljs-property, .hljs-selector-attr, .hljs-selector-class, .hljs-selector-id { color: #0550ae; }
-.hljs-variable, .hljs-params, .hljs-subst { color: inherit; }
-.hljs-meta, .hljs-meta .hljs-keyword { color: #116329; }
-.hljs-name, .hljs-tag, .hljs-selector-pseudo { color: #116329; }
-.hljs-deletion { color: #82071e; }
-.hljs-emphasis { font-style: italic; }
-.hljs-strong { font-weight: 600; }
-
-.dark .hljs-comment, .dark .hljs-quote { color: #8b949e; }
-.dark .hljs-keyword, .dark .hljs-selector-tag, .dark .hljs-doctag, .dark .hljs-template-tag { color: #ff7b72; }
-.dark .hljs-string, .dark .hljs-regexp, .dark .hljs-addition, .dark .hljs-template-variable { color: #a5d6ff; }
-.dark .hljs-number, .dark .hljs-literal, .dark .hljs-symbol, .dark .hljs-bullet, .dark .hljs-link { color: #79c0ff; }
-.dark .hljs-title, .dark .hljs-title.function_, .dark .hljs-section { color: #d2a8ff; }
-.dark .hljs-title.class_, .dark .hljs-type, .dark .hljs-built_in { color: #ffa657; }
-.dark .hljs-attr, .dark .hljs-attribute, .dark .hljs-property, .dark .hljs-selector-attr, .dark .hljs-selector-class, .dark .hljs-selector-id { color: #79c0ff; }
-.dark .hljs-meta, .dark .hljs-meta .hljs-keyword { color: #7ee787; }
-.dark .hljs-name, .dark .hljs-tag, .dark .hljs-selector-pseudo { color: #7ee787; }
-.dark .hljs-deletion { color: #ffdcd7; }
-
 /* react-mosaic paints the pane title bars white and their titles grey, whatever the color
    scheme; in a dark scheme the buttons in the title bars vanished on the white. These rules
    are more specific than the library's, which is loaded after this file. */
