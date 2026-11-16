@@ -65,6 +65,8 @@ AGENT_COMMANDS = (
     "agent.list",
     "agent.spawn",
     "review",
+    "answer.draft",
+    "answer.send",
     "log",
     "pr.create",
     "pr.view",
@@ -153,6 +155,8 @@ PR_COMMANDS = ("pr.create", "pr.view", "pr.merge")
 PR_COMMAND_RULE = "Bash(bytearmy pr *)"
 WORKFLOW_COMMANDS = ("workflow.list", "workflow.run", "workflow.runs")
 WORKFLOW_COMMAND_RULE = "Bash(bytearmy workflow *)"
+ANSWER_COMMANDS = ("answer.draft", "answer.send")
+ANSWER_COMMAND_RULE = "Bash(bytearmy answer *)"
 
 
 class TaskAgentSettings(ClaudeSettings):
@@ -164,6 +168,7 @@ class TaskAgentSettings(ClaudeSettings):
         for commands, rule in (
             (PR_COMMANDS, PR_COMMAND_RULE),
             (WORKFLOW_COMMANDS, WORKFLOW_COMMAND_RULE),
+            (ANSWER_COMMANDS, ANSWER_COMMAND_RULE),
         ):
             if any(self.allows(command) for command in commands):
                 rules.append(rule)
@@ -323,8 +328,9 @@ spawn = ""
 # The `bytearmy` commands it may call, as patterns: pane.list, pane.open, pane.close,
 # pane.maximize, pane.hide, pane.highlight, pane.move, tool.list, task.show,
 # task.set-status, task.working, task.needs-input, task.waiting, task.done, task.merged,
-# task.set-description, task.set-reminder, agent.list, agent.spawn, review, log,
-# pr.create, pr.view, pr.merge, workflow.list, workflow.run, workflow.runs.
+# task.set-description, task.set-reminder, agent.list, agent.spawn, review, answer.draft,
+# answer.send, log, pr.create, pr.view, pr.merge, workflow.list, workflow.run,
+# workflow.runs.
 allow = ["*"]
 # Whether it may create and merge the pull request of the task's branch. `bytearmy pr`
 # does it with gh as the account of [github], for the task's branch only, and Claude is

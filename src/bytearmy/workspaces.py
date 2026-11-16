@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
-from bytearmy import themes
+from bytearmy import answers, themes
 from bytearmy.agents import (
     AGENT_FILE,
     AGENT_INSTRUCTIONS,
@@ -36,12 +36,15 @@ from bytearmy.agents import (
     remove_legacy,
     write_instructions,
 )
+from bytearmy.answers import AnswerCommands, AnswerFailed
 from bytearmy.config import ACCOUNTS, AGENT_COMMANDS, Config, config_of, ensure_config
 from bytearmy.layout import add_leaf, leaves, remove_leaf
 from bytearmy.models import (
     Agent,
     AgentSpawn,
+    AnswerDraft,
     DiffMode,
+    Draft,
     LogEntry,
     Pane,
     PaneCall,
@@ -52,6 +55,7 @@ from bytearmy.models import (
     ReviewState,
     Split,
     Task,
+    TaskChange,
     Tool,
     WorkflowDispatch,
     Workspace,
@@ -137,6 +141,10 @@ class NoDiffTool(LookupError):
     """No tool shows the changes of a task."""
 
 
+class DraftDecided(ValueError):
+    """A draft answer was already approved, discarded or sent; the message says how."""
+
+
 class CommandNotAllowed(PermissionError):
     """args: the `bytearmy` command, then the table of config.toml whose `allow` lacks it."""
 
@@ -179,11 +187,13 @@ class Workspaces:
         pulls: PullRequests | None = None,
         pr_commands: PullRequestCommands | None = None,
         workflow_commands: WorkflowCommands | None = None,
+        answer_commands: AnswerCommands | None = None,
     ) -> None:
         self._store = store
         self._pulls = pulls or PullRequests(store)
         self._pr_commands = pr_commands or PullRequestCommands()
         self._workflow_commands = workflow_commands or WorkflowCommands()
+        self._answer_commands = answer_commands or AnswerCommands()
         # A login shell that reads the user's startup files: functions and aliases work.
         self._shell = list(shell or [os.environ.get("SHELL", "/bin/sh"), "-l", "-i"])
         self.url = url  # where the programs in the panes reach the core
@@ -348,6 +358,10 @@ class Workspaces:
             raise PaneNotFound(pane)
         if found.workspace.panes[pane].kind == "diff":
             self._diffle.stop([(project, task, pane)])
+        if found.workspace.panes[pane].kind == "answer":
+            draft = answers.load(Path(found.path), pane)
+            if draft is not None and draft.state == "open":
+                self._decide(project, task, draft, approve=False)
         self._end([(project, task, pane)])
         self._store.change_workspace(project, task, lambda workspace: _drop(workspace, pane))
 
@@ -609,6 +623,113 @@ class Workspaces:
         if pane in self._store.task(project, task).workspace.panes:
             return ReviewState(done=False)
         return ReviewState(done=True, text=CLOSED_REVIEW)
+
+    # -- draft answers -----------------------------------------------------
+
+    def draft_answer(self, caller: Key, request: AnswerDraft) -> Pane:
+        """Fetch the conversation a GitHub URL points at and open it with the calling
+        agent's draft answer in a highlighted answer pane beside the caller; the user
+        approves or discards it there."""
+        project, task, pane = caller
+        found = self._store.task(project, task)
+        calling = found.workspace.panes.get(pane)
+        agent = calling.agent if calling else ""
+        draft = self._answer_commands.conversation(
+            request.url, Path(found.path), self.github_env(project, task), request.body, agent
+        )
+        opened: list[Pane] = []
+
+        def change(workspace: Workspace) -> None:
+            shown = Pane(
+                id=f"p{workspace.next_pane}",
+                tool="",
+                kind="answer",
+                title=f"Draft answer: {draft.title or request.url}",
+                values={"url": draft.url},
+                spawned_by=agent,
+                highlighted=True,
+            )
+            workspace.next_pane += 1
+            workspace.panes[shown.id] = shown
+            workspace.tree = add_leaf(workspace.tree, shown.id, pane)
+            draft.id = shown.id
+            answers.save(Path(found.path), draft)
+            opened.append(shown)
+
+        self._store.change_workspace(project, task, change)
+        self._log(project, task, f"{agent or 'An agent'} drafted an answer to {draft.url}")
+        return opened[0]
+
+    def draft(self, project: str, task: str, pane: str) -> Draft:
+        """The draft answer an answer pane shows."""
+        found = self._store.task(project, task)
+        draft = answers.load(Path(found.path), pane)
+        if draft is None:
+            raise PaneNotFound(pane)
+        return draft
+
+    def decide_answer(
+        self, project: str, task: str, pane: str, approve: bool, answer: str = ""
+    ) -> None:
+        """The user approves the draft in an answer pane, as they edited it, or discards
+        it: the agent that drafted it is told, and the pane closes."""
+        draft = self.draft(project, task, pane)
+        if draft.state != "open":
+            raise DraftDecided(f"the draft answer {pane} was already {draft.state}")
+        if approve and not answer.strip():
+            raise InvalidValues("The answer is empty.")
+        self._decide(project, task, draft, approve, answer)
+        self._end([(project, task, pane)])
+        self._store.change_workspace(project, task, lambda workspace: _drop(workspace, pane))
+
+    def _decide(
+        self, project: str, task: str, draft: Draft, approve: bool, answer: str = ""
+    ) -> None:
+        edited = approve and answer.strip() != draft.draft.strip()
+        draft.state = "approved" if approve else "discarded"
+        draft.answer = answer if approve else ""
+        answers.save(Path(self._store.task(project, task).path), draft)
+        if approve:
+            text = answers.approved_message(draft, edited)
+            done = "approved" + (" an edited version of" if edited else "")
+        else:
+            text = answers.discarded_message(draft)
+            done = "discarded"
+        try:
+            told = self.send_to_agent(project, task, draft.agent, text)
+        except NoMaster:
+            self._log(
+                project, task, f"The user {done} the draft answer to {draft.url}; no agent to tell"
+            )
+            return
+        self._log(project, task, f"The user {done} the draft answer to {draft.url}; told {told}")
+
+    def send_answer(self, caller: Key, draft_id: str) -> str:
+        """Post an approved answer to its conversation on GitHub, then set the task to
+        waiting for the reply."""
+        project, task, _ = caller
+        found = self._store.task(project, task)
+        draft = answers.load(Path(found.path), draft_id)
+        if draft is None:
+            raise AnswerFailed(f"there is no draft answer {draft_id}")
+        if draft.state == "sent":
+            raise DraftDecided(f"the answer {draft_id} was already sent: {draft.sent_url}")
+        if draft.state != "approved":
+            raise DraftDecided(
+                f"the draft answer {draft_id} is {draft.state}, not approved: only an answer "
+                "the user approved can be sent"
+            )
+        url = self._answer_commands.send(draft, Path(found.path), self.github_env(project, task))
+        draft.state, draft.sent_url = "sent", url
+        answers.save(Path(found.path), draft)
+        self._log(project, task, f"Sent the answer to {draft.url}: {url}")
+        sent = f"sent the answer: {url or draft.url}"
+        if found.scratchpad:  # it has no state
+            return sent
+        self._store.change_task(
+            project, task, TaskChange(state="waiting", status="Waiting for a reply on GitHub")
+        )
+        return sent + "\nthe task now waits for a reply on GitHub (state waiting)"
 
     # -- pull requests -----------------------------------------------------
 
@@ -900,7 +1021,9 @@ class Workspaces:
         env.update(self.github_env(project, task))
         return env
 
-    def page(self, project: str, task: str, pane: str, files: str, log: str = "") -> str:
+    def page(
+        self, project: str, task: str, pane: str, files: str, log: str = "", answers: str = ""
+    ) -> str:
         """The page a web pane shows; `files` is where the task directory is served, `log`
         where the task's log is shown.
 
@@ -911,6 +1034,8 @@ class Workspaces:
         shown = found.workspace.panes.get(pane)
         if shown is not None and shown.kind == "diff":
             return self._review_page(project, task, pane)
+        if shown is not None and shown.kind == "answer":
+            return f"{answers}/{pane}"  # `answers` is where the core serves their pages
         if shown is None or shown.kind != "web":
             raise PaneNotFound(pane)
         tool = self._tools(project, task).get(shown.tool)
@@ -931,8 +1056,8 @@ class Workspaces:
         """
         found = self._store.task(project, task)
         shown = found.workspace.panes.get(pane)
-        if shown is not None and shown.kind == "diff":
-            return None  # diffle follows the changes itself
+        if shown is not None and shown.kind in ("diff", "answer"):
+            return None  # diffle follows the changes itself; a reload would lose edits
         if shown is None or shown.kind != "web":
             raise PaneNotFound(pane)
         tool = self._tools(project, task).get(shown.tool)

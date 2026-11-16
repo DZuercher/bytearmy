@@ -172,8 +172,9 @@ class Split(BaseModel):
 class Pane(BaseModel):
     id: str
     tool: str
-    # a program in a terminal, a page, or the changes of the task's clone to review
-    kind: Literal["terminal", "web", "diff"] = "terminal"
+    # a program in a terminal, a page, the changes of the task's clone to review, or an
+    # agent's draft answer to a GitHub conversation
+    kind: Literal["terminal", "web", "diff", "answer"] = "terminal"
     title: str
     values: dict[str, str] = {}  # the tool's parameters, e.g. the file for Vim
     session: str = ""  # stays the same across restarts; lets a tool such as Claude resume
@@ -560,6 +561,57 @@ class WorkflowAnswer(BaseModel):
     """What gh answered: the workflows, the runs, or what it dispatched."""
 
     text: str
+
+
+class AnswerDraft(BaseModel):
+    """An agent drafts an answer to a GitHub conversation, for the user to approve."""
+
+    url: str = Field(min_length=1)  # of the comment, the issue or the pull request
+    body: str = Field(min_length=1)  # the draft
+
+
+class AnswerDecision(BaseModel):
+    """The user approves a draft answer, as they edited it, or discards it."""
+
+    answer: str = ""
+
+
+class AnswerSent(BaseModel):
+    """What `bytearmy answer send` did."""
+
+    text: str
+
+
+class DraftComment(BaseModel):
+    id: str = ""
+    author: str = ""
+    body: str = ""
+    created_at: str = ""
+    url: str = ""
+
+
+class Draft(BaseModel):
+    """An answer an agent drafted; `<task>/.bytearmy/answers/<pane>.json`."""
+
+    id: str  # the answer pane that shows it
+    url: str  # what the agent answers: a comment, an issue or a pull request
+    title: str = ""  # of the issue or pull request
+    page: str = ""  # its page on GitHub
+    host: str = "github.com"
+    owner: str
+    repo: str
+    number: int
+    thread: Literal["issue", "review"] = "issue"  # the comments, or a thread on the code
+    reply_to: int | None = None  # review: the first comment of the thread
+    path: str = ""  # review: the file the thread is on
+    diff_hunk: str = ""  # review: the code it is on
+    comments: list[DraftComment] = []  # oldest first
+    focus: str = ""  # the id of the comment the URL names
+    draft: str  # what the agent wrote
+    agent: str = ""  # who drafted it; told when the user decides
+    state: Literal["open", "approved", "discarded", "sent"] = "open"
+    answer: str = ""  # what the user approved
+    sent_url: str = ""  # the posted comment
 
 
 class ReviewState(BaseModel):

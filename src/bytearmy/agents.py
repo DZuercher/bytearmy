@@ -19,10 +19,14 @@ ORCHESTRATOR_FILE = Path(METADATA_DIR) / "orchestrator.md"  # for the orchestrat
 # Where earlier versions kept the instructions; bytearmy deletes these files.
 LEGACY_FILES = (Path(".claude") / "bytearmy.md", Path(".claude") / "orchestrator.md")
 # Fingerprints of the texts earlier versions wrote; a file that still has one is replaced.
-EARLIER_MASTER_INSTRUCTIONS = {"68533b8c34506ed9a42b0146af0ddfa0dc1cfb665a58b26c137b7aca8c190acb"}
+EARLIER_MASTER_INSTRUCTIONS = {
+    "68533b8c34506ed9a42b0146af0ddfa0dc1cfb665a58b26c137b7aca8c190acb",
+    "dd097f721a63725500592298ceeef63fd5d5bd5655d72fbeaf703a3cc432b44a",
+}
 EARLIER_AGENT_INSTRUCTIONS = {"fa5c6e76df3285087f69afc366254fb5df8baaf0b6726c533f3751fde67801f2"}
 EARLIER_SCRATCHPAD_INSTRUCTIONS = {
-    "d9cd67459bdae048adedda2edc1bd26d9418ce783fe4a6d2e3345f9fe9baff78"
+    "d9cd67459bdae048adedda2edc1bd26d9418ce783fe4a6d2e3345f9fe9baff78",
+    "7f552420781888620a12c0418e21acb9b9db986b188f4c552496201780ba07e1",
 }
 EARLIER_ORCHESTRATOR_INSTRUCTIONS: set[str] = set()
 
@@ -94,6 +98,21 @@ GITHUB = """\
 - `bytearmy workflow runs [<workflow>] [--branch <branch>]` lists the latest runs; to wait
   for one to end, `bytearmy listen "<workflow> run" "gh run watch <run id> --exit-status"`.
 - Dispatch a workflow only when the user asks for it, or when the task plainly needs it.
+
+## Answering on GitHub
+
+- Never answer a comment on GitHub on your own. Draft the answer and let the user approve
+  it: write it to a file and run `bytearmy answer draft <comment url> --body-file <file>`.
+  The URL is that of the comment (`...#issuecomment-<id>`, or `...#discussion_r<id>` for a
+  comment on the code), or of the issue or pull request. A pane then shows the user the
+  conversation with your draft below it, which they can edit.
+- Do not wait for the decision; it comes as a message that starts with "Draft answer":
+  - "Draft answer discarded": the user answers the comment themselves. Do not answer it,
+    and make no changes for it.
+  - "Draft answer approved": it holds the answer as the user approved it. Make the changes
+    to the code that the answer mentions, if any; have the user review them with
+    `bytearmy review --uncommitted`, and once they accept them, commit and push. Then post
+    the answer with `bytearmy answer send <id>`, which also sets the task to waiting.
 
 """
 THE_ORCHESTRATOR = """\

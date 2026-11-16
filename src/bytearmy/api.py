@@ -16,6 +16,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from bytearmy.agents import ORCHESTRATOR
+from bytearmy.answers import render as render_answer
 from bytearmy.clones import AlreadyCloning, CloneFailed, Cloner
 from bytearmy.config import ACCOUNTS, load_config
 from bytearmy.inbox import Inbox, MessageNotFound
@@ -23,6 +24,9 @@ from bytearmy.logpage import render
 from bytearmy.models import (
     Agent,
     AgentSpawn,
+    AnswerDecision,
+    AnswerDraft,
+    AnswerSent,
     AppState,
     Focus,
     Highlight,
@@ -81,6 +85,7 @@ from bytearmy.workflows import DEFAULT_RUN_LIMIT
 from bytearmy.workspaces import (
     SPAWNING_TOOL,
     CommandNotAllowed,
+    DraftDecided,
     Ended,
     InvalidLayout,
     InvalidValues,
@@ -437,7 +442,8 @@ def create_app(
         base = str(request.base_url).rstrip("/")
         files = f"{base}/files/{files_key}/{project}/{task}"
         log = f"{base}/log/{files_key}/{project}/{task}"
-        return Page(url=workspaces.page(project, task, pane, files, log))
+        answers = f"{base}/answers/{files_key}/{project}/{task}"
+        return Page(url=workspaces.page(project, task, pane, files, log, answers))
 
     @api.get(PANES + "/{pane}/page/version")
     def pane_page_version(project: str, task: str, pane: str) -> PageVersion:
@@ -656,6 +662,14 @@ def create_app(
     ) -> WorkflowAnswer:
         return WorkflowAnswer(text=workspaces.workflow_runs(caller, workflow, branch, limit))
 
+    @agent.post("/answers", status_code=201, dependencies=[agent_may("answer.draft")])
+    def agent_draft_answer(caller: Caller, request: AnswerDraft) -> Opened:
+        return Opened(pane=workspaces.draft_answer(caller, request).id)
+
+    @agent.post("/answers/{draft}/send", dependencies=[agent_may("answer.send")])
+    def agent_send_answer(caller: Caller, draft: str) -> AnswerSent:
+        return AnswerSent(text=workspaces.send_answer(caller, draft))
+
     @agent.get("/reviews/{pane}")
     def agent_review_state(caller: Caller, pane: str) -> ReviewState:
         return workspaces.review_state(caller, pane)
@@ -782,6 +796,31 @@ def create_app(
         entries = store.log(project, task)
         return HTMLResponse(render(store.task(project, task).name, entries, load_theme(store.root)))
 
+    def check_key(key: str) -> None:
+        if not secrets.compare_digest(key.encode(), files_key.encode()):
+            raise HTTPException(status_code=404)
+
+    @app.get("/answers/{key}/{project}/{task}/{pane}")
+    def answer_page(key: str, project: str, task: str, pane: str) -> HTMLResponse:
+        """The page of an answer pane: the conversation and the draft, to edit and decide."""
+        check_key(key)
+        draft = workspaces.draft(project, task, pane)
+        return HTMLResponse(render_answer(draft, load_theme(store.root)))
+
+    @app.post("/answers/{key}/{project}/{task}/{pane}/approve")
+    def approve_answer(
+        key: str, project: str, task: str, pane: str, decision: AnswerDecision
+    ) -> None:
+        """The user approves the draft, as they edited it; the agent is told."""
+        check_key(key)
+        workspaces.decide_answer(project, task, pane, approve=True, answer=decision.answer)
+
+    @app.post("/answers/{key}/{project}/{task}/{pane}/discard")
+    def discard_answer(key: str, project: str, task: str, pane: str) -> None:
+        """The user discards the draft and answers on their own; the agent is told."""
+        check_key(key)
+        workspaces.decide_answer(project, task, pane, approve=False)
+
     def answer(status_code: int, detail: str) -> JSONResponse:
         return JSONResponse(status_code=status_code, content={"detail": detail})
 
@@ -820,6 +859,10 @@ def create_app(
     @app.exception_handler(NoMaster)
     def no_master(_request: Request, _error: NoMaster) -> JSONResponse:
         return answer(409, "The task has no running master agent to send the review to.")
+
+    @app.exception_handler(DraftDecided)
+    def draft_decided(_request: Request, error: DraftDecided) -> JSONResponse:
+        return answer(409, str(error))
 
     @app.exception_handler(CommandNotAllowed)
     def command_not_allowed(_request: Request, error: CommandNotAllowed) -> JSONResponse:

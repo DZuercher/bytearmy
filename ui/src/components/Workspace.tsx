@@ -144,7 +144,7 @@ export function Workspace({ project, task, visible, run, onArrange, onActivePane
                   return () => element.removeEventListener('focus', seen, { capture: true })
                 }}
               >
-                {pane.kind === 'web' || pane.kind === 'diff' ? (
+                {pane.kind === 'web' || pane.kind === 'diff' || pane.kind === 'answer' ? (
                   <WebPane
                     place={{ ...place, pane: id }}
                     onBrowser={(browser) => setBrowser(id, browser)}
