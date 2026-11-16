@@ -22,13 +22,16 @@ LEGACY_FILES = (Path(".claude") / "bytearmy.md", Path(".claude") / "orchestrator
 EARLIER_MASTER_INSTRUCTIONS = {
     "68533b8c34506ed9a42b0146af0ddfa0dc1cfb665a58b26c137b7aca8c190acb",
     "dd097f721a63725500592298ceeef63fd5d5bd5655d72fbeaf703a3cc432b44a",
+    "89c671cfb34b37e9cdb21505e53d69863108400102d6cc2258db993500616230",
 }
 EARLIER_AGENT_INSTRUCTIONS = {"fa5c6e76df3285087f69afc366254fb5df8baaf0b6726c533f3751fde67801f2"}
 EARLIER_SCRATCHPAD_INSTRUCTIONS = {
     "d9cd67459bdae048adedda2edc1bd26d9418ce783fe4a6d2e3345f9fe9baff78",
     "7f552420781888620a12c0418e21acb9b9db986b188f4c552496201780ba07e1",
 }
-EARLIER_ORCHESTRATOR_INSTRUCTIONS: set[str] = set()
+EARLIER_ORCHESTRATOR_INSTRUCTIONS = {
+    "51a109493686002029f9515d708afe43debd0fff9197ca450e2c32f5ad0b75d8"
+}
 
 # The parts both kinds of task agents are told.
 INTRO = """\
@@ -236,6 +239,20 @@ MASTER_INSTRUCTIONS = (
 """
     + GITHUB
     + """\
+## Messages from the orchestrator
+
+The orchestrator forwards you what happens on GitHub to your task's pull request, in a
+message that starts with "From the orchestrator". Read such a message as soon as it comes,
+before you go on with your work, as it may change what the task needs.
+
+- "GitHub approval": the pull request is approved. Check its CI with
+  `gh pr checks <url>`. If CI still runs, wait for it with an event listener first. If it
+  is not green, use the polish-pr skill to fix it. Then open the pull request's page with
+  `bytearmy pane open webpage <url>`, run `bytearmy task needs-input`, and ask the user
+  whether to merge it.
+- "GitHub comment": draft an answer with `bytearmy answer draft`, as "Answering on
+  GitHub" says.
+
 ## Status and log of the master
 
 As the master of your task, keep the status and the log telling the user at a glance
@@ -361,10 +378,33 @@ inside the tasks, or to other work of the user.
 ## The inbox
 
 bytearmy types a note into your terminal when new messages reach the inbox. Then read them
-with `bytearmy inbox list`, decide for each whether it asks for work (e.g. a review request,
-an issue assigned to the user, a failing check) and, if it does, create a task for it in the
-project of its repository and start it with a prompt. Mark the messages you handled read.
-When it is not clear what the user wants, ask the user instead of starting work.
+with `bytearmy inbox list` and handle each GitHub message by the rules below. Its project is
+the one whose GitHub URL is the message's repository. To learn what happened on a pull
+request, its branch, author and state, use `gh pr view <url> --json
+headRefName,author,state,latestReviews,comments` (and `gh api user --jq .login` for the
+user's login); a task belongs to a branch when `bytearmy tasks list` names that branch.
+
+- An approval of a pull request whose author is the user, on the branch of a started task:
+  forward it to the task's master. Mark the message read.
+- A comment on a pull request or issue on the branch of a started task (also a review
+  that is not an approval, or a comment on the code): forward it to the task's master.
+  Mark the message read.
+- A comment on the branch of a task in the backlog: start the task with
+  `bytearmy tasks start`, with the forwarded message as the prompt of its master. Mark
+  the message read.
+- A request for the user's review (reason `review_requested`) of a pull request that is
+  still open: create a task in the backlog of its project to review it, named after the
+  pull request and with its URL in the description. Do not start it. Mark the message read.
+- A message about the state of CI (reason `ci_activity`) or a change of a branch's or pull
+  request's state (reason `state_change`): mark it read.
+- Leave every other message unread, and do not start work for it.
+
+To forward a message to a master, send it with SendMessage a message that starts with
+"From the orchestrator: GitHub approval" or "From the orchestrator: GitHub comment",
+followed by the URL of the pull request, the URL of the comment if there is one, who wrote
+it and what it says. A task's master is named in `bytearmy tasks list`. When the task has
+no master, start one with `bytearmy tasks start <project> <task> --prompt "<the message>"`;
+when its master is listed as not running, leave the message unread and tell the user.
 
 ## Finishing work
 
