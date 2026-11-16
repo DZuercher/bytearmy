@@ -59,11 +59,19 @@ of your own task; it cannot reach other tasks.
 ## The task
 
 - `bytearmy task show`: name, status, description and the other data of your task.
-- `bytearmy task set-status "<status>" [--color amber]`: the status tag in the task bar,
-  e.g. "Needs review". The color (red, amber, green, blue, purple or none) colors the task
-  in the task bar; use it when the user should look at the task.
-- `bytearmy task set-color <color>`, `bytearmy task set-description "<text>"`,
-  `bytearmy task set-reminder <YYYY-MM-DD|none>`.
+- The task has a state, which alone sets its color in the task bar, and a status tag, a
+  free text such as "Needs review". Each state has a command that sets it together with
+  the status tag (without one, the tag is the state's name):
+  - `bytearmy task working ["<status>"]` (blue): you work on the task yourself and nothing
+    blocks you.
+  - `bytearmy task needs-input ["<status>"]` (amber): the user has to do something.
+  - `bytearmy task waiting ["<status>"]` (red): you wait for something outside bytearmy,
+    such as a CI run or a deploy.
+  - `bytearmy task done ["<status>"]` (green): you are done, nothing more needs to be done.
+  - `bytearmy task merged ["<status>"]` (purple): the task's pull request is merged into
+    the base branch; only for projects with a GitHub URL.
+- `bytearmy task set-status "<status>"` changes only the status tag.
+- `bytearmy task set-description "<text>"`, `bytearmy task set-reminder <YYYY-MM-DD|none>`.
 - `bytearmy log "<text>"`: add an entry to the task's log; the time is taken from the clock
   and you are named as its author. The user writes to the same log, and
   `bytearmy pane open show-log` shows it.
@@ -124,22 +132,21 @@ If you are the master agent of your task, the status and the log tell the user a
 where the task stands. Update both every time you start or stop working:
 
 - When you start working, and whenever you continue after an answer from the user or a
-  report from an agent, set the status to what you are doing, e.g.
-  `bytearmy task set-status "Working: <what>" --color blue`, and log what you start on.
-- When you stop to ask the user something, set
-  `bytearmy task set-status "Needs input" --color amber` and log what you asked. This
-  includes every tool call that waits for the user: set the status right before you call
-  AskUserQuestion, and before ExitPlanMode, which asks the user to approve your plan.
-- Plan mode does not suspend these updates. `bytearmy task set-status` and `bytearmy log`
-  change only the task bar and the log, not the code, so run them in plan mode as well:
-  when you start planning, set e.g. "Planning: <what>" --color blue; when you present the
-  plan, set "Needs input" as above; when the user approves or rejects it, set the status to
-  what you do next.
-- When you wait for an agent you spawned, set
-  `bytearmy task set-status "Waiting for <agent>" --color none` and log what it works on.
-- When you are done, set `bytearmy task set-status "Done" --color green` and log what you
-  did and what the user should look at. If the task has a branch (`bytearmy task show`
-  names it), use `--color purple` instead of green.
+  report from an agent, set what you are doing, e.g.
+  `bytearmy task working "Working: <what>"`, and log what you start on.
+- When you stop to ask the user something, run `bytearmy task needs-input` and log what you
+  asked. This includes every tool call that waits for the user: set it right before you
+  call AskUserQuestion, and before ExitPlanMode, which asks the user to approve your plan.
+- Plan mode does not suspend these updates. `bytearmy task` and `bytearmy log` change only
+  the task bar and the log, not the code, so run them in plan mode as well: when you start
+  planning, run e.g. `bytearmy task working "Planning: <what>"`; when you present the plan,
+  run `bytearmy task needs-input` as above; when the user approves or rejects it, set what
+  you do next.
+- When you wait for an agent you spawned, run
+  `bytearmy task working "Waiting for <agent>"` and log what it works on. When you wait for
+  something outside bytearmy, such as a CI run, run `bytearmy task waiting "<what>"`.
+- When you are done, run `bytearmy task done` and log what you did and what the user
+  should look at. Once the task's pull request is merged, run `bytearmy task merged`.
 
 ## The orchestrator
 
@@ -226,7 +233,7 @@ Your name is `{name}`, your pane is {pane}, your task is "{task}".
 
 IS_MASTER = (
     "You are the master agent of this task: you plan the work, spawn agents for parts of it,\n"
-    "and keep the user informed with the status and color of the task."
+    "and keep the user informed with the state and status of the task."
 )
 SPAWNED = (
     "`{spawner}` spawned you with the prompt you got as your first message. When you are\n"

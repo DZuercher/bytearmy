@@ -3508,18 +3508,20 @@
             "title": "Status",
             "default": "Backlog"
           },
-          "color": {
+          "state": {
             "type": "string",
             "enum": [
-              "",
-              "red",
-              "amber",
-              "green",
-              "blue",
-              "purple"
+              "backlog",
+              "new",
+              "working",
+              "needs_input",
+              "waiting",
+              "done",
+              "merged",
+              "manual"
             ],
-            "title": "Color",
-            "default": ""
+            "title": "State",
+            "default": "backlog"
           },
           "repo": {
             "type": "string",
@@ -3588,18 +3590,17 @@
             "title": "Status",
             "default": ""
           },
-          "color": {
+          "state": {
             "type": "string",
             "enum": [
-              "",
-              "red",
-              "amber",
-              "green",
-              "blue",
-              "purple"
+              "working",
+              "needs_input",
+              "waiting",
+              "done",
+              "merged"
             ],
-            "title": "Color",
-            "default": ""
+            "title": "State",
+            "default": "working"
           },
           "description": {
             "type": "string",
@@ -3621,7 +3622,7 @@
         },
         "type": "object",
         "title": "TaskChange",
-        "description": "What an agent may change about its task. Only the fields that are sent change;\n`color` \"\" removes the color, `reminder` null removes the reminder."
+        "description": "What an agent may change about its task. Only the fields that are sent change;\n`reminder` null removes the reminder."
       },
       "TaskCreate": {
         "properties": {
@@ -3692,18 +3693,20 @@
             "type": "string",
             "title": "Status"
           },
-          "color": {
+          "state": {
             "type": "string",
             "enum": [
-              "",
-              "red",
-              "amber",
-              "green",
-              "blue",
-              "purple"
+              "backlog",
+              "new",
+              "working",
+              "needs_input",
+              "waiting",
+              "done",
+              "merged",
+              "manual"
             ],
-            "title": "Color",
-            "default": ""
+            "title": "State",
+            "default": "new"
           },
           "reminder": {
             "anyOf": [
@@ -3791,18 +3794,20 @@
             "type": "string",
             "title": "Status"
           },
-          "color": {
+          "state": {
             "type": "string",
             "enum": [
-              "",
-              "red",
-              "amber",
-              "green",
-              "blue",
-              "purple"
+              "backlog",
+              "new",
+              "working",
+              "needs_input",
+              "waiting",
+              "done",
+              "merged",
+              "manual"
             ],
-            "title": "Color",
-            "default": ""
+            "title": "State",
+            "default": "new"
           },
           "branch": {
             "type": "string",

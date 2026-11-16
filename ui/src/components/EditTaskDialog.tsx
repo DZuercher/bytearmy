@@ -13,8 +13,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-
-const COLORS: TaskEdit['color'][] = ['', 'red', 'amber', 'green', 'blue', 'purple']
+import { type State, STATES } from '@/lib/states'
 
 // Changes what the user may change about a task. Shown while `task` is being edited.
 export function EditTaskDialog({
@@ -33,13 +32,17 @@ export function EditTaskDialog({
     description: task.description,
     branch: task.branch,
     status: task.status,
-    color: task.color,
+    state: task.state,
     reminder: task.reminder ?? '',
     dependencies: task.dependencies,
   })
   const [error, setError] = useState<string | null>(null)
   const others = [...project.backlog, ...project.tasks].filter((other) => other.slug !== task.slug)
   const inBacklog = project.backlog.some((other) => other.slug === task.slug)
+  // A started task can take every state but backlog; merged only with a GitHub URL.
+  const states = (Object.keys(STATES) as State[]).filter(
+    (state) => state !== 'backlog' && (state !== 'merged' || project.github_url || task.state === 'merged'),
+  )
   // A branch is fixed once it is set; until then it can be added, after the clone is done.
   const branchOpen = !task.branch && task.clone !== 'cloning'
 
@@ -104,21 +107,23 @@ export function EditTaskDialog({
               />
             </div>
           )}
-          <div className="grid gap-2">
-            <Label htmlFor="edit-task-color">Color</Label>
-            <select
-              id="edit-task-color"
-              className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 md:text-sm"
-              value={edit.color}
-              onChange={(event) => setEdit({ ...edit, color: event.target.value as TaskEdit['color'] })}
-            >
-              {COLORS.map((color) => (
-                <option key={color} value={color}>
-                  {color || 'none'}
-                </option>
-              ))}
-            </select>
-          </div>
+          {!inBacklog && (
+            <div className="grid gap-2">
+              <Label htmlFor="edit-task-state">State</Label>
+              <select
+                id="edit-task-state"
+                className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 md:text-sm"
+                value={edit.state}
+                onChange={(event) => setEdit({ ...edit, state: event.target.value as State })}
+              >
+                {states.map((state) => (
+                  <option key={state} value={state}>
+                    {STATES[state].label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           {others.length > 0 && (
             <fieldset className="grid gap-2">
               <legend className="mb-2 text-sm font-medium">Depends on</legend>

@@ -56,9 +56,17 @@ A small `Focus mode` tab sits above the backlog task bar. Clicking it turns focu
 Every task has a status. When a task is placed from the backlog into the task bar it is set to `New`.
 The status is shown as a small tag below the task name in the task bar.
 When a task is clicked on in the task bar the workspace of the task is shown.
-The agents working in a task can change its status, its color, its description and its reminder with the `bytearmy` command line tool; its name, branch and dependencies stay as the user set them.
+The agents working in a task can change its state, its status, its description and its reminder with the `bytearmy` command line tool; its name, branch and dependencies stay as the user set them.
 The status is free text; only `Backlog` is not allowed, as a started task cannot go back.
-The color (red, amber, green, blue, purple or none) colors the task in the bars, to get the user's attention.
+The state alone colors the task in the bars, so that the colors mean the same in every task:
+- `backlog` (no color): the task is in the backlog. `new` (no color): the task was started, nobody has set a state yet.
+- `working` (blue): an agent works on the task itself, nothing blocks it.
+- `needs_input` (amber): the user has to do something.
+- `waiting` (red): an agent waits for an event outside bytearmy, such as a CI run.
+- `done` (green): an agent thinks the task is done, nothing more needs to be done.
+- `merged` (purple): the task's pull request is merged; only in projects with a GitHub URL.
+- `manual` (black): set only by the user, in the edit dialog.
+Agents set `working`, `needs_input`, `waiting`, `done` and `merged`; the user can set every state of a started task.
 
 #### Scratchpad
 Every project has a task called `Scratchpad`, with the status `Explore`, for the user to explore the project and ask general questions. It is created with the project (projects made before it existed get theirs at the next start) and, if the project has a GitHub URL, holds a clone of the default branch. It is always shown at the very top of the task bar, apart from the other tasks: it cannot be dragged, and the others cannot be dragged above it. It cannot be deleted; otherwise it is a task like any other.
@@ -80,7 +88,7 @@ Each task has one master agent, which is the agent that was created first in the
 Agents create, close, hide, show, highlight, maximize and rearrange panes with the `bytearmy` command line tool, which is available in every terminal pane:
 - `bytearmy pane list|open|close|hide|show|maximize|restore|highlight|unhighlight|move`, e.g. `bytearmy pane open webpage <url>` or `bytearmy pane maximize <id>`
 - `bytearmy tool list`
-- `bytearmy task show|set-status|set-color|set-description|set-reminder`, e.g. `bytearmy task set-status "Needs review" --color amber`
+- `bytearmy task show|set-status|working|needs-input|waiting|done|merged|set-description|set-reminder`, e.g. `bytearmy task needs-input "Needs review"`; a state command without a status sets the state's name as the status
 - `bytearmy agent list|spawn`
 
 The command works only on the task of the pane it runs in: bytearmy gives the program of every pane a key of its own. Every pane of the task may run every command; that the master leads the others is said only in its instructions.
@@ -178,7 +186,7 @@ The settings of bytearmy are TOML files named `config.toml`:
 The settings:
 - `color_scheme`: the color scheme of the window, a file in `<bytearmy_root>/.bytearmy/themes`.
 - `[orchestrator]`: `autostart` (start it with bytearmy, otherwise when its tab is first shown); `command` and `resume`, which replace those of the Claude tool; `allow`, the `bytearmy` commands it may call (`project.list|create|delete`, `tasks.list|create|start|delete`, `inbox.list|read|dismiss`), as patterns like `tasks.*`; `allow_task_creation` and `allow_task_deletion`, which, when false, forbid `tasks.create` and `tasks.delete` whatever `allow` says; Claude's own permissions `permission_mode`, `allowed_tools` and `disallowed_tools`; `announce_inbox` and `quiet_seconds` for the notes about new messages.
-- `[master]` and `[agents]`: the same for the master of a task and for every other agent of it, plus `spawn`. Their `allow` names the commands of the panes: `pane.list|open|close|maximize|hide|highlight|move`, `tool.list`, `task.show|set-status|set-color|set-description|set-reminder`, `agent.list|spawn`, `review`, `log`. A pane without an agent is the user's, and may call all. `[master]` also has `allow_pr_creation` and `allow_pr_merge`: when false, `gh pr create` or `gh pr merge` is added to the tools Claude may not use, and the master's instructions tell it to leave that to the user.
+- `[master]` and `[agents]`: the same for the master of a task and for every other agent of it, plus `spawn`. Their `allow` names the commands of the panes: `pane.list|open|close|maximize|hide|highlight|move`, `tool.list`, `task.show|set-status|working|needs-input|waiting|done|merged|set-description|set-reminder`, `agent.list|spawn`, `review`, `log`. A pane without an agent is the user's, and may call all. `[master]` also has `allow_pr_creation` and `allow_pr_merge`: when false, `gh pr create` or `gh pr merge` is added to the tools Claude may not use, and the master's instructions tell it to leave that to the user.
 - `[tools.<id>]`: `enabled = false` takes a tool out of the command dialogue and away from the agents; `name`, `callers`, `command`, `resume`, `spawn`, `url` and `directory` replace what its tool file says.
 - `[inbox]`: `enabled`, `poll_seconds` (at least 60), and in `[inbox.github]` `enabled`, `reasons` and `repositories`, which keep only the notifications for these reasons and of these repositories.
 - `[github]`: `user`, `host`, `name` and `email`. With a user, `gh` and `git` act as that account of `gh auth login` instead of gh's active one: bytearmy asks `gh auth token --user` for its token and gives it, as `GH_TOKEN` with gh as git's credential helper, to the inbox, the clones and the programs in the panes. If gh does not know the account, the active one is used and the banner says so. `name` and `email` become git's `user.name` and `user.email` (as `GIT_CONFIG_*` entries in the same environment), so commits in the clones and panes carry them, with or without a user; empty keeps git's own.

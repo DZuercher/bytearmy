@@ -28,7 +28,7 @@ HEADER = """\
 #   [colors]    any CSS color. A color that is missing is taken from the light scheme.
 #               shell: the bars around the workspace, hover: an item under the mouse,
 #               primary-hover: a button on a primary background under the mouse,
-#               task-<color>: the background of a task an agent colored,
+#               task-<color>: the background of a task its state colors,
 #               task-<color>-mark: its left border
 """
 
@@ -78,6 +78,8 @@ LIGHT = {
     "task-blue-mark": "oklch(0.623 0.214 259.815)",
     "task-purple": "oklch(0.977 0.014 308.299)",
     "task-purple-mark": "oklch(0.627 0.265 303.9)",
+    "task-black": "oklch(0.922 0 0)",
+    "task-black-mark": "oklch(0 0 0)",
 }
 
 DARK = {
@@ -125,6 +127,8 @@ DARK = {
     "task-blue-mark": "oklch(0.707 0.165 254.624)",
     "task-purple": "oklch(0.291 0.149 302.717)",
     "task-purple-mark": "oklch(0.714 0.203 305.504)",
+    "task-black": "oklch(0.1 0 0)",
+    "task-black-mark": "oklch(0 0 0)",
 }
 
 
@@ -134,12 +138,17 @@ def premade_text(appearance: str, colors: dict[str, str]) -> str:
 
 
 PREMADE = {"light": premade_text("light", LIGHT), "dark": premade_text("dark", DARK)}
+# Fingerprints of what earlier versions of bytearmy wrote: such a file is replaced.
+EARLIER = {
+    "light": {"65bb7f02aef558d77a23f6356ce124acd43b1ac77919f40c3bdc1319d4584b71"},
+    "dark": {"dfe3a665b8c8695b8098ebadc54ba3a466279f316b21a83ce2f975041b8c7c04"},
+}
 
 
 def ensure_premade(root: Path) -> None:
     """Write the color schemes bytearmy comes with, unless the user has changed their files."""
     for name, text in PREMADE.items():
-        write_premade(root / THEMES_DIR / f"{name}.toml", text, set())
+        write_premade(root / THEMES_DIR / f"{name}.toml", text, EARLIER[name])
 
 
 def chosen(root: Path) -> str:

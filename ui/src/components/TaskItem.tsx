@@ -10,16 +10,8 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu'
+import { STATES } from '@/lib/states'
 import { cn } from '@/lib/utils'
-
-// The colors an agent can give a task to get the user's attention.
-const COLORS: Record<string, string> = {
-  red: 'border-l-task-red-mark bg-task-red',
-  amber: 'border-l-task-amber-mark bg-task-amber',
-  green: 'border-l-task-green-mark bg-task-green',
-  blue: 'border-l-task-blue-mark bg-task-blue',
-  purple: 'border-l-task-purple-mark bg-task-purple',
-}
 
 // A task in the backlog or in the task bar: click acts, right-click shows its data.
 // `children` is what the bar adds below the name: the blocked note or the status tag.
@@ -59,7 +51,7 @@ export function TaskItem({
           className={cn(
             'flex w-full flex-col items-start gap-1 rounded-md px-3 py-1.5 text-left outline-none focus-visible:ring-2',
             !highlighted && 'text-muted-foreground hover:bg-hover hover:text-foreground',
-            task.color && cn('border-l-4 text-foreground', COLORS[task.color]),
+            STATES[task.state].color && cn('border-l-4 text-foreground', STATES[task.state].color),
             // After the color, so that a focused task stays dark; it keeps its colored left border.
             highlighted && 'bg-primary font-medium text-primary-foreground shadow-sm',
             isDragging && 'relative z-10 cursor-grabbing shadow-md',
@@ -80,7 +72,7 @@ export function TaskItem({
         <DataList
           rows={[
             ['Name', task.name],
-            ['Status', task.status + (task.color ? ` (${task.color})` : '')],
+            ['Status', `${task.status} (${STATES[task.state].label})`],
             ['Description', task.description],
             ['Branch', task.branch],
             ['Reminder', task.reminder && `${task.reminder}${task.reminder_due ? ' (due)' : ''}`],

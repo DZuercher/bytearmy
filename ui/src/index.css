@@ -52,6 +52,8 @@
     --color-task-blue-mark: var(--task-blue-mark);
     --color-task-purple: var(--task-purple);
     --color-task-purple-mark: var(--task-purple-mark);
+    --color-task-black: var(--task-black);
+    --color-task-black-mark: var(--task-black-mark);
     --radius-sm: calc(var(--radius) * 0.6);
     --radius-md: calc(var(--radius) * 0.8);
     --radius-lg: var(--radius);
@@ -109,6 +111,8 @@
     --task-blue-mark: oklch(0.623 0.214 259.815);
     --task-purple: oklch(0.977 0.014 308.299);
     --task-purple-mark: oklch(0.627 0.265 303.9);
+    --task-black: oklch(0.922 0 0);
+    --task-black-mark: oklch(0 0 0);
 }
 
 @layer base {

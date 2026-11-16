@@ -55,7 +55,11 @@ AGENT_COMMANDS = (
     "tool.list",
     "task.show",
     "task.set-status",
-    "task.set-color",
+    "task.working",
+    "task.needs-input",
+    "task.waiting",
+    "task.done",
+    "task.merged",
     "task.set-description",
     "task.set-reminder",
     "agent.list",
@@ -292,8 +296,9 @@ resume = ""
 spawn = ""
 # The `bytearmy` commands it may call, as patterns: pane.list, pane.open, pane.close,
 # pane.maximize, pane.hide, pane.highlight, pane.move, tool.list, task.show,
-# task.set-status, task.set-color, task.set-description, task.set-reminder, agent.list,
-# agent.spawn, review, log, pr.create, pr.view, pr.merge.
+# task.set-status, task.working, task.needs-input, task.waiting, task.done, task.merged,
+# task.set-description, task.set-reminder, agent.list, agent.spawn, review, log,
+# pr.create, pr.view, pr.merge.
 allow = ["*"]
 # Whether it may create and merge the pull request of the task's branch. `bytearmy pr`
 # does it with gh as the account of [github], for the task's branch only, and Claude is

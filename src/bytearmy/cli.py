@@ -13,7 +13,14 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-COLORS = ("red", "amber", "green", "blue", "purple", "none")
+# The states an agent sets, by their commands: (state, status if none is given, help).
+STATES = {
+    "working": ("working", "Working", "you work on the task yourself, nothing blocks you (blue)"),
+    "needs-input": ("needs_input", "Needs input", "the user has to do something (amber)"),
+    "waiting": ("waiting", "Waiting", "you wait for an event outside bytearmy (red)"),
+    "done": ("done", "Done", "the task is done, nothing more needs to be done (green)"),
+    "merged": ("merged", "Merged", "its pull request is merged; projects with GitHub (purple)"),
+}
 REVIEW_POLL_SECONDS = 2.0
 
 
@@ -170,7 +177,7 @@ def _describe(task: dict) -> str:
     rows = {
         "name": task["name"],
         "status": task["status"],
-        "color": task["color"] or "none",
+        "state": task["state"],
         "description": task["description"],
         "branch": task["branch"],
         "reminder": task["reminder"] or "none",
@@ -185,13 +192,12 @@ def _change(**fields: object) -> str:
 
 
 def task_set_status(args: argparse.Namespace) -> str:
-    if args.color is None:
-        return _change(status=args.status)
-    return _change(status=args.status, color=_color(args.color))
+    return _change(status=args.status)
 
 
-def task_set_color(args: argparse.Namespace) -> str:
-    return _change(color=_color(args.color))
+def task_set_state(args: argparse.Namespace) -> str:
+    state, status, _help = STATES[args.action]
+    return _change(state=state, status=args.status or status)
 
 
 def task_set_description(args: argparse.Namespace) -> str:
@@ -200,10 +206,6 @@ def task_set_description(args: argparse.Namespace) -> str:
 
 def task_set_reminder(args: argparse.Namespace) -> str:
     return _change(reminder=None if args.date == "none" else args.date)
-
-
-def _color(name: str) -> str:
-    return "" if name == "none" else name
 
 
 def agent_list(_args: argparse.Namespace) -> str:
@@ -425,9 +427,9 @@ def parser() -> argparse.ArgumentParser:
     command(task, "show", task_show, "show the task's data")
     status = command(task, "set-status", task_set_status, "set the status tag in the task bar")
     status.add_argument("status")
-    status.add_argument("--color", choices=COLORS, help="also color the task in the task bar")
-    coloring = command(task, "set-color", task_set_color, "color the task in the task bar")
-    coloring.add_argument("color", choices=COLORS)
+    for name, (_state, default, help) in STATES.items():
+        stating = command(task, name, task_set_state, f"set the state: {help}")
+        stating.add_argument("status", nargs="?", help=f'the status tag; "{default}" if none')
     describing = command(task, "set-description", task_set_description, "set the description")
     describing.add_argument("description")
     reminding = command(task, "set-reminder", task_set_reminder, "set or remove the reminder")

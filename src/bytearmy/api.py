@@ -485,7 +485,7 @@ def create_app(
             slug=task.slug,
             name=task.name,
             status=task.status,
-            color=task.color,
+            state=task.state,
             branch=task.branch,
             description=task.description,
             path=task.path,
@@ -602,7 +602,9 @@ def create_app(
     @agent.patch("/task")
     def agent_change_task(caller: Caller, change: TaskChange) -> Task:
         for field in sorted(change.model_fields_set):
-            workspaces.check_allowed(caller, f"task.set-{field}")
+            # A state has a command of its own: `bytearmy task working`, `task needs-input`, ...
+            name = change.state.replace("_", "-") if field == "state" else f"set-{field}"
+            workspaces.check_allowed(caller, f"task.{name}")
         store.change_task(*caller[:2], change)
         return store.task(*caller[:2])
 

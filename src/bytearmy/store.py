@@ -334,7 +334,7 @@ class Store:
     def _list_tasks(self, project_dir: Path, project: ProjectFile) -> tuple[list[Task], list[Task]]:
         """The project's tasks as (backlog, task bar), each in its stored order."""
         files = self._task_files(project_dir)
-        in_backlog = {slug for slug, file in files.items() if file.status == BACKLOG}
+        in_backlog = {slug for slug, file in files.items() if file.state == "backlog"}
         today = self._today()
 
         def task(slug: str) -> Task:
@@ -400,7 +400,7 @@ class Store:
                 fields["repo"] = repo_directory(project_file.github_url)
             self._save_task(project_dir, slug, TaskFile(**fields))
 
-            in_backlog = [other for other, file in files.items() if file.status == BACKLOG]
+            in_backlog = [other for other, file in files.items() if file.state == "backlog"]
             project_file.backlog_order = [*_ordered(project_file.backlog_order, in_backlog), slug]
             self._save_project(project_dir, project_file)
             return self.task(project, slug)
@@ -423,12 +423,13 @@ class Store:
             name=name,
             description="Explore the project and ask general questions.",
             status=SCRATCHPAD_STATUS,
+            state="new",
             scratchpad=True,
         )
         if project_file.github_url:
             file.repo = repo_directory(project_file.github_url)
         self._save_task(project_dir, slug, file)
-        started = [other for other, other_file in files.items() if other_file.status != BACKLOG]
+        started = [other for other, other_file in files.items() if other_file.state != "backlog"]
         project_file.task_order = [slug, *_ordered(project_file.task_order, started)]
         if project_file.focused_task is None:
             project_file.focused_task = slug
@@ -448,17 +449,17 @@ class Store:
             self._task_dir(project_dir, slug)
             files = self._task_files(project_dir)
             file = files[slug]
-            if file.status != BACKLOG:
+            if file.state != "backlog":
                 return
             waiting = [
                 files[other].name
                 for other in file.dependencies
-                if other in files and files[other].status == BACKLOG
+                if other in files and files[other].state == "backlog"
             ]
             if waiting:
                 raise Blocked(file.name, waiting)
-            started = [other for other in files if files[other].status != BACKLOG]
-            file.status = NEW
+            started = [other for other in files if files[other].state != "backlog"]
+            file.status, file.state = NEW, "new"
             self._save_task(project_dir, slug, file)
             project_file = self._project_file(project_dir)
             project_file.task_order = [*_ordered(project_file.task_order, started), slug]
@@ -476,9 +477,10 @@ class Store:
                 for other, other_file in files.items()
             ):
                 raise DuplicateName("task", edit.name)
-            if file.status == BACKLOG and edit.status != BACKLOG:
+            state = edit.state or file.state
+            if file.state == "backlog" and (edit.status != BACKLOG or state != "backlog"):
                 raise InvalidEdit("a task in the backlog gets a status when it is started")
-            if file.status != BACKLOG and edit.status == BACKLOG:
+            if file.state != "backlog" and (edit.status == BACKLOG or state == "backlog"):
                 raise InvalidEdit("a started task cannot go back to the backlog")
             if edit.branch and file.branch and edit.branch != file.branch:
                 raise InvalidEdit("the branch of a task cannot be changed once it is set")
@@ -500,6 +502,7 @@ class Store:
                         if dependency in files
                     )
             fields = edit.model_dump()
+            fields["state"] = state
             fields["branch"] = file.branch or edit.branch
             fields["dependencies"] = dependencies
             self._save_task(project_dir, slug, file.model_copy(update=fields))
@@ -553,6 +556,11 @@ class Store:
             project_dir = self._project_dir(project)
             self._task_dir(project_dir, slug)
             file = self._task_files(project_dir)[slug]
+            if file.state == "backlog":
+                raise InvalidEdit("a task in the backlog is changed only by the user")
+            merged = "state" in change.model_fields_set and change.state == "merged"
+            if merged and not self._project_file(project_dir).github_url:
+                raise InvalidEdit("only a task of a project with a GitHub URL can be merged")
             for name in change.model_fields_set:
                 setattr(file, name, getattr(change, name))
             self._save_task(project_dir, slug, file)
