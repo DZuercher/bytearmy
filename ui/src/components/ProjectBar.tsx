@@ -1,8 +1,7 @@
 import { ChevronLeft, ChevronRight, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useState } from 'react'
-import type { Project, ProjectEdit, ProjectMeta } from '@/api/client'
+import type { Project, ProjectEdit } from '@/api/client'
 import { BarHeading } from '@/components/BarHeading'
-import { CreateProjectDialog } from '@/components/CreateProjectDialog'
 import { DataList } from '@/components/DataList'
 import type { Doomed } from '@/components/DeleteDialog'
 import { EditProjectDialog } from '@/components/EditProjectDialog'
@@ -23,14 +22,13 @@ type Props = {
   projects: Project[]
   focused: string | null
   onFocus: (slug: string) => void
-  onCreate: (meta: ProjectMeta) => Promise<void>
+  onAdd: () => void // opens the dialog that creates a project
   onEdit: (slug: string, edit: ProjectEdit) => Promise<void>
   onDelete: (doomed: Doomed) => void
   onReorder: (order: string[]) => void
 }
 
-export function ProjectBar({ open, onToggle, projects, focused, onFocus, onCreate, onEdit, onDelete, onReorder }: Props) {
-  const [creating, setCreating] = useState(false)
+export function ProjectBar({ open, onToggle, projects, focused, onFocus, onAdd, onEdit, onDelete, onReorder }: Props) {
   const [editing, setEditing] = useState<string | null>(null) // the slug of the project being edited
   const edited = projects.find((project) => project.slug === editing)
 
@@ -51,7 +49,7 @@ export function ProjectBar({ open, onToggle, projects, focused, onFocus, onCreat
         <div className="grow">
           <BarHeading>Projects</BarHeading>
         </div>
-        <Button variant="ghost" size="icon-sm" aria-label="Add project" onClick={() => setCreating(true)}>
+        <Button variant="ghost" size="icon-sm" aria-label="Add project" onClick={onAdd}>
           <Plus />
         </Button>
         <Button variant="ghost" size="icon-sm" aria-label="Collapse projects bar" onClick={onToggle}>
@@ -114,7 +112,6 @@ export function ProjectBar({ open, onToggle, projects, focused, onFocus, onCreat
       </SortableList>
       {projects.length === 0 && <p className="text-muted-foreground">No projects yet.</p>}
 
-      <CreateProjectDialog open={creating} onOpenChange={setCreating} onCreate={onCreate} />
       {edited && (
         <EditProjectDialog
           key={edited.slug}

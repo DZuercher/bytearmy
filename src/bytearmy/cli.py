@@ -341,6 +341,21 @@ def review(args: argparse.Namespace) -> str:
         time.sleep(REVIEW_POLL_SECONDS)
 
 
+def pr_create(args: argparse.Namespace) -> str:
+    body = Path(args.body_file).read_text() if args.body_file else args.body
+    request = {"title": args.title, "body": body, "base": args.base, "draft": args.draft}
+    return call("POST", "/pulls", request)["text"]
+
+
+def pr_view(_args: argparse.Namespace) -> str:
+    return call("GET", "/pulls")["text"]
+
+
+def pr_merge(args: argparse.Namespace) -> str:
+    request = {"method": args.method, "delete_branch": args.delete_branch}
+    return call("POST", "/pulls/merge", request)["text"]
+
+
 # -- command line --------------------------------------------------------------
 
 
@@ -351,7 +366,7 @@ def parser() -> argparse.ArgumentParser:
     groups = main.add_subparsers(
         dest="group",
         required=True,
-        metavar="{pane,tool,task,agent,log,review,project,tasks,inbox}",
+        metavar="{pane,tool,task,agent,log,review,pr,project,tasks,inbox}",
     )
 
     def command(group, name: str, run, help: str):
@@ -484,6 +499,26 @@ def parser() -> argparse.ArgumentParser:
         help="show only what changed since the last commit, not all since the default branch",
     )
     reviewing.add_argument("--note", help="what the user should look at")
+
+    pulls = groups.add_parser(
+        "pr", help="the pull request of the task's branch, with gh"
+    ).add_subparsers(dest="action", required=True)
+    creating = command(
+        pulls, "create", pr_create, "push the task's branch and open its pull request"
+    )
+    creating.add_argument("--title", required=True)
+    creating.add_argument("--body", default="")
+    creating.add_argument("--body-file", help="read the body from this file")
+    creating.add_argument(
+        "--base", default="", help="the branch to merge into; default: the default branch"
+    )
+    creating.add_argument("--draft", action="store_true")
+    command(pulls, "view", pr_view, "show the pull request of the task's branch")
+    merging = command(pulls, "merge", pr_merge, "merge the pull request of the task's branch")
+    merging.add_argument("--method", choices=("merge", "squash", "rebase"), default="squash")
+    merging.add_argument(
+        "--delete-branch", action="store_true", help="delete the branch on GitHub afterwards"
+    )
     return main
 
 

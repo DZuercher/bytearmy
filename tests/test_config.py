@@ -116,7 +116,8 @@ def test_allow_takes_patterns_and_the_flags_are_quoted():
     assert not settings.allows("agent.spawn")
     assert settings.denied(["pane.list", "review"]) == ["review"]
     assert settings.flags() == (
-        "--permission-mode acceptEdits --allowedTools 'Bash(git *)' Read --disallowedTools WebFetch"
+        "--permission-mode acceptEdits '--allowedTools=Bash(git *)' --allowedTools=Read"
+        " --disallowedTools=WebFetch"
     )
     assert ClaudeSettings().flags() == ""
 
@@ -132,9 +133,13 @@ def test_the_allow_switches_forbid_whatever_allow_says():
     assert OrchestratorSettings().denied(["tasks.create", "tasks.delete"]) == []
 
     master = MasterSettings(allow_pr_creation=False, allow_pr_merge=False)
-    assert master.flags() == ("--disallowedTools 'Bash(gh pr create *)' 'Bash(gh pr merge *)'")
+    assert master.flags() == (
+        "'--allowedTools=Bash(bytearmy pr *)' '--disallowedTools=Bash(gh pr create *)'"
+        " '--disallowedTools=Bash(gh pr merge *)'"
+    )
     assert len(master.forbidden_actions()) == 2
-    assert MasterSettings().flags() == "" and MasterSettings().forbidden_actions() == []
+    assert MasterSettings().flags() == "'--allowedTools=Bash(bytearmy pr *)'"
+    assert MasterSettings().forbidden_actions() == []
     assert MasterSettings(allow_pr_merge=False).forbidden_tools() == ["Bash(gh pr merge *)"]
 
 

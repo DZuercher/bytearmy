@@ -41,6 +41,9 @@ from bytearmy.models import (
     ProjectMeta,
     ProjectOrder,
     ProjectSummary,
+    PullRequestAnswer,
+    PullRequestCreate,
+    PullRequestMerge,
     ReadChange,
     ReviewRequest,
     ReviewState,
@@ -58,6 +61,7 @@ from bytearmy.models import (
     Workspace,
 )
 from bytearmy.orchestrator import Orchestrator
+from bytearmy.prs import PullRequestFailed
 from bytearmy.ptys import Pty
 from bytearmy.store import (
     Blocked,
@@ -609,6 +613,18 @@ def create_app(
     def agent_request_review(caller: Caller, request: ReviewRequest) -> Opened:
         return Opened(pane=workspaces.request_review(caller, request).id)
 
+    @agent.post("/pulls", status_code=201, dependencies=[agent_may("pr.create")])
+    def agent_create_pull_request(caller: Caller, request: PullRequestCreate) -> PullRequestAnswer:
+        return PullRequestAnswer(text=workspaces.create_pull_request(caller, request))
+
+    @agent.get("/pulls", dependencies=[agent_may("pr.view")])
+    def agent_view_pull_request(caller: Caller) -> PullRequestAnswer:
+        return PullRequestAnswer(text=workspaces.view_pull_request(caller))
+
+    @agent.post("/pulls/merge", dependencies=[agent_may("pr.merge")])
+    def agent_merge_pull_request(caller: Caller, request: PullRequestMerge) -> PullRequestAnswer:
+        return PullRequestAnswer(text=workspaces.merge_pull_request(caller, request))
+
     @agent.get("/reviews/{pane}")
     def agent_review_state(caller: Caller, pane: str) -> ReviewState:
         return workspaces.review_state(caller, pane)
@@ -825,6 +841,10 @@ def create_app(
     @app.exception_handler(InvalidLayout)
     def invalid_layout(_request: Request, error: InvalidLayout) -> JSONResponse:
         return answer(400, str(error))
+
+    @app.exception_handler(PullRequestFailed)
+    def pull_request_failed(_request: Request, error: PullRequestFailed) -> JSONResponse:
+        return answer(409, str(error))
 
     @app.exception_handler(ToolFailed)
     def tool_failed(_request: Request, error: ToolFailed) -> JSONResponse:

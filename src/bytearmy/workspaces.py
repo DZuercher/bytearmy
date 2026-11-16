@@ -36,6 +36,8 @@ from bytearmy.models import (
     Pane,
     PaneCall,
     PaneOpen,
+    PullRequestCreate,
+    PullRequestMerge,
     ReviewRequest,
     ReviewState,
     Split,
@@ -43,6 +45,7 @@ from bytearmy.models import (
     Tool,
     Workspace,
 )
+from bytearmy.prs import PullRequestCommands, PullRequestFailed
 from bytearmy.ptys import Pty
 from bytearmy.pulls import PullRequests
 from bytearmy.reviews import ReviewFailed, Reviews
@@ -146,9 +149,11 @@ class Workspaces:
         shell: Sequence[str] | None = None,
         url: str = "",
         pulls: PullRequests | None = None,
+        pr_commands: PullRequestCommands | None = None,
     ) -> None:
         self._store = store
         self._pulls = pulls or PullRequests(store)
+        self._pr_commands = pr_commands or PullRequestCommands()
         # A login shell that reads the user's startup files: functions and aliases work.
         self._shell = list(shell or [os.environ.get("SHELL", "/bin/sh"), "-l", "-i"])
         self.url = url  # where the programs in the panes reach the core
@@ -539,6 +544,35 @@ class Workspaces:
         if pane in self._store.task(project, task).workspace.panes:
             return ReviewState(done=False)
         return ReviewState(done=True, text=CLOSED_REVIEW)
+
+    # -- pull requests -----------------------------------------------------
+
+    def _clone_and_branch(self, caller: Key) -> tuple[Path, str, dict[str, str]]:
+        """Where the task's clone is, its branch, and the GitHub account to act as."""
+        project, task, _ = caller
+        found = self._store.task(project, task)
+        if not found.branch:
+            raise PullRequestFailed("the task has no branch, so it can have no pull request")
+        if found.clone != "ready" or not found.repo:
+            raise PullRequestFailed("the task has no clone of a GitHub repository")
+        return Path(found.path) / found.repo, found.branch, self.github_env(project, task)
+
+    def create_pull_request(self, caller: Key, request: PullRequestCreate) -> str:
+        """Push the task's branch and open its pull request; gives its URL."""
+        clone, branch, env = self._clone_and_branch(caller)
+        url = self._pr_commands.create(
+            clone, branch, env, request.title, request.body, request.base, request.draft
+        )
+        self._store.changed()  # the task bar links the pull request once it is found
+        return url
+
+    def view_pull_request(self, caller: Key) -> str:
+        clone, branch, env = self._clone_and_branch(caller)
+        return self._pr_commands.view(clone, branch, env)
+
+    def merge_pull_request(self, caller: Key, request: PullRequestMerge) -> str:
+        clone, branch, env = self._clone_and_branch(caller)
+        return self._pr_commands.merge(clone, branch, env, request.method, request.delete_branch)
 
     def _review_page(self, project: str, task: str, pane: str) -> str:
         """Where the diffle of a diff pane answers; starts it if it does not run yet."""
