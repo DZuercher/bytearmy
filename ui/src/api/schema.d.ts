@@ -326,6 +326,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{project}/tasks/{task}/panes/{pane}/finish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Finish Review
+         * @description Send the review of a diff pane and close the pane.
+         */
+        post: operations["finish_review_api_projects__project__tasks__task__panes__pane__finish_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects/{project}/tasks/{task}/panes/{pane}/page": {
         parameters: {
             query?: never;
@@ -2480,6 +2500,39 @@ export interface operations {
         };
     };
     close_pane_api_projects__project__tasks__task__panes__pane__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project: string;
+                task: string;
+                pane: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    finish_review_api_projects__project__tasks__task__panes__pane__finish_post: {
         parameters: {
             query?: never;
             header?: never;

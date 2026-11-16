@@ -85,7 +85,7 @@ export function Workspace({ project, task, visible, run, onArrange, onActivePane
                     size="icon-xs"
                     aria-label="Finish review"
                     title="Finish the review: send its open comments and close the pane"
-                    onClick={() => run(api.closePane(place.project, place.task, id))}
+                    onClick={() => run(api.finishReview(place.project, place.task, id))}
                   >
                     <Send />
                   </Button>

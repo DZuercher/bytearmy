@@ -40,6 +40,7 @@ const routes = {
   hiddenOpen: '/api/projects/{project}/tasks/{task}/hidden-open',
   panes: '/api/projects/{project}/tasks/{task}/panes',
   pane: '/api/projects/{project}/tasks/{task}/panes/{pane}',
+  paneFinish: '/api/projects/{project}/tasks/{task}/panes/{pane}/finish',
   paneHighlight: '/api/projects/{project}/tasks/{task}/panes/{pane}/highlight',
   paneHidden: '/api/projects/{project}/tasks/{task}/panes/{pane}/hidden',
   panePage: '/api/projects/{project}/tasks/{task}/panes/{pane}/page',
@@ -119,6 +120,8 @@ export const api = {
     request('POST', fill(routes.panes, { project, task }), pane),
   closePane: (project: string, task: string, pane: string) =>
     request('DELETE', fill(routes.pane, { project, task, pane })),
+  finishReview: (project: string, task: string, pane: string) =>
+    request('POST', fill(routes.paneFinish, { project, task, pane })),
   setLayout: (project: string, task: string, tree: Tree) =>
     request('PUT', fill(routes.layout, { project, task }), { tree } satisfies Schemas['Layout']),
   maximizePane: (project: string, task: string, slug: string | null) =>

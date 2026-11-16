@@ -1,5 +1,5 @@
 """Checks for the diff pane: diffle shows the changes, and the comments the user writes there
-reach an agent when the pane closes."""
+reach an agent when the user finishes the review."""
 
 from __future__ import annotations
 
@@ -119,14 +119,14 @@ def test_a_diff_pane_shows_diffle(workspaces, task):
     assert workspaces.page_version("demo", "work", pane.id) is None
 
 
-def test_closing_the_pane_types_the_review_into_the_master(store, workspaces, task):
+def test_finishing_the_review_types_it_into_the_master(store, workspaces, task):
     tool(store, "bot", name="Bot", agent=True, command=RECORDER)
     master = workspaces.open_pane("demo", "work", PaneOpen(tool="bot"))
     workspaces.start("demo", "work", master.id)
     pane = workspaces.open_pane("demo", "work", PaneOpen(tool="diff"))
     url = workspaces.page("demo", "work", pane.id, files="")
     comment(url, "Why two?")
-    workspaces.close_pane("demo", "work", pane.id)
+    workspaces.finish_review("demo", "work", pane.id)
 
     got = task / f"{master.id}.got"
     wait_until(lambda: got.exists() and "Why two?" in got.read_text(), "the master gets it")
@@ -140,10 +140,26 @@ def test_closing_the_pane_types_the_review_into_the_master(store, workspaces, ta
     assert open_threads(workspaces.page("demo", "work", again.id, files="")) == []
 
 
+def test_closing_the_pane_sends_nothing_and_keeps_the_comments(store, workspaces, task):
+    tool(store, "bot", name="Bot", agent=True, command=RECORDER)
+    master = workspaces.open_pane("demo", "work", PaneOpen(tool="bot"))
+    workspaces.start("demo", "work", master.id)
+    pane = workspaces.open_pane("demo", "work", PaneOpen(tool="diff"))
+    comment(workspaces.page("demo", "work", pane.id, files=""), "Not yet.")
+    workspaces.close_pane("demo", "work", pane.id)
+    assert pane.id not in store.task("demo", "work").workspace.panes
+
+    again = workspaces.open_pane("demo", "work", PaneOpen(tool="diff"))
+    threads = open_threads(workspaces.page("demo", "work", again.id, files=""))
+    assert [thread["messages"][0]["body"] for thread in threads] == ["Not yet."]
+    got = task / f"{master.id}.got"
+    assert not got.exists() or "Review comments" not in got.read_text()
+
+
 def test_without_a_master_the_comments_wait_for_the_next_review(store, workspaces, task):
     pane = workspaces.open_pane("demo", "work", PaneOpen(tool="diff"))
     comment(workspaces.page("demo", "work", pane.id, files=""), "Later.")
-    workspaces.close_pane("demo", "work", pane.id)
+    workspaces.finish_review("demo", "work", pane.id)
     assert pane.id not in store.task("demo", "work").workspace.panes
     assert "no master agent" in store.log("demo", "work")[-1].text
 
@@ -191,7 +207,7 @@ def test_an_agent_asks_for_a_review_and_gets_it(core, monkeypatch, capsys):  # n
     }
     url = core.http.get(f"{PANES}/{pane['id']}/page").json()["url"]
     comment(url, "Fine.")
-    assert core.http.delete(f"{PANES}/{pane['id']}").status_code == 200
+    assert core.http.post(f"{PANES}/{pane['id']}/finish").status_code == 200
     waiting.join(timeout=5)
 
     assert codes == [0]
@@ -206,6 +222,17 @@ def test_an_agent_hears_when_the_review_has_no_comments(core):  # noqa: F811
     me = calling_pane(core)
     caller = ("demo", "work", me["BYTEARMY_PANE"])
     opened = core.workspaces.request_review(caller, ReviewRequest())
-    core.http.delete(f"{PANES}/{opened.id}")
+    core.http.post(f"{PANES}/{opened.id}/finish")
     state = core.workspaces.review_state(caller, opened.id)
     assert state.done and "finished the review without comments" in state.text
+
+
+def test_an_agent_hears_when_the_review_is_closed_unsent(core):  # noqa: F811
+    path = Path(core.store.task("demo", "work").path)
+    git("init", "-b", "main", cwd=path)
+    me = calling_pane(core)
+    caller = ("demo", "work", me["BYTEARMY_PANE"])
+    opened = core.workspaces.request_review(caller, ReviewRequest())
+    core.http.delete(f"{PANES}/{opened.id}")
+    state = core.workspaces.review_state(caller, opened.id)
+    assert state.done and "without sending it" in state.text

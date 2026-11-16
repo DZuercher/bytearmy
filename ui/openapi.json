@@ -886,6 +886,64 @@
         }
       }
     },
+    "/api/projects/{project}/tasks/{task}/panes/{pane}/finish": {
+      "post": {
+        "summary": "Finish Review",
+        "description": "Send the review of a diff pane and close the pane.",
+        "operationId": "finish_review_api_projects__project__tasks__task__panes__pane__finish_post",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project"
+            }
+          },
+          {
+            "name": "task",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task"
+            }
+          },
+          {
+            "name": "pane",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pane"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/projects/{project}/tasks/{task}/panes/{pane}/page": {
       "get": {
         "summary": "Pane Page",
