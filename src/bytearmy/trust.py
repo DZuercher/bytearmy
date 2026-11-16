@@ -2,8 +2,9 @@
 whether its directory is to be trusted.
 
 Claude keeps what it trusts in its configuration file, `~/.claude.json` (or
-`$CLAUDE_CONFIG_DIR/.claude.json`), as `projects.<directory>.hasTrustDialogAccepted`. A
-directory counts as trusted if it or one of its parents is.
+`$CLAUDE_CONFIG_DIR/.claude.json`), as `projects.<directory>.hasTrustDialogAccepted`.
+Outside a git repository a trusted parent is enough, but inside one Claude asks anyway, so
+every directory is trusted by an entry of its own.
 """
 
 from __future__ import annotations
@@ -41,14 +42,11 @@ def trust_directory(directory: Path, config: Path | None = None) -> None:
         projects = settings.setdefault("projects", {})
         if not isinstance(projects, dict):
             raise TypeError("its projects are no JSON object")
-        if any(
-            isinstance(projects.get(str(path)), dict) and projects[str(path)].get(TRUSTED)
-            for path in [directory, *directory.parents]
-        ):
-            return
         project = projects.setdefault(str(directory), {})
         if not isinstance(project, dict):
             raise TypeError(f"its entry for {directory} is no JSON object")
+        if project.get(TRUSTED):
+            return
         project[TRUSTED] = True
         config.parent.mkdir(parents=True, exist_ok=True)
         temporary = config.with_name(f"{config.name}.bytearmy.tmp")
