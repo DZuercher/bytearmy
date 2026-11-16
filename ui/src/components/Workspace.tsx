@@ -1,6 +1,6 @@
 import 'react-mosaic-component/react-mosaic-component.css'
 import { EyeOff, Maximize2, Minimize2, X } from 'lucide-react'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Mosaic, type MosaicNode, MosaicWindow } from 'react-mosaic-component'
 import { type AppState, type Project, type Task, type Tree, api, openTerminal } from '@/api/client'
 import { DiffPane } from '@/components/diff/DiffPane'
@@ -26,13 +26,28 @@ export function Workspace({ project, task, visible, run, onArrange, onActivePane
   const place = { project: project.slug, task: task.slug }
   // The browser views of the web panes, for the buttons in their title bars.
   const [browsers, setBrowsers] = useState<Record<string, Browser>>({})
+  // Whether the mouse went down on a part of a title bar that does not drag its pane.
+  const pressedNoDrag = useRef(false)
 
   function setBrowser(pane: string, browser: Browser | null) {
     setBrowsers(({ [pane]: _old, ...others }) => (browser ? { ...others, [pane]: browser } : others))
   }
 
   return (
-    <div data-workspace={key} className={cn('relative min-h-0 flex-1', !visible && 'hidden')}>
+    <div
+      data-workspace={key}
+      className={cn('relative min-h-0 flex-1', !visible && 'hidden')}
+      // A title bar drags its pane, but its title is text to select and its buttons are to
+      // click: a drag that starts on them is cancelled before the drag source hears of it.
+      onMouseDownCapture={(event) => {
+        pressedNoDrag.current = !!(event.target as Element).closest('[data-no-drag]')
+      }}
+      onDragStartCapture={(event) => {
+        if (!pressedNoDrag.current) return
+        event.preventDefault()
+        event.stopPropagation()
+      }}
+    >
       {/* Maximizing only stretches one tile over the others; nothing is unmounted. */}
       {workspace.maximized && (
         <style>{`[data-workspace="${key}"] .mosaic-tile:has([data-pane="${workspace.maximized}"]) {
@@ -91,6 +106,19 @@ export function Workspace({ project, task, visible, run, onArrange, onActivePane
                   <X />
                 </Button>,
               ]}
+              // The library's title bar, but with the title as text to select and copy.
+              renderToolbar={({ title, toolbarControls }) => (
+                <div className="flex size-full min-w-0 items-center">
+                  <div className="mosaic-window-title">
+                    <span data-no-drag draggable={false} title={title} className="cursor-text truncate select-text">
+                      {title}
+                    </span>
+                  </div>
+                  <div data-no-drag className="mosaic-window-controls">
+                    {toolbarControls}
+                  </div>
+                </div>
+              )}
             >
               <div
                 data-pane={id}
