@@ -1827,6 +1827,42 @@
         }
       }
     },
+    "/orchestrator/needs-input": {
+      "put": {
+        "summary": "Above Needs Input",
+        "operationId": "above_needs_input_orchestrator_needs_input_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrchestratorWaiting"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/agent/panes": {
       "get": {
         "summary": "Agent Panes",
@@ -3156,7 +3192,8 @@
             "$ref": "#/components/schemas/OrchestratorState",
             "default": {
               "name": "orchestrator",
-              "running": false
+              "running": false,
+              "needs_input": false
             }
           },
           "config_errors": {
@@ -3432,11 +3469,29 @@
               }
             ],
             "title": "Exit Code"
+          },
+          "needs_input": {
+            "type": "boolean",
+            "title": "Needs Input",
+            "default": false
           }
         },
         "type": "object",
         "title": "OrchestratorState",
         "description": "What the window shows of the orchestrator."
+      },
+      "OrchestratorWaiting": {
+        "properties": {
+          "needs_input": {
+            "type": "boolean",
+            "title": "Needs Input"
+          }
+        },
+        "type": "object",
+        "required": [
+          "needs_input"
+        ],
+        "title": "OrchestratorWaiting"
       },
       "Page": {
         "properties": {

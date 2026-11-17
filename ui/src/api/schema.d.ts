@@ -682,6 +682,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/orchestrator/needs-input": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Above Needs Input */
+        put: operations["above_needs_input_orchestrator_needs_input_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/agent/panes": {
         parameters: {
             query?: never;
@@ -1237,7 +1254,8 @@ export interface components {
             /**
              * @default {
              *       "name": "orchestrator",
-             *       "running": false
+             *       "running": false,
+             *       "needs_input": false
              *     }
              */
             orchestrator: components["schemas"]["OrchestratorState"];
@@ -1395,6 +1413,16 @@ export interface components {
             running: boolean;
             /** Exit Code */
             exit_code?: number | null;
+            /**
+             * Needs Input
+             * @default false
+             */
+            needs_input: boolean;
+        };
+        /** OrchestratorWaiting */
+        OrchestratorWaiting: {
+            /** Needs Input */
+            needs_input: boolean;
         };
         /**
          * Page
@@ -3519,6 +3547,39 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    above_needs_input_orchestrator_needs_input_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrchestratorWaiting"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
