@@ -81,7 +81,8 @@ def test_a_new_branch_can_start_from_another_branch(store, project):
     assert git("rev-parse", "HEAD", cwd=repo) == git("rev-parse", "origin/feature", cwd=repo)
     assert (repo / "feature.txt").exists()
     # It is pushed under its own name, not into its base.
-    assert "branch.fix/feature.merge" not in git("config", "--list", "--local", cwd=repo)
+    upstream = git("rev-parse", "--abbrev-ref", "fix/feature@{upstream}", cwd=repo)
+    assert upstream == "origin/fix/feature"
 
 
 def test_a_branch_the_remote_has_ignores_the_base(store, project):
