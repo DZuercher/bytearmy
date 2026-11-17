@@ -471,6 +471,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Settings */
+        get: operations["get_settings_api_settings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/{file}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Edit Settings
+         * @description Write one settings file; it counts from then on, for agents started after.
+         */
+        put: operations["edit_settings_api_settings__file__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/orchestrator": {
         parameters: {
             query?: never;
@@ -887,6 +924,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/agent/answers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Agent Draft Answer */
+        post: operations["agent_draft_answer_agent_answers_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agent/answers/{draft}/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Agent Send Answer */
+        post: operations["agent_send_answer_agent_answers__draft__send_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/agent/reviews/{pane}": {
         parameters: {
             query?: never;
@@ -964,6 +1035,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/answers/{key}/{project}/{task}/{pane}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Answer Page
+         * @description The page of an answer pane: the conversation and the draft, to edit and decide.
+         */
+        get: operations["answer_page_answers__key___project___task___pane__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/answers/{key}/{project}/{task}/{pane}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve Answer
+         * @description The user approves the draft, as they edited it; the agent is told.
+         */
+        post: operations["approve_answer_answers__key___project___task___pane__approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/answers/{key}/{project}/{task}/{pane}/discard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Discard Answer
+         * @description The user discards the draft and answers on their own; the agent is told.
+         */
+        post: operations["discard_answer_answers__key___project___task___pane__discard_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -990,6 +1121,35 @@ export interface components {
             prompt: string;
             /** Beside */
             beside?: string | null;
+        };
+        /**
+         * AnswerDecision
+         * @description The user approves a draft answer, as they edited it, or discards it.
+         */
+        AnswerDecision: {
+            /**
+             * Answer
+             * @default
+             */
+            answer: string;
+        };
+        /**
+         * AnswerDraft
+         * @description An agent drafts an answer to a GitHub conversation, for the user to approve.
+         */
+        AnswerDraft: {
+            /** Url */
+            url: string;
+            /** Body */
+            body: string;
+        };
+        /**
+         * AnswerSent
+         * @description What `bytearmy answer send` did.
+         */
+        AnswerSent: {
+            /** Text */
+            text: string;
         };
         /**
          * AppState
@@ -1494,6 +1654,27 @@ export interface components {
             command: string;
             /** Url */
             url: string;
+        };
+        /** SettingsEdit */
+        SettingsEdit: {
+            /** Text */
+            text: string;
+        };
+        /**
+         * SettingsFile
+         * @description A file of the root that the settings dialogue edits.
+         */
+        SettingsFile: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Path */
+            path: string;
+            /** Text */
+            text: string;
+            /** Default */
+            default: string;
         };
         /**
          * Split
@@ -2921,6 +3102,61 @@ export interface operations {
             };
         };
     };
+    get_settings_api_settings_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SettingsFile"][];
+                };
+            };
+        };
+    };
+    edit_settings_api_settings__file__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                file: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SettingsEdit"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     orchestrator_state_api_orchestrator_get: {
         parameters: {
             query?: never;
@@ -3767,6 +4003,70 @@ export interface operations {
             };
         };
     };
+    agent_draft_answer_agent_answers_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnswerDraft"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Opened"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_send_answer_agent_answers__draft__send_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                draft: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnswerSent"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     agent_review_state_agent_reviews__pane__get: {
         parameters: {
             query?: never;
@@ -3860,6 +4160,112 @@ export interface operations {
                 key: string;
                 project: string;
                 task: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    answer_page_answers__key___project___task___pane__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+                project: string;
+                task: string;
+                pane: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_answer_answers__key___project___task___pane__approve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+                project: string;
+                task: string;
+                pane: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnswerDecision"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    discard_answer_answers__key___project___task___pane__discard_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+                project: string;
+                task: string;
+                pane: string;
             };
             cookie?: never;
         };

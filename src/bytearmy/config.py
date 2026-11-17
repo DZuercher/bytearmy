@@ -412,6 +412,24 @@ def merge(base: dict[str, Any], over: Mapping[str, Any]) -> dict[str, Any]:
     return merged
 
 
+def problems(error: ValidationError) -> str:
+    """What is wrong with settings, one problem after the other."""
+    return "; ".join(
+        f"{'.'.join(str(part) for part in problem['loc'])}: {problem['msg']}"
+        for problem in error.errors()
+    )
+
+
+def check_config(text: str) -> None:
+    """Raise ValueError, saying why, if `text` is no valid config.toml."""
+    try:
+        Config.model_validate(tomllib.loads(text))
+    except tomllib.TOMLDecodeError as error:
+        raise ValueError(f"config.toml is no valid TOML: {error}") from error
+    except ValidationError as error:
+        raise ValueError(f"config.toml has invalid settings: {problems(error)}") from error
+
+
 def _layer(file: Path, root_level: bool, errors: list[str]) -> dict[str, Any]:
     """The settings of one file; nothing if it is missing or cannot be read."""
     if not file.is_file():
@@ -423,11 +441,7 @@ def _layer(file: Path, root_level: bool, errors: list[str]) -> dict[str, Any]:
         errors.append(f"{file} cannot be read: {error}")
         return {}
     except ValidationError as error:
-        problems = "; ".join(
-            f"{'.'.join(str(part) for part in problem['loc'])}: {problem['msg']}"
-            for problem in error.errors()
-        )
-        errors.append(f"{file} is ignored: {problems}")
+        errors.append(f"{file} is ignored: {problems(error)}")
         return {}
     if not root_level:
         for key in ROOT_ONLY:

@@ -394,6 +394,20 @@ class AppState(BaseModel):
     config_errors: list[str] = []  # what is wrong with the config files, for the user to fix
 
 
+class SettingsFile(BaseModel):
+    """A file of the root that the settings dialogue edits."""
+
+    id: str
+    label: str
+    path: str
+    text: str
+    default: str  # what bytearmy comes with
+
+
+class SettingsEdit(BaseModel):
+    text: str
+
+
 class ProjectOrder(BaseModel):
     order: list[str]
 

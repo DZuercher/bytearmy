@@ -51,6 +51,8 @@ from bytearmy.models import (
     ReadChange,
     ReviewRequest,
     ReviewState,
+    SettingsEdit,
+    SettingsFile,
     Task,
     TaskChange,
     TaskCreate,
@@ -69,6 +71,7 @@ from bytearmy.models import (
 from bytearmy.orchestrator import Orchestrator
 from bytearmy.prs import GitHubFailed
 from bytearmy.ptys import Pty
+from bytearmy.settings import UnknownSettings, read_settings, write_settings
 from bytearmy.store import (
     Blocked,
     DuplicateName,
@@ -473,6 +476,21 @@ def create_app(
     @api.put(PANES + "/{pane}/highlight")
     def highlight_pane(project: str, task: str, pane: str, body: Highlight) -> AppState:
         workspaces.highlight(project, task, pane, body.on)
+        return state()
+
+    @api.get("/settings")
+    def get_settings() -> list[SettingsFile]:
+        return read_settings(store.root)
+
+    @api.put("/settings/{file}")
+    def edit_settings(file: str, edit: SettingsEdit) -> AppState:
+        """Write one settings file; it counts from then on, for agents started after."""
+        try:
+            write_settings(store.root, file, edit.text)
+        except UnknownSettings:
+            raise HTTPException(status_code=404, detail=f"no settings file {file!r}") from None
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from None
         return state()
 
     @api.get("/orchestrator")
