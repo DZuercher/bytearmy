@@ -1005,6 +1005,7 @@ class Workspaces:
                 settings.denied(AGENT_COMMANDS),
                 settings.forbidden_actions(),
                 self._listeners_of(project, task, found.workspace, pane),
+                Path(self._store.project(project).path),
             )
         line = command_line(tool, pane, restoring, instructions, permissions)
         argv = [*self._shell, "-c", line] if line else self._shell
