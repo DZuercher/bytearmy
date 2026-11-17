@@ -163,7 +163,7 @@ What a program without a pane (an external tool, the VS Code server) prints goes
 ## Inbox
 The inbox gathers messages for the user from sources outside bytearmy. GitHub is the first source; email, Slack and Webex are to follow.
 A small `Inbox` tab sits just above the project bar. It shows the number of unread messages. Clicking it shows the inbox in place of the workspace; choosing a project, a task or a pane shows the workspace again. Which of the two is shown is kept with the state of the bars.
-The inbox lists the messages of all sources, newest first: title, where it comes from (for GitHub the repository), why it reached the user and when. Unread messages are marked. Selecting a message shows its page beside the list, in a browser view that shares the session of the web panes, and marks it read. A message can be marked read or unread, or dismissed, which hides it until it sees new activity.
+The inbox lists the messages of all sources, newest first: title, where it comes from (for GitHub the repository), why it reached the user and when. Unread messages are marked. Selecting a message shows its page beside the list, in a browser view that shares the session of the web panes, and marks it read. A message can be marked read or unread, or dismissed, which hides it until it sees new activity. A button above the list shows the dismissed messages as well, greyed out; they can be read but not marked or dismissed again.
 A thread in the core asks every source for new messages once a minute; the refresh button asks at once. What is new shows in the window at once. A source that cannot be asked shows why above the list.
 The messages are kept in `<bytearmy_root>/.bytearmy/inbox.json`.
 

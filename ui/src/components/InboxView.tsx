@@ -1,4 +1,4 @@
-import { Archive, GitPullRequest, Mail, MailOpen, RefreshCw } from 'lucide-react'
+import { Archive, ArchiveRestore, GitPullRequest, Mail, MailOpen, RefreshCw } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { Inbox, Message } from '@/api/client'
 import { type Browser, WebControls } from '@/components/WebPane'
@@ -34,11 +34,14 @@ const words = (text: string) => text.replaceAll('_', ' ')
 export function InboxView({ inbox, onRead, onDismiss, onReadAll, onDismissAll, onRefresh }: Props) {
   const [selected, setSelected] = useState<string | null>(null)
   const [marked, setMarked] = useState<ReadonlySet<string>>(new Set())
-  const messages = inbox.messages.filter((message) => !message.dismissed)
+  const [withDismissed, setWithDismissed] = useState(false)
+  const messages = inbox.messages.filter((message) => withDismissed || !message.dismissed)
+  // Only the messages not dismissed can be marked, read or dismissed.
+  const markable = messages.filter((message) => !message.dismissed)
   const shown = messages.find((message) => message.id === selected)
-  // Only the messages still shown count as marked: one dismissed elsewhere drops out.
-  const markedIds = messages.filter((message) => marked.has(message.id)).map((message) => message.id)
-  const allMarked = messages.length > 0 && markedIds.length === messages.length
+  // Only the messages still markable count as marked: one dismissed elsewhere drops out.
+  const markedIds = markable.filter((message) => marked.has(message.id)).map((message) => message.id)
+  const allMarked = markable.length > 0 && markedIds.length === markable.length
   const now = Date.now()
 
   function mark(message: string, on: boolean) {
@@ -69,9 +72,9 @@ export function InboxView({ inbox, onRead, onDismiss, onReadAll, onDismissAll, o
           <Checkbox
             aria-label="Mark all"
             title="Mark all"
-            disabled={messages.length === 0}
+            disabled={markable.length === 0}
             checked={allMarked ? true : markedIds.length > 0 ? 'indeterminate' : false}
-            onCheckedChange={() => setMarked(new Set(allMarked ? [] : messages.map((message) => message.id)))}
+            onCheckedChange={() => setMarked(new Set(allMarked ? [] : markable.map((message) => message.id)))}
           />
           <p className="grow text-xs">
             {inbox.last_checked ? `Checked ${ago(inbox.last_checked, now)}` : 'Not checked yet'}
@@ -96,6 +99,17 @@ export function InboxView({ inbox, onRead, onDismiss, onReadAll, onDismissAll, o
           >
             <Archive />
           </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={withDismissed ? 'Hide dismissed messages' : 'Show dismissed messages'}
+            title={withDismissed ? 'Hide dismissed messages' : 'Show dismissed messages'}
+            aria-pressed={withDismissed}
+            className={cn(withDismissed && 'bg-hover')}
+            onClick={() => setWithDismissed(!withDismissed)}
+          >
+            <ArchiveRestore />
+          </Button>
           <Button variant="ghost" size="icon-sm" aria-label="Check for new messages" onClick={onRefresh}>
             <RefreshCw />
           </Button>
@@ -112,11 +126,13 @@ export function InboxView({ inbox, onRead, onDismiss, onReadAll, onDismissAll, o
               className={cn(
                 'group relative flex items-start border-b',
                 message.id === selected ? 'bg-hover' : 'hover:bg-hover',
+                message.dismissed && 'text-muted-foreground',
               )}
             >
               <Checkbox
                 aria-label="Mark"
-                className="mt-3.5 ml-4"
+                className={cn('mt-3.5 ml-4', message.dismissed && 'invisible')}
+                disabled={message.dismissed}
                 checked={marked.has(message.id)}
                 onCheckedChange={(checked) => mark(message.id, checked === true)}
               />
@@ -137,34 +153,42 @@ export function InboxView({ inbox, onRead, onDismiss, onReadAll, onDismissAll, o
                     <span className="truncate">{message.context}</span>
                     <span>·</span>
                     <span className="shrink-0">{words(message.reason)}</span>
+                    {message.dismissed && (
+                      <>
+                        <span>·</span>
+                        <span className="shrink-0">dismissed</span>
+                      </>
+                    )}
                     <span className="ml-auto shrink-0">{ago(message.updated_at, now)}</span>
                   </span>
                 </span>
               </button>
-              <div className="absolute top-2 right-2 hidden gap-1 rounded-md bg-background shadow-sm group-focus-within:flex group-hover:flex">
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  aria-label={message.unread ? 'Mark read' : 'Mark unread'}
-                  title={message.unread ? 'Mark read' : 'Mark unread'}
-                  onClick={() => onRead(message.id, !message.unread)}
-                >
-                  {message.unread ? <MailOpen /> : <Mail />}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  aria-label="Dismiss"
-                  title="Dismiss"
-                  onClick={() => {
-                    if (message.id === selected) setSelected(null)
-                    mark(message.id, false)
-                    onDismiss(message.id)
-                  }}
-                >
-                  <Archive />
-                </Button>
-              </div>
+              {!message.dismissed && (
+                <div className="absolute top-2 right-2 hidden gap-1 rounded-md bg-background shadow-sm group-focus-within:flex group-hover:flex">
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label={message.unread ? 'Mark read' : 'Mark unread'}
+                    title={message.unread ? 'Mark read' : 'Mark unread'}
+                    onClick={() => onRead(message.id, !message.unread)}
+                  >
+                    {message.unread ? <MailOpen /> : <Mail />}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label="Dismiss"
+                    title="Dismiss"
+                    onClick={() => {
+                      if (message.id === selected) setSelected(null)
+                      mark(message.id, false)
+                      onDismiss(message.id)
+                    }}
+                  >
+                    <Archive />
+                  </Button>
+                </div>
+              )}
             </li>
           ))}
         </ul>
