@@ -18,6 +18,12 @@ import { Workspace } from '@/components/Workspace'
 
 type BarWidth = 'left_width' | 'right_width' | 'bottom_width'
 
+// Calls `call` for one item after the other, so the state the last call returns holds all
+// of them. `items` must not be empty.
+function inTurn(items: string[], call: (item: string) => Promise<AppState>): Promise<AppState> {
+  return items.slice(1).reduce((before, item) => before.then(() => call(item)), call(items[0]))
+}
+
 const REFRESH_MS = 60_000 // a reminder becomes due without anyone clicking
 const REFRESH_WHILE_CLONING_MS = 1_000
 
@@ -322,6 +328,8 @@ export function App() {
               inbox={state.inbox}
               onRead={(message, unread) => run(api.markMessage(message, unread))}
               onDismiss={(message) => run(api.dismissMessage(message))}
+              onReadAll={(messages) => run(inTurn(messages, (message) => api.markMessage(message, false)))}
+              onDismissAll={(messages) => run(inTurn(messages, api.dismissMessage))}
               onRefresh={() => run(api.refreshInbox())}
             />
           )}

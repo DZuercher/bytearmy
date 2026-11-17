@@ -3,12 +3,15 @@ import { useEffect, useRef, useState } from 'react'
 import type { Inbox, Message } from '@/api/client'
 import { type Browser, WebControls } from '@/components/WebPane'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { cn } from '@/lib/utils'
 
 type Props = {
   inbox: Inbox
   onRead: (message: string, unread: boolean) => void
   onDismiss: (message: string) => void
+  onReadAll: (messages: string[]) => void
+  onDismissAll: (messages: string[]) => void
   onRefresh: () => void
 }
 
@@ -28,11 +31,30 @@ function ago(iso: string, now: number): string {
 const words = (text: string) => text.replaceAll('_', ' ')
 
 // The messages of all sources on the left, the one selected on the right.
-export function InboxView({ inbox, onRead, onDismiss, onRefresh }: Props) {
+export function InboxView({ inbox, onRead, onDismiss, onReadAll, onDismissAll, onRefresh }: Props) {
   const [selected, setSelected] = useState<string | null>(null)
+  const [marked, setMarked] = useState<ReadonlySet<string>>(new Set())
   const messages = inbox.messages.filter((message) => !message.dismissed)
   const shown = messages.find((message) => message.id === selected)
+  // Only the messages still shown count as marked: one dismissed elsewhere drops out.
+  const markedIds = messages.filter((message) => marked.has(message.id)).map((message) => message.id)
+  const allMarked = messages.length > 0 && markedIds.length === messages.length
   const now = Date.now()
+
+  function mark(message: string, on: boolean) {
+    setMarked((before) => {
+      const after = new Set(before)
+      if (on) after.add(message)
+      else after.delete(message)
+      return after
+    })
+  }
+
+  function dismissMarked() {
+    if (selected && markedIds.includes(selected)) setSelected(null)
+    onDismissAll(markedIds)
+    setMarked(new Set())
+  }
 
   function open(message: Message) {
     setSelected(message.id)
@@ -44,9 +66,36 @@ export function InboxView({ inbox, onRead, onDismiss, onRefresh }: Props) {
     <div className="flex min-h-0 flex-1 border-t">
       <section aria-label="Messages" className="flex w-96 shrink-0 flex-col border-r">
         <div className="flex items-center gap-2 px-4 py-2 text-muted-foreground">
+          <Checkbox
+            aria-label="Mark all"
+            title="Mark all"
+            disabled={messages.length === 0}
+            checked={allMarked ? true : markedIds.length > 0 ? 'indeterminate' : false}
+            onCheckedChange={() => setMarked(new Set(allMarked ? [] : messages.map((message) => message.id)))}
+          />
           <p className="grow text-xs">
             {inbox.last_checked ? `Checked ${ago(inbox.last_checked, now)}` : 'Not checked yet'}
           </p>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Mark marked messages read"
+            title="Mark marked messages read"
+            disabled={markedIds.length === 0}
+            onClick={() => onReadAll(markedIds)}
+          >
+            <MailOpen />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Dismiss marked messages"
+            title="Dismiss marked messages"
+            disabled={markedIds.length === 0}
+            onClick={dismissMarked}
+          >
+            <Archive />
+          </Button>
           <Button variant="ghost" size="icon-sm" aria-label="Check for new messages" onClick={onRefresh}>
             <RefreshCw />
           </Button>
@@ -58,14 +107,23 @@ export function InboxView({ inbox, onRead, onDismiss, onRefresh }: Props) {
         ))}
         <ul className="min-h-0 flex-1 overflow-y-auto">
           {messages.map((message) => (
-            <li key={message.id} className="group relative border-b">
+            <li
+              key={message.id}
+              className={cn(
+                'group relative flex items-start border-b',
+                message.id === selected ? 'bg-hover' : 'hover:bg-hover',
+              )}
+            >
+              <Checkbox
+                aria-label="Mark"
+                className="mt-3.5 ml-4"
+                checked={marked.has(message.id)}
+                onCheckedChange={(checked) => mark(message.id, checked === true)}
+              />
               <button
                 type="button"
                 aria-current={message.id === selected}
-                className={cn(
-                  'flex w-full gap-3 px-4 py-3 text-left outline-none focus-visible:ring-2',
-                  message.id === selected ? 'bg-hover' : 'hover:bg-hover',
-                )}
+                className="flex min-w-0 grow gap-3 py-3 pr-4 pl-3 text-left outline-none focus-visible:ring-2"
                 onClick={() => open(message)}
               >
                 <span
@@ -100,6 +158,7 @@ export function InboxView({ inbox, onRead, onDismiss, onRefresh }: Props) {
                   title="Dismiss"
                   onClick={() => {
                     if (message.id === selected) setSelected(null)
+                    mark(message.id, false)
                     onDismiss(message.id)
                   }}
                 >
