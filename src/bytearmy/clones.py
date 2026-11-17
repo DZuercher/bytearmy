@@ -113,12 +113,14 @@ class Cloner:
 
         # The clone knows origin's branches as of its cloning; without a connection those do.
         git("fetch", "--quiet", "origin", f"+refs/heads/{branch}:refs/remotes/origin/{branch}")
-        if exists(f"refs/heads/{branch}") or exists(f"refs/remotes/origin/{branch}"):
-            switched = git("switch", branch)
-        else:
-            switched = git("switch", "-c", branch)
+        new = not exists(f"refs/heads/{branch}") and not exists(f"refs/remotes/origin/{branch}")
+        switched = git("switch", "-c", branch) if new else git("switch", branch)
         if switched.returncode != 0:
             raise CloneFailed(switched.stderr.strip()[-ERROR_CHARACTERS:] or "git switch failed")
+        if new:
+            pushed = git(*_push(branch))
+            if pushed.returncode != 0:
+                raise CloneFailed(pushed.stderr.strip()[-ERROR_CHARACTERS:] or "git push failed")
 
     def start(
         self, project: str, task: Task, url: str, then: Callable[[], None] | None = None
@@ -189,7 +191,10 @@ class Cloner:
                     verify = ("-C", str(temporary), "rev-parse", "--verify", "--quiet", ref)
                     return self._run(key, *verify, check=False) == 0
 
+                new = bool(branch) and not on_remote(branch)
                 self._run(key, "-C", str(temporary), *_switch(branch, base, on_remote))
+                if new:
+                    self._run(key, "-C", str(temporary), *_push(branch))
             if self._run(key, "lfs", "version", check=False) == 0:
                 self._run(key, "-C", str(temporary), "lfs", "pull")
             temporary.rename(task_dir / repo)
@@ -290,3 +295,9 @@ def _switch(branch: str, base: str, on_remote: Callable[[str], bool]) -> list[st
         # Without tracking: the new branch is pushed under its own name, not into the base.
         return ["switch", "--no-track", "-c", branch, f"origin/{base}"]
     return ["switch", "-c", branch]
+
+
+def _push(branch: str) -> list[str]:
+    """How a branch the task created reaches origin, which its clone then tracks."""
+    ref = f"refs/heads/{branch}"
+    return ["push", "--quiet", "--set-upstream", "origin", f"{ref}:{ref}"]
