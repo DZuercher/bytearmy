@@ -15,7 +15,15 @@ type Props = {
   onRefresh: () => void
 }
 
-const SOURCE_NAMES: Record<Message['source'], string> = { github: 'GitHub' }
+const SOURCE_NAMES: Record<Message['source'], string> = { github: 'GitHub', gmail: 'Gmail' }
+const SOURCE_ICONS: Record<Message['source'], typeof Mail> = { github: GitPullRequest, gmail: Mail }
+
+// The name of a source the errors are kept by: "github", or "gmail:<address>" for one account.
+function sourceName(source: string): string {
+  const [kind, ...account] = source.split(':')
+  const name = SOURCE_NAMES[kind as Message['source']] ?? kind
+  return account.length ? `${name} (${account.join(':')})` : name
+}
 
 // "5 min ago": how long ago a message arrived, in the coarsest unit that fits.
 function ago(iso: string, now: number): string {
@@ -25,6 +33,11 @@ function ago(iso: string, now: number): string {
   if (seconds < 3600) return `${Math.floor(seconds / 60)} min ago`
   if (seconds < 86400) return `${Math.floor(seconds / 3600)} h ago`
   return `${Math.floor(seconds / 86400)} d ago`
+}
+
+function SourceIcon({ source }: { source: Message['source'] }) {
+  const Icon = SOURCE_ICONS[source]
+  return <Icon className="size-3 shrink-0" aria-label={SOURCE_NAMES[source]} />
 }
 
 // "review_requested" → "review requested"
@@ -116,7 +129,7 @@ export function InboxView({ inbox, onRead, onDismiss, onReadAll, onDismissAll, o
         </div>
         {errors.map(([source, error]) => (
           <p key={source} className="mx-4 mb-2 rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
-            {SOURCE_NAMES[source as Message['source']] ?? source}: {error}
+            {sourceName(source)}: {error}
           </p>
         ))}
         <ul className="min-h-0 flex-1 overflow-y-auto">
@@ -149,10 +162,10 @@ export function InboxView({ inbox, onRead, onDismiss, onReadAll, onDismissAll, o
                 <span className="min-w-0 grow">
                   <span className={cn('line-clamp-2', message.unread && 'font-semibold')}>{message.title}</span>
                   <span className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <GitPullRequest className="size-3 shrink-0" aria-label={SOURCE_NAMES[message.source]} />
+                    <SourceIcon source={message.source} />
                     <span className="truncate">{message.context}</span>
                     <span>·</span>
-                    <span className="shrink-0">{words(message.reason)}</span>
+                    <span className="shrink-0">{message.source === 'github' ? words(message.reason) : message.reason}</span>
                     {message.dismissed && (
                       <>
                         <span>·</span>

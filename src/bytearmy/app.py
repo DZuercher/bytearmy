@@ -14,8 +14,9 @@ from typing import IO
 
 import uvicorn
 
+from bytearmy import gmail
 from bytearmy.api import create_app, schema
-from bytearmy.config import Config, config_of, ensure_config
+from bytearmy.config import CONFIG_FILE, Config, config_of, ensure_config
 from bytearmy.inbox import GitHubSource, Inbox
 from bytearmy.orchestrator import Orchestrator
 from bytearmy.services import free_port
@@ -88,7 +89,10 @@ async def run(root: Path) -> None:
         return config_of(root)
 
     inbox = Inbox(
-        store, [GitHubSource(settings=settings)], on_new=orchestrator.announce, settings=settings
+        store,
+        [GitHubSource(settings=settings), *gmail.sources(root, settings)],
+        on_new=orchestrator.announce,
+        settings=settings,
     )
     app = create_app(
         store,
@@ -125,6 +129,19 @@ async def run(root: Path) -> None:
     window_closed.cancel()
 
 
+def gmail_login(root: Path, address: str) -> None:
+    """Log in to a Gmail account the config names; bytearmy may run meanwhile."""
+    accounts = config_of(root).inbox.gmail.accounts
+    account = next((account for account in accounts if account.address == address), None)
+    if account is None:
+        sys.exit(f"{address} is no account of [inbox.gmail] in {root / CONFIG_FILE}.")
+    try:
+        file = gmail.login(root, account)
+    except gmail.SourceFailed as error:
+        sys.exit(f"Logging in to {address} failed: {error}")
+    print(f"Kept the secrets of {address} in {file}. bytearmy asks it from its next start.")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="bytearmy", description=__doc__)
     parser.add_argument(
@@ -136,11 +153,19 @@ def main() -> None:
     parser.add_argument(
         "--openapi", action="store_true", help="print the API schema as JSON and exit"
     )
+    parser.add_argument(
+        "--gmail-login",
+        metavar="ADDRESS",
+        help="ask for the secrets of a Gmail account of [inbox.gmail] and keep them, then exit",
+    )
     args = parser.parse_args()
     if args.openapi:
         print(json.dumps(schema(), indent=2))
         return
     root = args.root.expanduser().resolve()
+    if args.gmail_login:
+        gmail_login(root, args.gmail_login)
+        return
     # A mistyped root would otherwise start an empty bytearmy beside the real one.
     if not root.exists() and not confirmed(f"{root} does not exist. Create it?"):
         sys.exit(f"bytearmy did not start: {root} does not exist.")

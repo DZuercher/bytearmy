@@ -1,7 +1,7 @@
 """The inbox: messages from sources outside bytearmy, gathered in the background.
 
-A source is anything that can be asked for the user's unread messages: GitHub now; email,
-Slack or Webex later. A thread asks every source in turns and keeps what they report in
+A source is anything that can be asked for the user's unread messages: GitHub, and each
+Gmail account (see `gmail.py`); Slack or Webex later. A thread asks every source in turns and keeps what they report in
 `<root>/.bytearmy/inbox.json`. When something new arrives, the store's version moves on, so
 the window shows it at once.
 """
@@ -34,7 +34,7 @@ class MessageNotFound(Exception):
 
 
 class Source(Protocol):
-    name: str
+    name: str  # the ids of its messages start with it and a colon
 
     def fetch(self) -> tuple[list[Message], bool]:
         """The unread messages, and whether these are all of them."""
@@ -279,7 +279,10 @@ class Inbox:
 
     def _tell(self, message: Message, action: str) -> None:
         """Pass a change on to its source without keeping the window waiting."""
-        source = self._sources.get(message.source)
+        source = next(
+            (source for name, source in self._sources.items() if message.id.startswith(f"{name}:")),
+            None,
+        )
         if not source:
             return
 
@@ -289,7 +292,7 @@ class Inbox:
             except SourceFailed as error:
                 with self._lock:
                     state = self.state()
-                    state.errors[message.source] = str(error) or "failed"
+                    state.errors[source.name] = str(error) or "failed"
                     self._save(state)
 
         worker = threading.Thread(target=run, name=f"inbox-{action}", daemon=True)
@@ -309,7 +312,11 @@ def _merge(state: InboxState, source: str, unread: list[Message], complete: bool
         # A message the source no longer counts as unread was read elsewhere.
         reported = {message.id for message in unread}
         for message_id, message in known.items():
-            if message.source == source and message.unread and message_id not in reported:
+            if (
+                message_id.startswith(f"{source}:")
+                and message.unread
+                and message_id not in reported
+            ):
                 known[message_id] = message.model_copy(update={"unread": False})
     ordered = sorted(known.values(), key=lambda message: message.updated_at, reverse=True)
     state.messages = ordered[:KEPT_MESSAGES]

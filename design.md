@@ -161,14 +161,21 @@ What a program without a pane (an external tool, the VS Code server) prints goes
 
 
 ## Inbox
-The inbox gathers messages for the user from sources outside bytearmy. GitHub is the first source; email, Slack and Webex are to follow.
+The inbox gathers messages for the user from sources outside bytearmy. Its sources are GitHub and Gmail; Slack and Webex are to follow.
 A small `Inbox` tab sits just above the project bar. It shows the number of unread messages. Clicking it shows the inbox in place of the workspace; choosing a project, a task or a pane shows the workspace again. Which of the two is shown is kept with the state of the bars.
-The inbox lists the messages of all sources, newest first: title, where it comes from (for GitHub the repository), why it reached the user and when. Unread messages are marked. Selecting a message shows its page beside the list, in a browser view that shares the session of the web panes, and marks it read. A message can be marked read or unread, or dismissed, which hides it until it sees new activity. A button above the list shows the dismissed messages as well, greyed out; they can be read but not marked or dismissed again.
+The inbox lists the messages of all sources, newest first: title, where it comes from (for GitHub the repository, for Gmail the sender), why it reached the user (for Gmail the account) and when. Unread messages are marked. Selecting a message shows its page beside the list, in a browser view that shares the session of the web panes, and marks it read. A message can be marked read or unread, or dismissed, which hides it until it sees new activity. A button above the list shows the dismissed messages as well, greyed out; they can be read but not marked or dismissed again.
 A thread in the core asks every source for new messages once a minute; the refresh button asks at once. What is new shows in the window at once. A source that cannot be asked shows why above the list.
 The messages are kept in `<bytearmy_root>/.bytearmy/inbox.json`.
 
 ### GitHub
 The messages from GitHub are the users notifications (what github.com/notifications shows). bytearmy asks for them with `gh`, as the user logged in with `gh auth login`, or as the account `[github] user` of the config names; it keeps no token of its own. Marking a message read marks the notification read on GitHub; dismissing it marks it done. Marking unread stays in bytearmy, as GitHub cannot. A notification read on GitHub turns read in bytearmy.
+
+### Gmail
+The messages from Gmail are the unread mails in the inbox (`is:unread in:inbox`, Promotions and Social included) of each account `[inbox.gmail]` names, one message per thread: the subject, sender and time of its newest unread mail. Selecting one shows the thread in Gmail's web page, in the account it belongs to. bytearmy only reads Gmail: marking a message read or unread and dismissing it stays in bytearmy, though Gmail's own page marks a thread read when it is shown. A thread read in Gmail turns read in bytearmy. Each account shows its own error above the list.
+An account is asked in one of two ways, its `method`:
+- `oauth`: the Gmail API, with the scope `gmail.readonly`, through an OAuth client (type Desktop app) of the user's own Google Cloud project.
+- `imap`: Gmail's IMAP server, with an app password. The inbox is opened read-only, so nothing turns read.
+`bytearmy --gmail-login <address>` asks for the account's secrets and keeps them in `<bytearmy_root>/.bytearmy/secrets/gmail/<address>.json`, which only the user can read: the app password, or the OAuth client's ID and secret and the refresh token that the user's consent in the browser yields. It may run while bytearmy runs. Accounts added to the config are asked once bytearmy starts again.
 
 ## Orchestrator
 Above the masters of the tasks there is one more agent, the orchestrator. There is exactly one per bytearmy; it belongs to no project.
@@ -178,10 +185,10 @@ It starts with the instructions in `<bytearmy_root>/.bytearmy/orchestrator.md`, 
 Its `bytearmy` command has a key of its own, which reaches no task's commands; the commands of the tasks' panes cannot reach its commands:
 - `bytearmy project list|create|delete`
 - `bytearmy tasks list|create|start|delete`. `tasks start <project> <task> --prompt "<text>"` moves the task into the task bar and starts its master, on the workspace, with the prompt as its first message. A task that already has a master gets no second one.
-- `bytearmy inbox list|read|unread|dismiss`
+- `bytearmy inbox list|read|unread|dismiss`, for the messages from GitHub only: the orchestrator neither sees nor acts on mail.
 
 The orchestrator talks to the masters with `SendMessage`, by their names (`<project>-<task>-master`); the masters answer the same way and are told in their instructions that `orchestrator` stands above them. A master the orchestrator started is told so, and that it should report when it is done or stuck.
-When the inbox finds messages that are new or saw new activity, bytearmy types a note naming them into the orchestrator's terminal, as if the user had typed it. It waits until the user has typed nothing into that terminal for 30 seconds. What arrived while bytearmy did not run is not announced. The orchestrator's instructions tell it to turn messages that ask for work into tasks, start them, and delete a task once its master reported it done and its work is saved.
+When the inbox finds messages from GitHub that are new or saw new activity, bytearmy types a note naming them into the orchestrator's terminal, as if the user had typed it. It waits until the user has typed nothing into that terminal for 30 seconds. What arrived while bytearmy did not run is not announced. The orchestrator's instructions tell it to turn messages that ask for work into tasks, start them, and delete a task once its master reported it done and its work is saved.
 
 ## Configuration
 The settings of bytearmy are TOML files named `config.toml`:
@@ -195,7 +202,7 @@ The settings:
 - `[orchestrator]`: `autostart` (start it with bytearmy, otherwise when its tab is first shown); `command` and `resume`, which replace those of the Claude tool; `allow`, the `bytearmy` commands it may call (`project.list|create|delete`, `tasks.list|create|start|delete`, `inbox.list|read|dismiss`), as patterns like `tasks.*`; `allow_task_creation` and `allow_task_deletion`, which, when false, forbid `tasks.create` and `tasks.delete` whatever `allow` says; Claude's own permissions `permission_mode`, `allowed_tools` and `disallowed_tools`; `announce_inbox` and `quiet_seconds` for the notes about new messages.
 - `[master]` and `[agents]`: the same for the master of a task and for every other agent of it, plus `spawn`. Their `allow` names the commands of the panes: `pane.list|open|close|maximize|hide|highlight|move`, `tool.list`, `task.show|set-status|working|needs-input|waiting|done|merged|set-description|set-reminder`, `agent.list|spawn`, `review`, `log`. A pane without an agent is the user's, and may call all. `[master]` also has `allow_pr_creation` and `allow_pr_merge`: when false, `gh pr create` or `gh pr merge` is added to the tools Claude may not use, and the master's instructions tell it to leave that to the user.
 - `[tools.<id>]`: `enabled = false` takes a tool out of the command dialogue and away from the agents; `name`, `callers`, `command`, `resume`, `spawn`, `url` and `directory` replace what its tool file says.
-- `[inbox]`: `enabled`, `poll_seconds` (at least 60), and in `[inbox.github]` `enabled`, `reasons` and `repositories`, which keep only the notifications for these reasons and of these repositories.
+- `[inbox]`: `enabled`, `poll_seconds` (at least 60), and in `[inbox.github]` `enabled`, `reasons` and `repositories`, which keep only the notifications for these reasons and of these repositories; in `[inbox.gmail]` `enabled` and `accounts`, each with an `address` and a `method` (`oauth` or `imap`).
 - `[github]`: `user`, `host`, `name` and `email`. With a user, `gh` and `git` act as that account of `gh auth login` instead of gh's active one: bytearmy asks `gh auth token --user` for its token and gives it, as `GH_TOKEN` with gh as git's credential helper, to the inbox, the clones and the programs in the panes. If gh does not know the account, the active one is used and the banner says so. `name` and `email` become git's `user.name` and `user.email` (as `GIT_CONFIG_*` entries in the same environment), so commits in the clones and panes carry them, with or without a user; empty keeps git's own.
 
 A call the config does not allow is refused, and the agent's instructions name the commands and actions it may not call or do. Claude's permissions reach Claude through `{permissions}` in the command of the Claude tool or of the config.
@@ -209,7 +216,7 @@ Only one bytearmy runs on a root at a time: a second one refuses to start and na
 bytearmy_root
 |- .tools [contains tools]
 |- CLAUDE.md [optional, the user's; Claude Code loads it in the orchestrator and in every task]
-|- .bytearmy [contains the instructions the agents start with (master.md for the masters, agent.md for the other agents of a task, scratchpad.md for the agents of a scratchpad, orchestrator.md for the orchestrator), config.toml, the settings of all projects and tasks, global metadata, the color schemes, the messages of the inbox, the session of the orchestrator, the logs of programs without a pane, the browser session of the web panes, the `bytearmy` command of the panes and the lock that keeps a second bytearmy off the root]
+|- .bytearmy [contains the instructions the agents start with (master.md for the masters, agent.md for the other agents of a task, scratchpad.md for the agents of a scratchpad, orchestrator.md for the orchestrator), config.toml, the settings of all projects and tasks, global metadata, the color schemes, the messages of the inbox, the secrets of the Gmail accounts, the session of the orchestrator, the logs of programs without a pane, the browser session of the web panes, the `bytearmy` command of the panes and the lock that keeps a second bytearmy off the root]
 |-- project-1
     |- .bytearmy [contains bytearmy project level metadata, like name and Github URL, the mirror of the projects repository the tasks clone from, and optionally the project's config.toml]
     |- .claude [contains project specific claude configurations like CLAUDE.md etc. Claude loads this CLAUDE.md by itself in every task of the project]

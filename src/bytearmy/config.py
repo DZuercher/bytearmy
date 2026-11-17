@@ -265,10 +265,22 @@ class GitHubInbox(Section):
         )
 
 
+class GmailAccount(Section):
+    # The address names the file of its secrets: no slashes.
+    address: str = Field(pattern=r"^[^/\\\s]+@[^/\\\s]+$")
+    method: Literal["oauth", "imap"]
+
+
+class GmailInbox(Section):
+    enabled: bool = True
+    accounts: list[GmailAccount] = []
+
+
 class InboxSettings(Section):
     enabled: bool = True
     poll_seconds: float = Field(60.0, ge=MIN_POLL_SECONDS)
     github: GitHubInbox = GitHubInbox()
+    gmail: GmailInbox = GmailInbox()
 
 
 class GitHubSettings(Section):
@@ -387,6 +399,17 @@ enabled = true
 reasons = []
 # Only notifications of these repositories, as "owner/name"; [] takes all.
 repositories = []
+
+# The unread mail in the inbox of Gmail accounts, one entry per thread. bytearmy only reads:
+# marking read or dismissing stays in bytearmy. Each account is asked with method "oauth"
+# (the Gmail API, with an OAuth client of your own Google Cloud project) or "imap" (with
+# an app password). `bytearmy --gmail-login <address>` asks for its secrets and keeps them
+# in .bytearmy/secrets/gmail/. Accounts added count once bytearmy starts again.
+[inbox.gmail]
+enabled = true
+# [[inbox.gmail.accounts]]
+# address = "me@gmail.com"
+# method = "imap"
 
 # The GitHub account of gh and git: for the inbox, for clones and in the panes.
 [github]
