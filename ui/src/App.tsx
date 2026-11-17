@@ -13,6 +13,7 @@ import { OrchestratorView } from '@/components/OrchestratorView'
 import { Palette } from '@/components/Palette'
 import { ProjectBar } from '@/components/ProjectBar'
 import { ResizeHandle } from '@/components/ResizeHandle'
+import { SettingsDialog } from '@/components/SettingsDialog'
 import { TaskBar } from '@/components/TaskBar'
 import { Workspace } from '@/components/Workspace'
 
@@ -49,6 +50,7 @@ export function App() {
   // a task is created in the project the dialog was opened for, even if another one is focused since.
   const [creating, setCreating] = useState<{ kind: 'project' } | { kind: 'task'; project: string } | null>(null)
   const [paletteOpen, setPaletteOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   // Workspaces stay mounted once opened, so their terminals keep their content.
   const [opened, setOpened] = useState<string[]>([])
   // The orchestrator's terminal stays mounted once shown, so it keeps its content.
@@ -350,7 +352,12 @@ export function App() {
         </main>
         <div className="relative flex shrink-0 flex-col" style={rightOpen ? { width: widthOf('right_width') } : undefined}>
           {rightOpen && resizer('right_width', 'left', 'Resize backlog bar')}
-          <FocusTab open={rightOpen} active={ui.focus} onClick={() => setUi({ focus: !ui.focus })} />
+          <FocusTab
+            open={rightOpen}
+            active={ui.focus}
+            onClick={() => setUi({ focus: !ui.focus })}
+            onSettings={() => setSettingsOpen(true)}
+          />
           <BacklogBar
             open={rightOpen}
             onToggle={() => toggleBar('right_open')}
@@ -364,6 +371,12 @@ export function App() {
           />
         </div>
       </div>
+      {settingsOpen && (
+        <SettingsDialog
+          onClose={() => setSettingsOpen(false)}
+          onSave={(file, text) => api.editSettings(file, text).then(setState)}
+        />
+      )}
       <DeleteDialog doomed={doomed} onCancel={() => setDoomed(null)} onConfirm={confirmDelete} />
       {project && edited && (
         <EditTaskDialog
