@@ -37,6 +37,7 @@ from bytearmy.models import (
     MergeStart,
     Opened,
     OrchestratorState,
+    OrchestratorWaiting,
     Page,
     PageVersion,
     PaneCall,
@@ -609,6 +610,11 @@ def create_app(
     @above.post("/inbox/{message}/dismiss", dependencies=[orchestrator_may("inbox.dismiss")])
     def above_dismiss_message(message: str) -> None:
         inbox.dismiss(visible_message(message))
+
+    # Not in `allow`: it only colors the Orchestrator tab, so no config keeps it from it.
+    @above.put("/needs-input")
+    def above_needs_input(body: OrchestratorWaiting) -> None:
+        orchestrator.needs_input(body.needs_input)
 
     # -- the `bytearmy` command in the panes -------------------------------
     # Each pane's program has a key of its own and reaches only its own task.

@@ -339,6 +339,39 @@ def test_the_orchestrator_reads_the_inbox(core, bytearmy):
     assert bytearmy("inbox", "read", "github:9") == (1, "bytearmy: no message 'github:9'")
 
 
+def test_the_tab_is_amber_while_the_orchestrator_waits_for_the_user(core, bytearmy):
+    def amber() -> bool:
+        return core.http.get("/api/state").json()["orchestrator"]["needs_input"]
+
+    assert not amber()
+    assert bytearmy("orchestrator", "needs-input") == (
+        0,
+        "the Orchestrator tab is amber until the user types into it",
+    )
+    assert amber()
+    core.orchestrator.write(b"y")  # the user answers
+    assert not amber()
+
+    bytearmy("orchestrator", "needs-input")
+    assert bytearmy("orchestrator", "working") == (0, "the Orchestrator tab is no longer amber")
+    assert not amber()
+
+
+def test_waiting_for_the_user_needs_no_permission_in_the_config(store, workspaces):
+    configure(store, '[orchestrator]\nallow = ["inbox.list"]\n')
+    made = Orchestrator(store, workspaces, shell=["/bin/sh"], autostart=True)
+    with serving(store, workspaces, orchestrator=made, inbox=Inbox(store)) as live:
+        made.start()
+        me = {"Authorization": f"Bearer {key(store)['BYTEARMY_TOKEN']}"}
+        sent = live.http.put("/orchestrator/needs-input", json={"needs_input": True}, headers=me)
+        assert sent.status_code == 200
+        assert made.state().needs_input
+
+
+def test_the_instructions_tell_the_orchestrator_to_turn_the_tab_amber():
+    assert "`bytearmy orchestrator needs-input`" in ORCHESTRATOR_INSTRUCTIONS
+
+
 def test_only_the_orchestrator_reaches_its_routes(core):
     me = key(core.store)
     orchestrator = {"Authorization": f"Bearer {me['BYTEARMY_TOKEN']}"}
@@ -365,7 +398,12 @@ def test_the_window_shows_the_orchestrators_terminal_and_starts_it_again(core):
             seen += frame if isinstance(frame, bytes) else b""
 
     state = core.http.get("/api/state").json()["orchestrator"]
-    assert state == {"name": "orchestrator", "running": True, "exit_code": None}
+    assert state == {
+        "name": "orchestrator",
+        "running": True,
+        "exit_code": None,
+        "needs_input": False,
+    }
     assert core.http.post("/api/orchestrator/restart").json()["orchestrator"]["running"]
     with pytest.raises(InvalidStatus):
         connect(f"{address}/api/orchestrator/terminal?token=wrong").recv(timeout=5)

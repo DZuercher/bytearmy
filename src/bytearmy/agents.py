@@ -30,7 +30,8 @@ EARLIER_SCRATCHPAD_INSTRUCTIONS = {
     "7f552420781888620a12c0418e21acb9b9db986b188f4c552496201780ba07e1",
 }
 EARLIER_ORCHESTRATOR_INSTRUCTIONS = {
-    "51a109493686002029f9515d708afe43debd0fff9197ca450e2c32f5ad0b75d8"
+    "51a109493686002029f9515d708afe43debd0fff9197ca450e2c32f5ad0b75d8",
+    "b0775543a82b0d97b822f60ba9e29bdc06bac54f1a8e52e17cd738061e7279d7",
 }
 
 # The parts both kinds of task agents are told.
@@ -378,6 +379,15 @@ The `bytearmy` command on your PATH:
 - `bytearmy inbox read <id>`, `bytearmy inbox unread <id>`, `bytearmy inbox dismiss <id>`.
 
 Projects and tasks are named by their slug, as `bytearmy project list` shows it.
+
+## Waiting for the user
+
+The Orchestrator tab of the window turns amber when you wait for the user, so they see it
+from wherever they are. Whenever you stop to ask the user something, run
+`bytearmy orchestrator needs-input` first. This includes every tool call that waits for the
+user: run it right before you call AskUserQuestion, and before ExitPlanMode. The amber ends
+when the user types into your terminal; `bytearmy orchestrator working` ends it yourself,
+e.g. when the question has settled itself.
 
 ## Talking to the masters
 

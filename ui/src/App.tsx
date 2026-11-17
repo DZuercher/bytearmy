@@ -236,6 +236,7 @@ export function App() {
             open={leftOpen}
             active={orchestratorShown}
             running={state.orchestrator.running}
+            needsInput={state.orchestrator.needs_input}
             onClick={() => setUi({ view: 'orchestrator' })}
           />
           <InboxTab

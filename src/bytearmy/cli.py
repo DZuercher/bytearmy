@@ -367,6 +367,16 @@ def inbox_dismiss(args: argparse.Namespace) -> str:
     return f"dismissed {args.id}"
 
 
+def orchestrator_needs_input(_args: argparse.Namespace) -> str:
+    above("PUT", "/needs-input", {"needs_input": True})
+    return "the Orchestrator tab is amber until the user types into it"
+
+
+def orchestrator_working(_args: argparse.Namespace) -> str:
+    above("PUT", "/needs-input", {"needs_input": False})
+    return "the Orchestrator tab is no longer amber"
+
+
 def review(args: argparse.Namespace) -> str:
     """Ask the user to review the changes; waits until they finish, then prints the review."""
     mode = "uncommitted" if args.uncommitted else "branch"
@@ -601,6 +611,17 @@ def parser() -> argparse.ArgumentParser:
     command(inbox, "read", inbox_read, "mark a message read").add_argument("id")
     command(inbox, "unread", inbox_unread, "mark a message unread").add_argument("id")
     command(inbox, "dismiss", inbox_dismiss, "dismiss a message").add_argument("id")
+
+    orchestrating = groups.add_parser(
+        "orchestrator", help="tell the user that you wait for them (orchestrator only)"
+    ).add_subparsers(dest="action", required=True)
+    command(
+        orchestrating,
+        "needs-input",
+        orchestrator_needs_input,
+        "turn the Orchestrator tab amber: you wait for the user; it ends when they type",
+    )
+    command(orchestrating, "working", orchestrator_working, "end the amber of the tab yourself")
 
     reviewing = groups.add_parser(
         "review",

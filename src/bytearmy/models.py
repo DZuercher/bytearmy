@@ -370,6 +370,7 @@ class OrchestratorFile(BaseModel):
     rows: int = 24
     cols: int = 80
     exit_code: int | None = None  # set when its program ended with an error
+    needs_input: bool = False  # it waits for the user, until the user types into it
 
 
 class OrchestratorState(BaseModel):
@@ -378,6 +379,11 @@ class OrchestratorState(BaseModel):
     name: str = "orchestrator"
     running: bool = False
     exit_code: int | None = None
+    needs_input: bool = False  # it waits for the user
+
+
+class OrchestratorWaiting(BaseModel):
+    needs_input: bool
 
 
 class AppState(BaseModel):

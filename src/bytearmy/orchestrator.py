@@ -94,6 +94,7 @@ class Orchestrator:
                 name=ORCHESTRATOR,
                 running=self._pty is not None and self._pty.exit_code is None,
                 exit_code=self._load().exit_code,
+                needs_input=self._load().needs_input,
             )
 
     def _config(self) -> OrchestratorSettings:
@@ -145,11 +146,20 @@ class Orchestrator:
             if self._pty is None:
                 self._start()
 
+    def needs_input(self, waiting: bool) -> None:
+        """The orchestrator waits for the user, or works again."""
+        with self._lock:
+            file = self._load()
+            if file.needs_input != waiting:
+                file.needs_input = waiting
+                self._save(file)
+
     def write(self, data: bytes) -> None:
-        """What the user types into the terminal."""
+        """What the user types into the terminal; it answers the orchestrator."""
         with self._lock:
             self._typed_at = self._clock()
             pty = self._pty
+            self.needs_input(False)
         if pty is not None:
             pty.write(data)
 
