@@ -70,7 +70,7 @@ from bytearmy.models import (
     WorkflowDispatch,
     Workspace,
 )
-from bytearmy.orchestrator import Orchestrator
+from bytearmy.orchestrator import ORCHESTRATOR_SOURCES, Orchestrator
 from bytearmy.prs import GitHubFailed
 from bytearmy.ptys import Pty
 from bytearmy.settings import UnknownSettings, read_settings, write_settings
@@ -577,17 +577,38 @@ def create_app(
     def above_delete_task(project: str, task: str) -> None:
         drop_task(project, task)
 
+    def visible_inbox() -> InboxState:
+        """The inbox as the orchestrator sees it: only the sources it may act on."""
+        whole = inbox.state()
+        return whole.model_copy(
+            update={
+                "messages": [
+                    message for message in whole.messages if message.source in ORCHESTRATOR_SOURCES
+                ],
+                "errors": {
+                    source: error
+                    for source, error in whole.errors.items()
+                    if source in ORCHESTRATOR_SOURCES
+                },
+            }
+        )
+
+    def visible_message(message: str) -> str:
+        if not any(found.id == message for found in visible_inbox().messages):
+            raise MessageNotFound(message)
+        return message
+
     @above.get("/inbox", dependencies=[orchestrator_may("inbox.list")])
     def above_inbox() -> InboxState:
-        return inbox.state()
+        return visible_inbox()
 
     @above.post("/inbox/{message}/read", dependencies=[orchestrator_may("inbox.read")])
     def above_mark_message(message: str, change: ReadChange) -> None:
-        inbox.mark(message, change.unread)
+        inbox.mark(visible_message(message), change.unread)
 
     @above.post("/inbox/{message}/dismiss", dependencies=[orchestrator_may("inbox.dismiss")])
     def above_dismiss_message(message: str) -> None:
-        inbox.dismiss(message)
+        inbox.dismiss(visible_message(message))
 
     # -- the `bytearmy` command in the panes -------------------------------
     # Each pane's program has a key of its own and reaches only its own task.

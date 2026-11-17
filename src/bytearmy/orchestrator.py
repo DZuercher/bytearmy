@@ -27,6 +27,7 @@ from bytearmy.workspaces import COULD_NOT_START, SPAWNING_TOOL, Workspaces, pane
 
 SUBMIT_PAUSE_SECONDS = 0.5  # between a note and its Enter: typed at once, Enter would be pasted
 MAX_LISTED = 10  # messages named in one note; the rest are counted
+ORCHESTRATOR_SOURCES = ("github",)  # the sources of the messages the orchestrator sees
 
 
 def describe(messages: Sequence[Message]) -> str:
@@ -243,7 +244,8 @@ class Orchestrator:
     # -- notes from bytearmy ------------------------------------------------------
 
     def announce(self, messages: Sequence[Message]) -> None:
-        """Tell the orchestrator about new messages of the inbox."""
+        """Tell the orchestrator about new messages of the inbox; it sees only GitHub's."""
+        messages = [message for message in messages if message.source in ORCHESTRATOR_SOURCES]
         if messages and self._config().announce_inbox:
             self.notify(describe(messages))
 

@@ -1315,9 +1315,9 @@ export interface components {
             id: string;
             /**
              * Source
-             * @constant
+             * @enum {string}
              */
-            source: "github";
+            source: "github" | "gmail";
             /** Title */
             title: string;
             /**

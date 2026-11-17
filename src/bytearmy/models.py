@@ -312,12 +312,12 @@ class UiChange(BaseModel):
 class Message(BaseModel):
     """One message of the inbox, as a source reported it."""
 
-    id: str  # "<source>:<the source's own id>"
-    source: Literal["github"]
+    id: str  # "<the name of its source>:<the source's own id>"
+    source: Literal["github", "gmail"]
     title: str
     kind: str = ""  # what the message is about, e.g. "PullRequest" or "Issue"
     context: str = ""  # where it comes from, e.g. the repository
-    reason: str = ""  # why it reached the user, e.g. "mention" or "review_requested"
+    reason: str = ""  # why it reached the user, e.g. "mention", or the account of a mail
     url: str = ""  # the page a browser shows for it
     updated_at: str  # ISO 8601, as the source has it
     unread: bool = True

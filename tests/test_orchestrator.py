@@ -449,6 +449,58 @@ def test_the_config_gives_the_orchestrator_its_command(store, workspaces):
         made.shutdown()
 
 
+def test_the_orchestrator_hears_only_of_github(orchestrator):
+    orchestrator.announce(
+        [
+            Message(id="github:1", source="github", title="Review me", updated_at="x"),
+            Message(id="gmail:a@b.c:1", source="gmail", title="Lunch?", updated_at="x"),
+        ]
+    )
+    [note] = orchestrator._notes
+    assert "Review me" in note and "Lunch?" not in note
+
+
+def test_the_orchestrator_hears_nothing_of_mail_alone(orchestrator):
+    orchestrator.announce(
+        [Message(id="gmail:a@b.c:1", source="gmail", title="Lunch?", updated_at="x")]
+    )
+    assert orchestrator._notes == []
+
+
+def test_the_orchestrator_neither_sees_nor_acts_on_mail(store, workspaces):
+    inbox = Inbox(store)
+    (store.root / ".bytearmy").mkdir(parents=True, exist_ok=True)
+    (store.root / ".bytearmy" / "inbox.json").write_text(
+        InboxState(
+            messages=[
+                Message(id="github:1", source="github", title="t", updated_at="x"),
+                Message(id="gmail:a@b.c:1", source="gmail", title="m", updated_at="x"),
+            ],
+            errors={"github": "gh failed", "gmail:a@b.c": "not logged in"},
+        ).model_dump_json()
+    )
+    made = Orchestrator(store, workspaces, shell=["/bin/sh"], autostart=True)
+    with serving(store, workspaces, orchestrator=made, inbox=inbox) as live:
+        made.start()
+        orchestrator = {"Authorization": f"Bearer {key(store)['BYTEARMY_TOKEN']}"}
+        seen = live.http.get("/orchestrator/inbox", headers=orchestrator).json()
+        assert [message["id"] for message in seen["messages"]] == ["github:1"]
+        assert seen["errors"] == {"github": "gh failed"}
+        for action in ("read", "dismiss"):
+            refused = live.http.post(
+                f"/orchestrator/inbox/gmail:a@b.c:1/{action}",
+                headers=orchestrator,
+                json={"unread": False},
+            )
+            assert refused.status_code == 404
+        assert live.http.post(
+            "/orchestrator/inbox/github:1/read", headers=orchestrator, json={"unread": False}
+        ).is_success
+        [_, mail] = inbox.state().messages
+        assert (mail.unread, mail.dismissed) == (True, False)
+        made.shutdown()
+
+
 def test_the_config_can_keep_the_inbox_from_the_orchestrator(store, orchestrator):
     configure(store, "[orchestrator]\nannounce_inbox = false\n")
     orchestrator.announce([Message(id="github:1", source="github", title="t", updated_at="x")])
