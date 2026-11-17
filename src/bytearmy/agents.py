@@ -523,10 +523,11 @@ def write_instructions(
     denied: Sequence[str] = (),
     forbidden: Sequence[str] = (),
     listeners: Sequence[Pane] = (),
+    project: Path | None = None,
 ) -> Path:
     """The instructions an agent starts with: the root's file for masters, for the other
-    agents or for the agents of a scratchpad, what the config forbids it, then who it is
-    and the event listeners that tell it.
+    agents or for the agents of a scratchpad, the project's file of the same name after it,
+    what the config forbids it, then who it is and the event listeners that tell it.
 
     Written anew at every start, so a restarted agent learns who the master is now and
     which of its listeners run again.
@@ -557,6 +558,9 @@ def write_instructions(
     else:
         general, default = root / AGENT_FILE, AGENT_INSTRUCTIONS
     text = general.read_text() if general.is_file() else default
+    added = project / general.relative_to(root) if project is not None else None
+    if added is not None and added.is_file() and (addition := added.read_text().strip()):
+        text += "\n" + addition + "\n"
     file = Path(task.path) / METADATA_DIR / "agents" / f"{pane.id}.md"
     file.parent.mkdir(parents=True, exist_ok=True)
     key = "master" if is_master(task, pane.id) else "agents"

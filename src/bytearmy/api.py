@@ -496,6 +496,22 @@ def create_app(
             raise HTTPException(status_code=400, detail=str(error)) from None
         return state()
 
+    @api.get("/projects/{project}/settings")
+    def get_project_settings(project: str) -> list[SettingsFile]:
+        return read_settings(store.root, Path(store.project(project).path))
+
+    @api.put("/projects/{project}/settings/{file}")
+    def edit_project_settings(project: str, file: str, edit: SettingsEdit) -> AppState:
+        """Write one settings file of a project; it counts from then on, for agents started
+        after."""
+        try:
+            write_settings(store.root, file, edit.text, Path(store.project(project).path))
+        except UnknownSettings:
+            raise HTTPException(status_code=404, detail=f"no settings file {file!r}") from None
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from None
+        return state()
+
     @api.get("/orchestrator")
     def orchestrator_state() -> OrchestratorState:
         return orchestrator.state()

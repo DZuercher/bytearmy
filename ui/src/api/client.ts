@@ -52,6 +52,8 @@ const routes = {
   orchestratorRestart: '/api/orchestrator/restart',
   settings: '/api/settings',
   settingsFile: '/api/settings/{file}',
+  projectSettings: '/api/projects/{project}/settings',
+  projectSettingsFile: '/api/projects/{project}/settings/{file}',
 } as const satisfies Record<string, keyof paths>
 
 function fill(route: string, parts: { project: string; task?: string; pane?: string }): string {
@@ -154,6 +156,10 @@ export const api = {
     request('PUT', routes.settingsFile.replace('{file}', encodeURIComponent(file)), {
       text,
     } satisfies Schemas['SettingsEdit']),
+  editProjectSettings: (project: string, file: string, text: string) =>
+    request('PUT', fill(routes.projectSettingsFile, { project }).replace('{file}', encodeURIComponent(file)), {
+      text,
+    } satisfies Schemas['SettingsEdit']),
 }
 
 // Calls `onChange` whenever the core's data changed, also by a program in a pane, so the
@@ -183,9 +189,10 @@ export function branches(project: string): Promise<string[]> {
   return send<string[]>('GET', fill(routes.branches, { project }))
 }
 
-// The files the settings dialogue edits. Not queued: the answer is not the state.
-export function settings(): Promise<SettingsFile[]> {
-  return send<SettingsFile[]>('GET', routes.settings)
+// The files the settings dialogue edits: those of the root, or of a project. Not queued:
+// the answer is not the state.
+export function settings(project?: string): Promise<SettingsFile[]> {
+  return send<SettingsFile[]>('GET', project ? fill(routes.projectSettings, { project }) : routes.settings)
 }
 
 // The page of a web pane. It does not wait in the queue and holds nobody up: the answer

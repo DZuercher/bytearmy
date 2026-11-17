@@ -422,6 +422,16 @@ email = ""
 """
 
 
+# What a project's config.toml holds while it is missing: no settings of its own.
+PROJECT_DEFAULT_TEXT = """\
+# The settings of this project. It may set any setting of the root's config.toml again,
+# except color_scheme, [orchestrator] and [inbox]; what it sets counts for the tasks of this
+# project instead. Tables merge key by key, other values are replaced. E.g.
+# [master]
+# permission_mode = "acceptEdits"
+"""
+
+
 def ensure_config(root: Path) -> None:
     """Write the root's config from the defaults if it has none."""
     file = root / CONFIG_FILE
@@ -449,14 +459,20 @@ def problems(error: ValidationError) -> str:
     )
 
 
-def check_config(text: str) -> None:
-    """Raise ValueError, saying why, if `text` is no valid config.toml."""
+def check_config(text: str, root_level: bool = True) -> None:
+    """Raise ValueError, saying why, if `text` is no valid config.toml of the root or (not
+    `root_level`) of a project."""
     try:
-        Config.model_validate(tomllib.loads(text))
+        data = tomllib.loads(text)
+        Config.model_validate(data)
     except tomllib.TOMLDecodeError as error:
         raise ValueError(f"config.toml is no valid TOML: {error}") from error
     except ValidationError as error:
         raise ValueError(f"config.toml has invalid settings: {problems(error)}") from error
+    if not root_level and (root_only := [key for key in ROOT_ONLY if key in data]):
+        raise ValueError(
+            f"{', '.join(root_only)} count only in the root's config.toml, not in a project's"
+        )
 
 
 def _layer(file: Path, root_level: bool, errors: list[str]) -> dict[str, Any]:

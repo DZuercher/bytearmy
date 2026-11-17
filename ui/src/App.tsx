@@ -374,8 +374,11 @@ export function App() {
       </div>
       {settingsOpen && (
         <SettingsDialog
+          projects={projects}
           onClose={() => setSettingsOpen(false)}
-          onSave={(file, text) => api.editSettings(file, text).then(setState)}
+          onSave={(scope, file, text) =>
+            (scope ? api.editProjectSettings(scope, file, text) : api.editSettings(file, text)).then(setState)
+          }
         />
       )}
       <DeleteDialog doomed={doomed} onCancel={() => setDoomed(null)} onConfirm={confirmDelete} />
