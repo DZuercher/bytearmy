@@ -25,6 +25,8 @@ export function Workspace({ project, task, visible, run, onArrange, onActivePane
   const place = { project: project.slug, task: task.slug }
   // The browser views of the web panes, for the buttons in their title bars.
   const [browsers, setBrowsers] = useState<Record<string, Browser>>({})
+  // The addresses the webpage panes have navigated to, shown in their titles.
+  const [addresses, setAddresses] = useState<Record<string, string>>({})
   // Whether the mouse went down on a part of a title bar that does not drag its pane.
   const pressedNoDrag = useRef(false)
 
@@ -65,10 +67,17 @@ export function Workspace({ project, task, visible, run, onArrange, onActivePane
           if (!pane) return <div />
           const maximized = workspace.maximized === id
           const ended = pane.exit_code == null ? '' : ` (ended with code ${pane.exit_code})`
+          const opened = pane.values?.url
+          const address = addresses[id]
+          // The title of a webpage pane names the address it was opened with; it follows the page.
+          const title =
+            pane.tool === 'webpage' && opened && address && pane.title.endsWith(opened)
+              ? pane.title.slice(0, -opened.length) + address
+              : pane.title
           return (
             <MosaicWindow<string>
               path={path}
-              title={pane.title + ended}
+              title={title + ended}
               // An agent wants the user to look here; clicking into the pane ends it. The frame
               // is a layer above the pane, as its title bar and content would cover an outline.
               className={cn(
@@ -148,6 +157,7 @@ export function Workspace({ project, task, visible, run, onArrange, onActivePane
                   <WebPane
                     place={{ ...place, pane: id }}
                     onBrowser={(browser) => setBrowser(id, browser)}
+                    onNavigate={(url) => setAddresses((others) => ({ ...others, [id]: url }))}
                     // A link that wants a new window opens as a new web pane beside this one.
                     onOpenWindow={(url) =>
                       run(
