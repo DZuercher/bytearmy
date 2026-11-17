@@ -39,6 +39,7 @@ from bytearmy.agents import (
 from bytearmy.answers import AnswerCommands, AnswerFailed
 from bytearmy.config import ACCOUNTS, AGENT_COMMANDS, Config, config_of, ensure_config
 from bytearmy.layout import add_leaf, leaves, remove_leaf
+from bytearmy.merges import MergeCommands, MergeFailed
 from bytearmy.models import (
     Agent,
     AgentSpawn,
@@ -46,6 +47,7 @@ from bytearmy.models import (
     DiffMode,
     Draft,
     LogEntry,
+    MergeStart,
     Pane,
     PaneCall,
     PaneOpen,
@@ -63,7 +65,7 @@ from bytearmy.models import (
 from bytearmy.prs import PullRequestCommands, PullRequestFailed
 from bytearmy.ptys import Pty
 from bytearmy.pulls import PullRequests
-from bytearmy.reviews import ReviewFailed, Reviews
+from bytearmy.reviews import ReviewFailed, Reviews, default_branch
 from bytearmy.services import Services, launch
 from bytearmy.store import LOG_FILE, METADATA_DIR, ProjectNotFound, Store, TaskNotFound
 from bytearmy.tools import (
@@ -188,11 +190,13 @@ class Workspaces:
         pr_commands: PullRequestCommands | None = None,
         workflow_commands: WorkflowCommands | None = None,
         answer_commands: AnswerCommands | None = None,
+        merge_commands: MergeCommands | None = None,
     ) -> None:
         self._store = store
         self._pulls = pulls or PullRequests(store)
         self._pr_commands = pr_commands or PullRequestCommands()
         self._workflow_commands = workflow_commands or WorkflowCommands()
+        self._merge_commands = merge_commands or MergeCommands()
         self._answer_commands = answer_commands or AnswerCommands()
         # A login shell that reads the user's startup files: functions and aliases work.
         self._shell = list(shell or [os.environ.get("SHELL", "/bin/sh"), "-l", "-i"])
@@ -783,6 +787,36 @@ class Workspaces:
     def workflow_runs(self, caller: Key, workflow: str, branch: str, limit: int) -> str:
         clone, _, env = self._clone(caller)
         return self._workflow_commands.runs(clone, env, workflow, branch, limit)
+
+    # -- merges ------------------------------------------------------------
+
+    def _merge_clone(self, caller: Key) -> tuple[Path, str, dict[str, str]]:
+        """Where the task's clone is, its base branch ("" if none), and the GitHub account."""
+        project, task, _ = caller
+        found = self._store.task(project, task)
+        if found.clone != "ready" or not found.repo:
+            raise MergeFailed("the task has no clone of a GitHub repository")
+        return Path(found.path) / found.repo, found.base, self.github_env(project, task)
+
+    def start_merge(self, caller: Key, request: MergeStart) -> str:
+        """Merge a branch of origin into the clone: the request's, else the task's base
+        branch, else the default branch."""
+        clone, base, env = self._merge_clone(caller)
+        branch = request.branch or base
+        if not branch:
+            default = default_branch(clone)
+            if default is None:
+                raise MergeFailed("the repository has no default branch; name the branch")
+            branch = default.removeprefix("origin/")
+        return self._merge_commands.start(clone, env, branch)
+
+    def continue_merge(self, caller: Key) -> str:
+        clone, _, env = self._merge_clone(caller)
+        return self._merge_commands.resume(clone, env)
+
+    def abort_merge(self, caller: Key) -> str:
+        clone, _, env = self._merge_clone(caller)
+        return self._merge_commands.abort(clone, env)
 
     def _review_page(self, project: str, task: str, pane: str) -> str:
         """Where the diffle of a diff pane answers; starts it if it does not run yet."""

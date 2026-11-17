@@ -556,6 +556,18 @@ class PullRequestAnswer(BaseModel):
     text: str
 
 
+class MergeStart(BaseModel):
+    """An agent merges a branch of origin into the task's branch."""
+
+    branch: str = ""  # "" = the task's base branch, or the default branch without one
+
+
+class MergeAnswer(BaseModel):
+    """What git answered: what it merged, the conflicts, or what it did."""
+
+    text: str
+
+
 class WorkflowDispatch(BaseModel):
     """An agent dispatches a GitHub Actions workflow of the task's repository."""
 

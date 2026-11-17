@@ -411,6 +411,18 @@ def pr_merge(args: argparse.Namespace) -> str:
     return call("POST", "/pulls/merge", request)["text"]
 
 
+def merge_start(args: argparse.Namespace) -> str:
+    return call("POST", "/merges", {"branch": args.branch or ""})["text"]
+
+
+def merge_continue(_args: argparse.Namespace) -> str:
+    return call("POST", "/merges/continue")["text"]
+
+
+def merge_abort(_args: argparse.Namespace) -> str:
+    return call("POST", "/merges/abort")["text"]
+
+
 def workflow_list(_args: argparse.Namespace) -> str:
     return call("GET", "/workflows")["text"]
 
@@ -459,7 +471,7 @@ def parser() -> argparse.ArgumentParser:
     groups = main.add_subparsers(
         dest="group",
         required=True,
-        metavar="{pane,tool,task,agent,log,listen,review,answer,pr,workflow,project,tasks,inbox}",
+        metavar="{pane,tool,task,agent,log,listen,review,answer,pr,merge,workflow,project,tasks,inbox}",
     )
 
     def command(group, name: str, run, help: str):
@@ -642,6 +654,25 @@ def parser() -> argparse.ArgumentParser:
     merging.add_argument(
         "--delete-branch", action="store_true", help="delete the branch on GitHub afterwards"
     )
+
+    merges = groups.add_parser(
+        "merge", help="merge a branch of origin into the task's branch, with git"
+    ).add_subparsers(dest="action", required=True)
+    starting = command(
+        merges,
+        "start",
+        merge_start,
+        "fetch a branch of origin and merge it; a clean merge is committed, conflicts are "
+        "listed and left to resolve",
+    )
+    starting.add_argument(
+        "branch",
+        nargs="?",
+        help="the branch of origin to merge; default: the task's base branch, or the "
+        "default branch if the task has none",
+    )
+    command(merges, "continue", merge_continue, "commit the merge once its conflicts are resolved")
+    command(merges, "abort", merge_abort, "undo the merge in progress")
 
     workflows = groups.add_parser(
         "workflow", help="the GitHub Actions workflows of the task's repository, with gh"

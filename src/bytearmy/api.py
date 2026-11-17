@@ -33,6 +33,8 @@ from bytearmy.models import (
     InboxState,
     Layout,
     LogEntry,
+    MergeAnswer,
+    MergeStart,
     Opened,
     OrchestratorState,
     Page,
@@ -679,6 +681,18 @@ def create_app(
         limit: Annotated[int, Query(ge=1, le=100)] = DEFAULT_RUN_LIMIT,
     ) -> WorkflowAnswer:
         return WorkflowAnswer(text=workspaces.workflow_runs(caller, workflow, branch, limit))
+
+    @agent.post("/merges", dependencies=[agent_may("merge.start")])
+    def agent_start_merge(caller: Caller, request: MergeStart) -> MergeAnswer:
+        return MergeAnswer(text=workspaces.start_merge(caller, request))
+
+    @agent.post("/merges/continue", dependencies=[agent_may("merge.continue")])
+    def agent_continue_merge(caller: Caller) -> MergeAnswer:
+        return MergeAnswer(text=workspaces.continue_merge(caller))
+
+    @agent.post("/merges/abort", dependencies=[agent_may("merge.abort")])
+    def agent_abort_merge(caller: Caller) -> MergeAnswer:
+        return MergeAnswer(text=workspaces.abort_merge(caller))
 
     @agent.post("/answers", status_code=201, dependencies=[agent_may("answer.draft")])
     def agent_draft_answer(caller: Caller, request: AnswerDraft) -> Opened:

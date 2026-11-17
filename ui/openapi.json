@@ -2455,6 +2455,80 @@
         }
       }
     },
+    "/agent/merges": {
+      "post": {
+        "summary": "Agent Start Merge",
+        "operationId": "agent_start_merge_agent_merges_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MergeStart"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MergeAnswer"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agent/merges/continue": {
+      "post": {
+        "summary": "Agent Continue Merge",
+        "operationId": "agent_continue_merge_agent_merges_continue_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MergeAnswer"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agent/merges/abort": {
+      "post": {
+        "summary": "Agent Abort Merge",
+        "operationId": "agent_abort_merge_agent_merges_abort_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MergeAnswer"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/agent/answers": {
       "post": {
         "summary": "Agent Draft Answer",
@@ -3206,6 +3280,32 @@
           "tree"
         ],
         "title": "Layout"
+      },
+      "MergeAnswer": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "MergeAnswer",
+        "description": "What git answered: what it merged, the conflicts, or what it did."
+      },
+      "MergeStart": {
+        "properties": {
+          "branch": {
+            "type": "string",
+            "title": "Branch",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "MergeStart",
+        "description": "An agent merges a branch of origin into the task's branch."
       },
       "Message": {
         "properties": {

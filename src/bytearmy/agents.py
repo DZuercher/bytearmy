@@ -78,6 +78,22 @@ OTHER_AGENTS = """\
 
 """
 
+MERGING = """\
+## Merging branches
+
+- Merge a branch into the task's branch with `bytearmy merge`, not with `git merge` (which
+  Claude's permission modes often block): `bytearmy merge start [<branch>]` fetches the
+  branch from origin and merges it; without a branch it merges the task's base branch, or
+  the default branch. A merge without conflicts is committed at once.
+- A merge with conflicts stops and lists the conflicted files. Resolve each one, so that it
+  keeps what both sides meant and no conflict markers are left, and `git add` it. Then have
+  the user review the resolution with `bytearmy review --uncommitted`, which shows all that
+  the merge brings in, your resolutions among it; name the conflicted files in `--note`.
+  Act on the comments, then commit the merge with `bytearmy merge continue`.
+- `bytearmy merge abort` undoes a merge that is not committed yet.
+
+"""
+
 GITHUB = """\
 ## Pull requests
 
@@ -237,6 +253,7 @@ MASTER_INSTRUCTIONS = (
   as a message that starts with "Review comments from the user"; act on them likewise.
 
 """
+    + MERGING
     + GITHUB
     + """\
 ## Messages from the orchestrator
@@ -296,6 +313,8 @@ AGENT_INSTRUCTIONS = (
     + OTHER_AGENTS
     + WAITING
     + REVIEWS
+    + "\n"
+    + MERGING
 )
 
 SCRATCHPAD_INSTRUCTIONS = (
@@ -320,6 +339,7 @@ do all a master may; the other agents in it work on their own things.
     + WAITING
     + REVIEWS
     + "\n"
+    + MERGING
     + GITHUB
     + THE_ORCHESTRATOR
 )
