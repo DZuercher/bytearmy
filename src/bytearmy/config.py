@@ -71,6 +71,9 @@ AGENT_COMMANDS = (
     "pr.create",
     "pr.view",
     "pr.merge",
+    "merge.start",
+    "merge.continue",
+    "merge.abort",
     "workflow.list",
     "workflow.run",
     "workflow.runs",
@@ -149,10 +152,12 @@ class OrchestratorSettings(ClaudeSettings):
         return off
 
 
-# The `bytearmy pr` and `bytearmy workflow` commands, and the rules that let Claude run them
-# in any permission mode.
+# The `bytearmy pr`, `bytearmy merge` and `bytearmy workflow` commands, and the rules that let
+# Claude run them in any permission mode.
 PR_COMMANDS = ("pr.create", "pr.view", "pr.merge")
 PR_COMMAND_RULE = "Bash(bytearmy pr *)"
+MERGE_COMMANDS = ("merge.start", "merge.continue", "merge.abort")
+MERGE_COMMAND_RULE = "Bash(bytearmy merge *)"
 WORKFLOW_COMMANDS = ("workflow.list", "workflow.run", "workflow.runs")
 WORKFLOW_COMMAND_RULE = "Bash(bytearmy workflow *)"
 ANSWER_COMMANDS = ("answer.draft", "answer.send")
@@ -167,6 +172,7 @@ class TaskAgentSettings(ClaudeSettings):
         rules: list[str] = []
         for commands, rule in (
             (PR_COMMANDS, PR_COMMAND_RULE),
+            (MERGE_COMMANDS, MERGE_COMMAND_RULE),
             (WORKFLOW_COMMANDS, WORKFLOW_COMMAND_RULE),
             (ANSWER_COMMANDS, ANSWER_COMMAND_RULE),
         ):
@@ -329,8 +335,8 @@ spawn = ""
 # pane.maximize, pane.hide, pane.highlight, pane.move, tool.list, task.show,
 # task.set-status, task.working, task.needs-input, task.waiting, task.done, task.merged,
 # task.set-description, task.set-reminder, agent.list, agent.spawn, review, answer.draft,
-# answer.send, log, pr.create, pr.view, pr.merge, workflow.list, workflow.run,
-# workflow.runs.
+# answer.send, log, pr.create, pr.view, pr.merge, merge.start, merge.continue,
+# merge.abort, workflow.list, workflow.run, workflow.runs.
 allow = ["*"]
 # Whether it may create and merge the pull request of the task's branch. `bytearmy pr`
 # does it with gh as the account of [github], for the task's branch only, and Claude is

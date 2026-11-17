@@ -136,7 +136,8 @@ def test_the_allow_switches_forbid_whatever_allow_says():
         allow_pr_creation=False, allow_pr_merge=False, allow_workflow_dispatch=False
     )
     assert master.flags() == (
-        "'--allowedTools=Bash(bytearmy pr *)' '--allowedTools=Bash(bytearmy workflow *)'"
+        "'--allowedTools=Bash(bytearmy pr *)' '--allowedTools=Bash(bytearmy merge *)'"
+        " '--allowedTools=Bash(bytearmy workflow *)'"
         " '--allowedTools=Bash(bytearmy answer *)'"
         " '--disallowedTools=Bash(gh pr create *)' '--disallowedTools=Bash(gh pr merge *)'"
         " '--disallowedTools=Bash(gh workflow run *)'"
@@ -144,7 +145,8 @@ def test_the_allow_switches_forbid_whatever_allow_says():
     assert len(master.forbidden_actions()) == 3
     assert master.denied(["workflow.list", "workflow.run"]) == ["workflow.run"]
     assert MasterSettings().flags() == (
-        "'--allowedTools=Bash(bytearmy pr *)' '--allowedTools=Bash(bytearmy workflow *)'"
+        "'--allowedTools=Bash(bytearmy pr *)' '--allowedTools=Bash(bytearmy merge *)'"
+        " '--allowedTools=Bash(bytearmy workflow *)'"
         " '--allowedTools=Bash(bytearmy answer *)'"
     )
     assert MasterSettings().forbidden_actions() == []

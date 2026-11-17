@@ -924,6 +924,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/agent/merges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Agent Start Merge */
+        post: operations["agent_start_merge_agent_merges_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agent/merges/continue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Agent Continue Merge */
+        post: operations["agent_continue_merge_agent_merges_continue_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agent/merges/abort": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Agent Abort Merge */
+        post: operations["agent_abort_merge_agent_merges_abort_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/agent/answers": {
         parameters: {
             query?: never;
@@ -1235,6 +1286,25 @@ export interface components {
         Layout: {
             /** Tree */
             tree: components["schemas"]["Split-Input"] | string | null;
+        };
+        /**
+         * MergeAnswer
+         * @description What git answered: what it merged, the conflicts, or what it did.
+         */
+        MergeAnswer: {
+            /** Text */
+            text: string;
+        };
+        /**
+         * MergeStart
+         * @description An agent merges a branch of origin into the task's branch.
+         */
+        MergeStart: {
+            /**
+             * Branch
+             * @default
+             */
+            branch: string;
         };
         /**
          * Message
@@ -3999,6 +4069,79 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_start_merge_agent_merges_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MergeStart"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MergeAnswer"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    agent_continue_merge_agent_merges_continue_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MergeAnswer"];
+                };
+            };
+        };
+    };
+    agent_abort_merge_agent_merges_abort_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MergeAnswer"];
                 };
             };
         };

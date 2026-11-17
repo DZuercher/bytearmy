@@ -676,7 +676,7 @@ def test_every_agent_route_needs_the_key_of_a_running_pane(tmp_path):
         if path.startswith("/agent/")
         for method in operations
     ]
-    assert len(routes) == 22
+    assert len(routes) == 25
 
     with TestClient(app) as client:
         for key in ("", TOKEN, "made-up"):
