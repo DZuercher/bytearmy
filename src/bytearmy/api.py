@@ -74,6 +74,7 @@ from bytearmy.models import (
 from bytearmy.orchestrator import ORCHESTRATOR_SOURCES, Orchestrator
 from bytearmy.prs import GitHubFailed
 from bytearmy.ptys import Pty
+from bytearmy.pycharm import interpreter_name, remove_interpreter
 from bytearmy.settings import UnknownSettings, read_settings, write_settings
 from bytearmy.store import (
     Blocked,
@@ -284,6 +285,7 @@ def create_app(
         cloner.cancel(project, task)
         workspaces.stop(project, task)
         store.delete_task(project, task)
+        remove_interpreter(interpreter_name(project, task))
 
     api = APIRouter(prefix="/api", dependencies=[Depends(require_token)])
 

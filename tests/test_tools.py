@@ -154,6 +154,7 @@ def test_the_premade_web_and_external_tools_say_what_they_show(tmp_path):
         kind="external",
         directory="repo",
         command="open -a PyCharm ." if MACOS else "pycharm .",
+        interpreter=".pixi/envs/default",
     )
 
 

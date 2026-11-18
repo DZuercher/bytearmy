@@ -241,6 +241,8 @@ class Tool(BaseModel):
     callers: list[Literal["user", "agent"]] = ["user", "agent"]  # who may open the tool
     # terminal: when its program ends, tell the agent that opened it, or else the master
     notify: bool = False
+    # external: a pixi env, relative to the clone, that PyCharm gets as the interpreter
+    interpreter: str = ""
     parameters: list[Parameter] = []
     service: Service | None = None
 
