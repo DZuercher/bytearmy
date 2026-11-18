@@ -148,6 +148,14 @@
 .mosaic.mosaic-blueprint-theme .mosaic-window.pane-maximized .mosaic-window-toolbar .mosaic-window-title {
     color: black;
 }
+/* A pane whose program ended with an error: its red title bar says so, with the exit code. */
+.mosaic.mosaic-blueprint-theme .mosaic-window.pane-failed .mosaic-window-toolbar {
+    background: var(--destructive);
+    color: white;
+}
+.mosaic.mosaic-blueprint-theme .mosaic-window.pane-failed .mosaic-window-toolbar .mosaic-window-title {
+    color: white;
+}
 .mosaic.mosaic-blueprint-theme .mosaic-tile :is(.mosaic-window, .mosaic-preview) .mosaic-window-body {
     background: var(--background);
 }

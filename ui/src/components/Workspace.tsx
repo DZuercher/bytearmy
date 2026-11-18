@@ -83,6 +83,7 @@ export function Workspace({ project, task, visible, run, onArrange, onActivePane
               // While another pane is maximized over it, the frame would be drawn on top of that one.
               className={cn(
                 maximized && 'pane-maximized',
+                pane.exit_code != null && 'pane-failed',
                 pane.highlighted &&
                   (!workspace.maximized || maximized) &&
                   "relative after:pointer-events-none after:absolute after:inset-0 after:z-30 after:border-4 after:border-amber-500 after:content-['']",
