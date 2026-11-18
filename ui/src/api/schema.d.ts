@@ -471,6 +471,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{project}/tasks/{task}/panes/{pane}/address": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Pane Address
+         * @description A web pane went to another page; a webpage pane opens there again after a restart.
+         */
+        put: operations["set_pane_address_api_projects__project__tasks__task__panes__pane__address_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/settings": {
         parameters: {
             query?: never;
@@ -1206,6 +1226,14 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
+         * Address
+         * @description The page a web pane went to.
+         */
+        Address: {
+            /** Url */
+            url: string;
+        };
+        /**
          * Agent
          * @description An agent of a task, as `bytearmy agent list` shows it.
          */
@@ -1499,6 +1527,11 @@ export interface components {
             values: {
                 [key: string]: string;
             };
+            /**
+             * Address
+             * @default
+             */
+            address: string;
             /**
              * Session
              * @default
@@ -3215,6 +3248,43 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["Highlight"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_pane_address_api_projects__project__tasks__task__panes__pane__address_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project: string;
+                task: string;
+                pane: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Address"];
             };
         };
         responses: {
