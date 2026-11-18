@@ -131,6 +131,9 @@ def test_the_allow_switches_forbid_whatever_allow_says():
         "tasks.delete",
     ]
     assert OrchestratorSettings().denied(["tasks.create", "tasks.delete"]) == []
+    assert orchestrator.flags() == ""
+    assert OrchestratorSettings(allow=["tasks.list"]).flags() == ""
+    assert OrchestratorSettings().flags() == "'--allowedTools=Bash(bytearmy tasks create *)'"
 
     master = MasterSettings(
         allow_pr_creation=False, allow_pr_merge=False, allow_workflow_dispatch=False

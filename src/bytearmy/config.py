@@ -151,6 +151,13 @@ class OrchestratorSettings(ClaudeSettings):
             off.add("tasks.delete")
         return off
 
+    def granted_tools(self) -> list[str]:
+        return [TASK_CREATION_RULE] if self.allows("tasks.create") else []
+
+
+# The rule that lets Claude run `bytearmy tasks create` in any permission mode: auto mode
+# takes it for a change to shared resources and blocks it.
+TASK_CREATION_RULE = "Bash(bytearmy tasks create *)"
 
 # The `bytearmy pr`, `bytearmy merge` and `bytearmy workflow` commands, and the rules that let
 # Claude run them in any permission mode.
@@ -323,7 +330,8 @@ resume = ""
 # inbox.read, inbox.dismiss. E.g. ["project.list", "tasks.*", "inbox.*"].
 allow = ["project.*", "tasks.*", "inbox.*"]
 # Whether it may create and delete tasks; false forbids tasks.create or tasks.delete,
-# whatever allow says.
+# whatever allow says. While it may create tasks, Claude is let run `bytearmy tasks create`
+# in every permission mode, auto mode too.
 allow_task_creation = true
 allow_task_deletion = true
 # Claude's own permissions, passed as {permissions}: --permission-mode (default,
