@@ -13,6 +13,51 @@ if (process.env.BYTEARMY_PROFILE) app.setPath('userData', process.env.BYTEARMY_P
 
 let win = null
 
+// Errors of the window's page and crashes of the processes behind it go to the log file the
+// core names, with the time; without one they would show only on the terminal, if at all.
+const windowLog = process.env.BYTEARMY_WINDOW_LOG
+// Past this size the log moves to <log>.1, replacing the one there: the log keeps at most
+// twice this much.
+const WINDOW_LOG_MAX_BYTES = 1024 * 1024
+
+function logLine(text) {
+  const line = `${new Date().toISOString()} ${text}`
+  console.log(line)
+  if (!windowLog) return
+  try {
+    fs.mkdirSync(path.dirname(windowLog), { recursive: true })
+    if (fs.existsSync(windowLog) && fs.statSync(windowLog).size > WINDOW_LOG_MAX_BYTES) {
+      fs.renameSync(windowLog, `${windowLog}.1`)
+    }
+    fs.appendFileSync(windowLog, `${line}\n`)
+  } catch (error) {
+    console.log(`cannot write ${windowLog}: ${error}`)
+  }
+}
+
+process.on('uncaughtException', (error) => logLine(`[main] uncaught ${error.stack || error}`))
+app.on('child-process-gone', (_event, details) => {
+  logLine(`[process gone] ${details.type} ${details.reason}, exit code ${details.exitCode}`)
+})
+
+// The window's page logs its errors; web panes show pages from anywhere, whose errors are
+// not ours, so of them only a crash or a hang is logged.
+function watch(contents) {
+  const kind = contents.getType()
+  // URLs without their query: the window's carries the token.
+  const where = () => contents.getURL().split('?')[0]
+  contents.on('render-process-gone', (_event, details) => {
+    logLine(`[${kind} gone] ${details.reason}, exit code ${details.exitCode}: ${where()}`)
+  })
+  contents.on('unresponsive', () => logLine(`[${kind} unresponsive] ${where()}`))
+  contents.on('responsive', () => logLine(`[${kind} responsive again] ${where()}`))
+  if (kind === 'webview') return
+  contents.on('console-message', (event) => {
+    if (event.level === 'error') logLine(`[page error] ${event.message} (${event.sourceId.split('?')[0]}:${event.lineNumber})`)
+  })
+  contents.on('preload-error', (_event, file, error) => logLine(`[preload error] ${file}: ${error.stack || error}`))
+}
+
 // A tap is Shift pressed and released with no other key in between; two taps within
 // DOUBLE_TAP_MS toggle the command dialogue. Keys are watched here, in the main
 // process, because an embedded web page does not pass them on to the window's page.
@@ -49,6 +94,7 @@ function togglePalette() {
 }
 
 app.on('web-contents-created', (_event, contents) => {
+  watch(contents)
   contents.on('before-input-event', (_e, input) => onInput(input))
   // A web pane shows pages from anywhere: it gets no access to this process.
   contents.on('will-attach-webview', (_e, webPreferences) => {

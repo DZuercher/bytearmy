@@ -27,6 +27,7 @@ def test_the_window_keeps_its_own_data_inside_the_root(tmp_path):
         "BYTEARMY_URL": "http://127.0.0.1:1234",
         "BYTEARMY_TOKEN": "secret",
         "BYTEARMY_PROFILE": str(tmp_path / "root" / ".bytearmy" / "electron"),
+        "BYTEARMY_WINDOW_LOG": str(tmp_path / "root" / ".bytearmy" / "logs" / "electron.log"),
     }
 
 
