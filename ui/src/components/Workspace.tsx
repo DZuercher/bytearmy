@@ -80,9 +80,11 @@ export function Workspace({ project, task, visible, run, onArrange, onActivePane
               title={title + ended}
               // An agent wants the user to look here; clicking into the pane ends it. The frame
               // is a layer above the pane, as its title bar and content would cover an outline.
+              // While another pane is maximized over it, the frame would be drawn on top of that one.
               className={cn(
                 maximized && 'pane-maximized',
                 pane.highlighted &&
+                  (!workspace.maximized || maximized) &&
                   "relative after:pointer-events-none after:absolute after:inset-0 after:z-30 after:border-4 after:border-amber-500 after:content-['']",
               )}
               toolbarControls={[
