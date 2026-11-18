@@ -159,7 +159,13 @@ export function Workspace({ project, task, visible, run, onArrange, onActivePane
                   <WebPane
                     place={{ ...place, pane: id }}
                     onBrowser={(browser) => setBrowser(id, browser)}
-                    onNavigate={(url) => setAddresses((others) => ({ ...others, [id]: url }))}
+                    onNavigate={(url) => {
+                      setAddresses((others) => ({ ...others, [id]: url }))
+                      // The core keeps it, so that the pane opens on this page after a restart.
+                      if (pane.tool === 'webpage' && url !== pane.address) {
+                        run(api.setPaneAddress(place.project, place.task, id, url))
+                      }
+                    }}
                     // A link that wants a new window opens as a new web pane beside this one.
                     onOpenWindow={(url) =>
                       run(

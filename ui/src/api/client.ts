@@ -43,6 +43,7 @@ const routes = {
   pane: '/api/projects/{project}/tasks/{task}/panes/{pane}',
   paneFinish: '/api/projects/{project}/tasks/{task}/panes/{pane}/finish',
   paneHighlight: '/api/projects/{project}/tasks/{task}/panes/{pane}/highlight',
+  paneAddress: '/api/projects/{project}/tasks/{task}/panes/{pane}/address',
   paneHidden: '/api/projects/{project}/tasks/{task}/panes/{pane}/hidden',
   panePage: '/api/projects/{project}/tasks/{task}/panes/{pane}/page',
   panePageVersion: '/api/projects/{project}/tasks/{task}/panes/{pane}/page/version',
@@ -133,6 +134,9 @@ export const api = {
     request('PUT', fill(routes.maximized, { project, task }), { slug } satisfies Schemas['Focus']),
   highlightPane: (project: string, task: string, pane: string, on: boolean) =>
     request('PUT', fill(routes.paneHighlight, { project, task, pane }), { on } satisfies Schemas['Highlight']),
+  // A web pane went to another page; a webpage pane opens there again after a restart.
+  setPaneAddress: (project: string, task: string, pane: string, url: string) =>
+    request('PUT', fill(routes.paneAddress, { project, task, pane }), { url } satisfies Schemas['Address']),
   // A pane is shown beside `beside`, the last pane if that is null.
   hidePane: (project: string, task: string, pane: string, hidden: boolean, beside: string | null = null) =>
     request('PUT', fill(routes.paneHidden, { project, task, pane }), {

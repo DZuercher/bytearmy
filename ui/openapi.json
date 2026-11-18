@@ -1368,6 +1368,74 @@
         }
       }
     },
+    "/api/projects/{project}/tasks/{task}/panes/{pane}/address": {
+      "put": {
+        "summary": "Set Pane Address",
+        "description": "A web pane went to another page; a webpage pane opens there again after a restart.",
+        "operationId": "set_pane_address_api_projects__project__tasks__task__panes__pane__address_put",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project"
+            }
+          },
+          {
+            "name": "task",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task"
+            }
+          },
+          {
+            "name": "pane",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pane"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Address"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/settings": {
       "get": {
         "summary": "Get Settings",
@@ -3135,6 +3203,20 @@
   },
   "components": {
     "schemas": {
+      "Address": {
+        "properties": {
+          "url": {
+            "type": "string",
+            "title": "Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "title": "Address",
+        "description": "The page a web pane went to."
+      },
       "Agent": {
         "properties": {
           "name": {
@@ -3662,6 +3744,11 @@
             "type": "object",
             "title": "Values",
             "default": {}
+          },
+          "address": {
+            "type": "string",
+            "title": "Address",
+            "default": ""
           },
           "session": {
             "type": "string",

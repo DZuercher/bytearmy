@@ -417,6 +417,16 @@ class Workspaces:
 
         self._store.change_workspace(project, task, change)
 
+    def set_address(self, project: str, task: str, pane: str, url: str) -> None:
+        """Remember the page a web pane went to."""
+
+        def change(workspace: Workspace) -> None:
+            if pane not in workspace.panes:
+                raise PaneNotFound(pane)
+            workspace.panes[pane].address = url
+
+        self._store.change_workspace(project, task, change)
+
     def list_hidden(self, project: str, task: str, open: bool) -> None:
         """Unfold or fold the list of the task's hidden panes in the tasks bar."""
 
@@ -1073,6 +1083,8 @@ class Workspaces:
             return f"{answers}/{pane}"  # `answers` is where the core serves their pages
         if shown is None or shown.kind != "web":
             raise PaneNotFound(pane)
+        if shown.tool == "webpage" and shown.address.startswith(("http://", "https://")):
+            return shown.address  # the page it showed last, which a restart opens again
         tool = self._tools(project, task).get(shown.tool)
         if tool is None or tool.kind != "web":
             raise UnknownTool(shown.tool)

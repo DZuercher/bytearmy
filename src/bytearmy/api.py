@@ -22,6 +22,7 @@ from bytearmy.config import ACCOUNTS, load_config
 from bytearmy.inbox import Inbox, MessageNotFound
 from bytearmy.logpage import render
 from bytearmy.models import (
+    Address,
     Agent,
     AgentSpawn,
     AnswerDecision,
@@ -479,6 +480,12 @@ def create_app(
     @api.put(PANES + "/{pane}/highlight")
     def highlight_pane(project: str, task: str, pane: str, body: Highlight) -> AppState:
         workspaces.highlight(project, task, pane, body.on)
+        return state()
+
+    @api.put(PANES + "/{pane}/address")
+    def set_pane_address(project: str, task: str, pane: str, body: Address) -> AppState:
+        """A web pane went to another page; a webpage pane opens there again after a restart."""
+        workspaces.set_address(project, task, pane, body.url)
         return state()
 
     @api.get("/settings")

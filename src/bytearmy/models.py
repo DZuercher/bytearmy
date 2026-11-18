@@ -177,6 +177,7 @@ class Pane(BaseModel):
     kind: Literal["terminal", "web", "diff", "answer"] = "terminal"
     title: str
     values: dict[str, str] = {}  # the tool's parameters, e.g. the file for Vim
+    address: str = ""  # the page a webpage pane last went to; it opens there after a restart
     session: str = ""  # stays the same across restarts; lets a tool such as Claude resume
     agent: str = ""  # the session name of the agent in the pane; empty if it holds none
     prompt: str = ""  # what the agent that spawned this one asked it to do
@@ -452,6 +453,12 @@ class PageVersion(BaseModel):
 
 class Highlight(BaseModel):
     on: bool
+
+
+class Address(BaseModel):
+    """The page a web pane went to."""
+
+    url: str
 
 
 class Unfold(BaseModel):
