@@ -127,6 +127,9 @@ PREMADE = {
     "explorer": f'name = "Explorer"\nkind = "external"\ncommand = "{FILE_MANAGER} ."\n',
     "pycharm": (
         f'name = "PyCharm"\nkind = "external"\ndirectory = "repo"\ncommand = "{PYCHARM} ."\n'
+        "# The pixi env in the clone that PyCharm gets as the interpreter of the project,\n"
+        "# installed first if it is not there yet; empty: none.\n"
+        'interpreter = ".pixi/envs/default"\n'
     ),
     "log": ('name = "Log"\nkind = "log"\n\n[[parameters]]\nname = "entry"\nlabel = "Log entry"\n'),
     "show-log": 'name = "Show Log"\nkind = "web"\nurl = "{log}"\n',
@@ -227,6 +230,8 @@ EARLIER = {
         "1e72de460c19588320173059e2382e3707a6f202aa09a7323a4c05b7c35119eb",
         "915ebed46753df1b214005cc6f9a098afdfa201630d36958086a12a6b165e6fe",
         "ed74822330e5c74b6fe3eb27da1176db0dd93b256bc93b2f72b25cca5b5a483b",
+        "83823aa7f9f237effbbb8c33fc73b0a578d2d3dd54fd54ee07c29f6df95930d0",
+        "ed7f0e33565c99106b589bc31a2f97b747bb26a9f065fbdb082fe9c20c910abd",
     },
     "log": {
         "f947639546c1d58bdddaf494b2b7017cb132524079a62d440659d0c1f922dd8d",

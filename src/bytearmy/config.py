@@ -256,6 +256,7 @@ class ToolSettings(Section):
     spawn: str | None = None
     url: str | None = None
     directory: Literal["task", "repo"] | None = None
+    interpreter: str | None = None
 
     def fields(self) -> dict[str, Any]:
         return self.model_dump(exclude={"enabled"}, exclude_none=True)
@@ -387,10 +388,11 @@ allowed_tools = []
 disallowed_tools = []
 
 # Settings of single tools, by the name of their file in .tools. A tool that is not
-# enabled is not offered. name, callers, command, resume, spawn, url and directory replace
-# what the tool file says. E.g.
+# enabled is not offered. name, callers, command, resume, spawn, url, directory and
+# interpreter replace what the tool file says. E.g.
 # [tools.pycharm]
 # enabled = false
+# interpreter = ""  # PyCharm gets no pixi env as its interpreter
 # [tools.vim]
 # command = "nvim {file}"
 

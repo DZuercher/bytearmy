@@ -65,6 +65,7 @@ from bytearmy.models import (
 from bytearmy.prs import PullRequestCommands, PullRequestFailed
 from bytearmy.ptys import Pty
 from bytearmy.pulls import PullRequests
+from bytearmy.pycharm import give_interpreter, interpreter_name
 from bytearmy.reviews import ReviewFailed, Reviews, default_branch
 from bytearmy.services import Services, launch
 from bytearmy.store import LOG_FILE, METADATA_DIR, ProjectNotFound, Store, TaskNotFound
@@ -306,11 +307,15 @@ class Workspaces:
             tool, request.values, Path(found.path), project_found.github_page, pull_request
         )
         if tool.kind == "external":
+            env = {**pane_env(os.environ, sys.prefix), **self.github_env(project, task)}
+            if tool.interpreter and found.clone == "ready":
+                repo = Path(found.path) / found.repo
+                give_interpreter(repo, tool.interpreter, interpreter_name(project, task), env)
             launch(
                 tool,
                 external_command(tool, values),
                 _directory(tool, found),
-                {**pane_env(os.environ, sys.prefix), **self.github_env(project, task)},
+                env,
                 self._logs / f"{tool.id}.log",
             )
             return None
