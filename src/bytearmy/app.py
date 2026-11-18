@@ -73,6 +73,8 @@ def window_env(root: Path, url: str, token: str) -> dict[str, str]:
         "BYTEARMY_TOKEN": token,
         # Logins made in web panes; inside the root, so every root has its own.
         "BYTEARMY_PROFILE": str(root / METADATA_DIR / "electron"),
+        # Errors of the page and crashes of its processes, which leave no trace otherwise.
+        "BYTEARMY_WINDOW_LOG": str(root / METADATA_DIR / "logs" / "electron.log"),
     }
 
 
