@@ -617,6 +617,55 @@
         }
       }
     },
+    "/api/projects/{project}/tasks/{task}/sync": {
+      "post": {
+        "summary": "Sync Task",
+        "description": "Have the master bring the clone up to date with origin; start one if there is none.",
+        "operationId": "sync_task_api_projects__project__tasks__task__sync_post",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project"
+            }
+          },
+          {
+            "name": "task",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/projects/{project}/tasks/{task}/clone": {
       "post": {
         "summary": "Clone Again",
@@ -3419,6 +3468,30 @@
         ],
         "title": "Focus"
       },
+      "GitStatus": {
+        "properties": {
+          "dirty": {
+            "type": "boolean",
+            "title": "Dirty"
+          },
+          "ahead": {
+            "type": "integer",
+            "title": "Ahead"
+          },
+          "behind": {
+            "type": "integer",
+            "title": "Behind"
+          }
+        },
+        "type": "object",
+        "required": [
+          "dirty",
+          "ahead",
+          "behind"
+        ],
+        "title": "GitStatus",
+        "description": "Where a task's clone stands against origin."
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -4514,6 +4587,16 @@
           },
           "workspace": {
             "$ref": "#/components/schemas/Workspace"
+          },
+          "git": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GitStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",

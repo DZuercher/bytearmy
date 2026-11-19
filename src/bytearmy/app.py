@@ -17,6 +17,7 @@ import uvicorn
 from bytearmy import gmail
 from bytearmy.api import create_app, schema
 from bytearmy.config import CONFIG_FILE, Config, config_of, ensure_config
+from bytearmy.gitstatus import GitStatuses
 from bytearmy.inbox import GitHubSource, Inbox
 from bytearmy.orchestrator import Orchestrator
 from bytearmy.services import free_port
@@ -104,6 +105,7 @@ async def run(root: Path) -> None:
         inbox=inbox,
         workspaces=workspaces,
         orchestrator=orchestrator,
+        git_statuses=GitStatuses(store),
     )
     server = uvicorn.Server(
         uvicorn.Config(

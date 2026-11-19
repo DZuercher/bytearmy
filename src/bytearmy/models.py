@@ -201,6 +201,14 @@ class Workspace(BaseModel):
     next_pane: int = 1
 
 
+class GitStatus(BaseModel):
+    """Where a task's clone stands against origin."""
+
+    dirty: bool  # it has uncommitted changes, untracked files among them
+    ahead: int  # commits of its branch that origin does not have
+    behind: int  # commits of origin's branch that it does not have
+
+
 class Task(TaskFile):
     slug: str  # directory name below the project; the task's id within it
     path: str
@@ -208,6 +216,7 @@ class Task(TaskFile):
     reminder_due: bool
     blocked_by: list[str]  # names of the dependencies that are still in the backlog
     workspace: Workspace
+    git: GitStatus | None = None  # of a clone of a project with a GitHub URL, once known
 
 
 class Parameter(BaseModel):

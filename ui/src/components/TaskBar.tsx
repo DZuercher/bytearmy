@@ -15,6 +15,7 @@ type Props = {
   project: Project | undefined // the focused project
   onFocus: (slug: string) => void
   onCloneAgain: (slug: string) => void
+  onSync: (slug: string) => void // have the master merge in origin's commits
   onEdit: (slug: string) => void
   onDelete: (doomed: Doomed) => void
   onReorder: (order: string[]) => void // the order of the tasks below the scratchpad
@@ -30,6 +31,7 @@ export function TaskBar({
   project,
   onFocus,
   onCloneAgain,
+  onSync,
   onEdit,
   onDelete,
   onReorder,
@@ -66,6 +68,7 @@ export function TaskBar({
             isDragging={isDragging}
             onClick={() => onFocus(task.slug)}
             onCloneAgain={() => onCloneAgain(task.slug)}
+            onSync={() => onSync(task.slug)}
             onEdit={() => onEdit(task.slug)}
             onDelete={onDelete}
             className={cn(hidden.length > 0 && 'pr-8')}

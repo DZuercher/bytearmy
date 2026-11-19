@@ -1,5 +1,5 @@
 import { Bell, LoaderCircle, Pencil, RotateCw, Trash2, TriangleAlert } from 'lucide-react'
-import type { HTMLAttributes, ReactNode } from 'react'
+import type { HTMLAttributes, ReactNode, SyntheticEvent } from 'react'
 import type { Project, Task } from '@/api/client'
 import { DataList } from '@/components/DataList'
 import type { Doomed } from '@/components/DeleteDialog'
@@ -23,6 +23,7 @@ export function TaskItem({
   isDragging,
   onClick,
   onCloneAgain,
+  onSync,
   onEdit,
   onDelete,
   className,
@@ -36,6 +37,7 @@ export function TaskItem({
   isDragging: boolean
   onClick: () => void
   onCloneAgain: () => void
+  onSync?: () => void // a click on the git status: the master merges in origin's commits
   onEdit: () => void
   onDelete: (doomed: Doomed) => void
   className?: string
@@ -65,6 +67,7 @@ export function TaskItem({
             <span className="truncate">{task.name}</span>
             <Markers task={task} />
           </span>
+          <GitLine task={task} onSync={onSync} />
           {children}
         </button>
       </ContextMenuTrigger>
@@ -114,6 +117,37 @@ function Markers({ task }: { task: Task }) {
         <TriangleAlert aria-label="Clone failed" className="size-3.5 shrink-0 text-destructive" />
       )}
     </>
+  )
+}
+
+// Where the task's clone stands against origin; nothing while it is clean and in step.
+// A click has the master stash, merge in origin's commits and restore the stash.
+function GitLine({ task, onSync }: { task: Task; onSync?: () => void }) {
+  const git = task.git
+  if (!git || (!git.dirty && !git.ahead && !git.behind)) return null
+  // Inside the task's button, so not a button itself; the click must not focus the task.
+  const sync = (event: SyntheticEvent) => {
+    event.stopPropagation()
+    onSync?.()
+  }
+  return (
+    <span
+      role="button"
+      tabIndex={0}
+      title="Have the master merge in the remote's commits"
+      className="flex items-center gap-2 rounded-sm text-xs tabular-nums hover:underline"
+      onClick={sync}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          sync(event)
+        }
+      }}
+    >
+      {git.dirty && <span title="Uncommitted changes">●</span>}
+      {git.ahead > 0 && <span title={`${git.ahead} commits not on the remote`}>↑{git.ahead}</span>}
+      {git.behind > 0 && <span title={`${git.behind} commits on the remote, not local`}>↓{git.behind}</span>}
+    </span>
   )
 }
 

@@ -35,6 +35,7 @@ const routes = {
   taskFocus: '/api/projects/{project}/tasks/focus',
   taskStart: '/api/projects/{project}/tasks/{task}/start',
   taskClone: '/api/projects/{project}/tasks/{task}/clone',
+  taskSync: '/api/projects/{project}/tasks/{task}/sync',
   task: '/api/projects/{project}/tasks/{task}',
   layout: '/api/projects/{project}/tasks/{task}/layout',
   maximized: '/api/projects/{project}/tasks/{task}/maximized',
@@ -113,6 +114,9 @@ export const api = {
     request('POST', fill(routes.taskStart, { project, task })),
   cloneAgain: (project: string, task: string) =>
     request('POST', fill(routes.taskClone, { project, task })),
+  // The master stashes, merges in origin's commits and restores the stash; started if needed.
+  syncTask: (project: string, task: string) =>
+    request('POST', fill(routes.taskSync, { project, task })),
   editTask: (project: string, task: string, edit: TaskEdit) =>
     request('PUT', fill(routes.task, { project, task }), edit),
   deleteTask: (project: string, task: string) =>
