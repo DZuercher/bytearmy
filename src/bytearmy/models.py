@@ -306,7 +306,7 @@ class UiState(BaseModel):
     # the *_open flags keep what the bars show once it ends
     focus: bool = False
     # what the middle of the window shows
-    view: Literal["workspace", "inbox", "orchestrator"] = "workspace"
+    view: Literal["workspace", "inbox", "messengers", "orchestrator"] = "workspace"
 
 
 class UiChange(BaseModel):
@@ -319,7 +319,7 @@ class UiChange(BaseModel):
     right_width: BarWidth | None = None
     bottom_width: BarWidth | None = None
     focus: bool | None = None
-    view: Literal["workspace", "inbox", "orchestrator"] | None = None
+    view: Literal["workspace", "inbox", "messengers", "orchestrator"] | None = None
 
 
 class Message(BaseModel):

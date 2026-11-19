@@ -8,6 +8,8 @@ import { EditTaskDialog } from '@/components/EditTaskDialog'
 import { FocusTab } from '@/components/FocusTab'
 import { InboxTab } from '@/components/InboxTab'
 import { InboxView } from '@/components/InboxView'
+import { MessengersTab } from '@/components/MessengersTab'
+import { MessengersView } from '@/components/MessengersView'
 import { OrchestratorTab } from '@/components/OrchestratorTab'
 import { OrchestratorView } from '@/components/OrchestratorView'
 import { Palette } from '@/components/Palette'
@@ -55,6 +57,8 @@ export function App() {
   const [opened, setOpened] = useState<string[]>([])
   // The orchestrator's terminal stays mounted once shown, so it keeps its content.
   const [orchestratorOpened, setOrchestratorOpened] = useState(false)
+  // The messengers' browser view stays mounted once shown, so it keeps its page.
+  const [messengersOpened, setMessengersOpened] = useState(false)
   const activePanes = useRef<Record<string, string>>({})
   // The width of a bar whose edge is being dragged; the core keeps it once the edge is let go.
   const [drafts, setDrafts] = useState<Partial<Record<BarWidth, number>>>({})
@@ -111,12 +115,17 @@ export function App() {
   useEffect(() => {
     if (orchestratorView) setOrchestratorOpened(true)
   }, [orchestratorView])
+  const messengersView = state?.ui.view === 'messengers'
+  useEffect(() => {
+    if (messengersView) setMessengersOpened(true)
+  }, [messengersView])
 
   if (state === null) return error && <p className="p-4 text-destructive">{error}</p>
 
   const { ui, projects } = state
   const setUi = (change: UiChange) => run(api.updateUi(change))
   const inboxShown = ui.view === 'inbox'
+  const messengersShown = ui.view === 'messengers'
   const orchestratorShown = ui.view === 'orchestrator'
   const workspaceShown = ui.view === 'workspace'
   // In focus mode every bar shows collapsed; the bars' own flags keep what shows after it.
@@ -160,7 +169,7 @@ export function App() {
     />
   )
   const unread = state.inbox.messages.filter((message) => message.unread && !message.dismissed).length
-  // Choosing a project, a task or a pane leaves the inbox and the orchestrator.
+  // Choosing a project, a task or a pane leaves the inbox, the messengers and the orchestrator.
   const showWorkspace = () => {
     if (!workspaceShown) setUi({ view: 'workspace' })
   }
@@ -245,6 +254,11 @@ export function App() {
             unread={ui.focus ? 0 : unread}
             onClick={() => setUi({ view: 'inbox' })}
           />
+          <MessengersTab
+            open={leftOpen}
+            active={messengersShown}
+            onClick={() => setUi({ view: 'messengers' })}
+          />
           <ProjectBar
             open={leftOpen}
             onToggle={() => toggleBar('left_open')}
@@ -288,7 +302,7 @@ export function App() {
         <main className="relative isolate flex min-w-0 flex-1 flex-col bg-background">
           <div className="flex items-baseline gap-3 px-4 pt-4 pb-3">
             <h1 className="text-lg font-semibold">
-              {inboxShown ? 'Inbox' : orchestratorShown ? 'Orchestrator' : 'Workspace'}
+              {inboxShown ? 'Inbox' : messengersShown ? 'Messengers' : orchestratorShown ? 'Orchestrator' : 'Workspace'}
             </h1>
             <p className="text-muted-foreground">
               {orchestratorShown
@@ -299,6 +313,8 @@ export function App() {
                 ? unread
                   ? `${unread} unread`
                   : 'Everything read.'
+                : messengersShown
+                ? 'Slack.'
                 : task && project
                 ? `${project.name} / ${task.name}`
                 : project
@@ -327,6 +343,7 @@ export function App() {
               onRestart={() => run(api.restartOrchestrator())}
             />
           )}
+          {messengersOpened && <MessengersView visible={messengersShown} />}
           {inboxShown && (
             <InboxView
               inbox={state.inbox}

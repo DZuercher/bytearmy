@@ -5107,6 +5107,7 @@
                 "enum": [
                   "workspace",
                   "inbox",
+                  "messengers",
                   "orchestrator"
                 ]
               },
@@ -5169,6 +5170,7 @@
             "enum": [
               "workspace",
               "inbox",
+              "messengers",
               "orchestrator"
             ],
             "title": "View",

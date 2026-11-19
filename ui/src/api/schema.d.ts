@@ -2263,7 +2263,7 @@ export interface components {
             /** Focus */
             focus?: boolean | null;
             /** View */
-            view?: ("workspace" | "inbox" | "orchestrator") | null;
+            view?: ("workspace" | "inbox" | "messengers" | "orchestrator") | null;
         };
         /** UiState */
         UiState: {
@@ -2307,7 +2307,7 @@ export interface components {
              * @default workspace
              * @enum {string}
              */
-            view: "workspace" | "inbox" | "orchestrator";
+            view: "workspace" | "inbox" | "messengers" | "orchestrator";
         };
         /** Unfold */
         Unfold: {
