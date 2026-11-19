@@ -300,6 +300,7 @@ class GitHubSettings(Section):
 
 class Config(Section):
     color_scheme: str = "light"
+    browser_in_pane: bool = True
     orchestrator: OrchestratorSettings = OrchestratorSettings()
     master: MasterSettings = MasterSettings()
     agents: AgentSettings = AgentSettings()
@@ -317,6 +318,11 @@ DEFAULT_TEXT = """\
 
 # The colors of the window: a file in .bytearmy/themes, without .toml.
 color_scheme = "light"
+
+# A page that a program in a pane opens in the browser, such as the login of
+# `aws sso login`, opens in a webpage pane beside it. The pane closes once the login is done.
+# false: the system's browser opens it. Counts for panes started from then on.
+browser_in_pane = true
 
 # The one agent above all tasks.
 [orchestrator]

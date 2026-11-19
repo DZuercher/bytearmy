@@ -1533,6 +1533,11 @@ export interface components {
              */
             address: string;
             /**
+             * Login
+             * @default false
+             */
+            login: boolean;
+            /**
              * Session
              * @default
              */
@@ -1597,6 +1602,11 @@ export interface components {
              * @default false
              */
             hidden: boolean;
+            /**
+             * Login
+             * @default false
+             */
+            login: boolean;
         };
         /** PaneMove */
         PaneMove: {
@@ -1621,6 +1631,11 @@ export interface components {
              * @default false
              */
             hidden: boolean;
+            /**
+             * Login
+             * @default false
+             */
+            login: boolean;
         };
         /** Parameter */
         Parameter: {
@@ -2183,6 +2198,11 @@ export interface components {
              * @default false
              */
             notify: boolean;
+            /**
+             * Interpreter
+             * @default
+             */
+            interpreter: string;
             /**
              * Parameters
              * @default []

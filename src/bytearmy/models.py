@@ -178,6 +178,7 @@ class Pane(BaseModel):
     title: str
     values: dict[str, str] = {}  # the tool's parameters, e.g. the file for Vim
     address: str = ""  # the page a webpage pane last went to; it opens there after a restart
+    login: bool = False  # a page a program opened to log in: closes once it comes back here
     session: str = ""  # stays the same across restarts; lets a tool such as Claude resume
     agent: str = ""  # the session name of the agent in the pane; empty if it holds none
     prompt: str = ""  # what the agent that spawned this one asked it to do
@@ -435,6 +436,7 @@ class PaneOpen(BaseModel):
     values: dict[str, str] = {}
     beside: str | None = None  # the pane to split; the last pane if not given
     hidden: bool = False  # open it without a place in the layout
+    login: bool = False  # a page a program opened to log in, see Pane.login
 
 
 class Layout(BaseModel):
@@ -486,6 +488,7 @@ class PaneCall(BaseModel):
     args: list[str] = []
     beside: str | None = None  # the pane to split; the calling pane if not given
     hidden: bool = False  # open it without a place in the layout
+    login: bool = False  # a page a program opened to log in, see Pane.login
 
 
 class PaneMove(BaseModel):

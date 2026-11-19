@@ -88,7 +88,13 @@ def pane_list(_args: argparse.Namespace) -> str:
 
 
 def pane_open(args: argparse.Namespace) -> str:
-    body = {"tool": args.tool, "args": args.values, "beside": args.beside, "hidden": args.hidden}
+    body = {
+        "tool": args.tool,
+        "args": args.values,
+        "beside": args.beside,
+        "hidden": args.hidden,
+        "login": args.login,
+    }
     opened = call("POST", "/panes", body)
     if opened["logged"]:
         return "added the entry to the task's log"
@@ -499,6 +505,11 @@ def parser() -> argparse.ArgumentParser:
     opening.add_argument("--beside", help="the pane to open it next to")
     opening.add_argument(
         "--hidden", action="store_true", help="open it hidden: listed in the tasks bar only"
+    )
+    opening.add_argument(
+        "--login",
+        action="store_true",
+        help="a page to log in: the pane closes once the page comes back to this machine",
     )
     command(pane, "close", pane_close, "close a pane").add_argument("id")
     command(pane, "maximize", pane_maximize, "let a pane fill the workspace").add_argument("id")
