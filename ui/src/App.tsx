@@ -271,6 +271,7 @@ export function App() {
               run(api.focusTask(project!.slug, slug))
             }}
             onCloneAgain={(slug) => run(api.cloneAgain(project!.slug, slug))}
+            onSync={(slug) => run(api.syncTask(project!.slug, slug))}
             onEdit={setEditing}
             onDelete={setDoomed}
             onReorder={(order) => reorderTasks('tasks', order)}

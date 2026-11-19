@@ -250,6 +250,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{project}/tasks/{task}/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sync Task
+         * @description Have the master bring the clone up to date with origin; start one if there is none.
+         */
+        post: operations["sync_task_api_projects__project__tasks__task__sync_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects/{project}/tasks/{task}/clone": {
         parameters: {
             query?: never;
@@ -1336,6 +1356,18 @@ export interface components {
             /** Slug */
             slug: string | null;
         };
+        /**
+         * GitStatus
+         * @description Where a task's clone stands against origin.
+         */
+        GitStatus: {
+            /** Dirty */
+            dirty: boolean;
+            /** Ahead */
+            ahead: number;
+            /** Behind */
+            behind: number;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -1968,6 +2000,7 @@ export interface components {
             /** Blocked By */
             blocked_by: string[];
             workspace: components["schemas"]["Workspace"];
+            git?: components["schemas"]["GitStatus"] | null;
         };
         /**
          * TaskChange
@@ -2810,6 +2843,38 @@ export interface operations {
         };
     };
     start_task_api_projects__project__tasks__task__start_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project: string;
+                task: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sync_task_api_projects__project__tasks__task__sync_post: {
         parameters: {
             query?: never;
             header?: never;

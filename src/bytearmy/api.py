@@ -19,6 +19,7 @@ from bytearmy.agents import ORCHESTRATOR
 from bytearmy.answers import render as render_answer
 from bytearmy.clones import AlreadyCloning, CloneFailed, Cloner
 from bytearmy.config import ACCOUNTS, load_config
+from bytearmy.gitstatus import GitStatuses
 from bytearmy.inbox import Inbox, MessageNotFound
 from bytearmy.logpage import render
 from bytearmy.models import (
@@ -111,6 +112,13 @@ from bytearmy.workspaces import (
 
 PANES = "/projects/{project}/tasks/{task}/panes"
 CHANGE_CHECK_SECONDS = 0.2  # how often the change channel looks for a new version
+# What the master is told when the user clicks the git status of its task.
+SYNC_PROMPT = (
+    "Bring the clone up to date with origin: stash the uncommitted changes, untracked files"
+    " among them; fetch origin's branch and merge the commits of it that are not local yet;"
+    " then restore the stashed changes. Resolve the conflicts that occur, in the merge or in"
+    " restoring the changes."
+)
 
 
 def calling_pane(request: Request) -> Key:
@@ -202,16 +210,19 @@ def create_app(
     url: str = "",
     inbox: Inbox | None = None,
     orchestrator: Orchestrator | None = None,
+    git_statuses: GitStatuses | None = None,
 ) -> FastAPI:
     """The core's app. `url` is where it is served: the programs in the panes call it there.
 
     Without an `inbox`, the inbox asks no source: only the app the user starts asks GitHub.
     Without an `orchestrator`, it starts only once the window shows it.
+    Without `git_statuses`, the clones are not asked for their git status.
     """
     cloner = cloner or Cloner(store)
     inbox = inbox or Inbox(store)
     workspaces = workspaces or Workspaces(store)
     orchestrator = orchestrator or Orchestrator(store, workspaces)
+    git_statuses = git_statuses or GitStatuses(store, enabled=False)
     if url:
         workspaces.url = url
     # Pages in web panes cannot send the token, and must not know it: the files and logs
@@ -229,6 +240,9 @@ def create_app(
     def state() -> AppState:
         """Everything the UI shows. Every change answers with it, so the UI never merges."""
         whole = store.app_state()
+        for project in whole.projects:
+            for started in project.tasks:
+                started.git = git_statuses.status(project.slug, started.slug)
         # The command dialogue opens tools in the focused task of the focused project: its
         # tools are offered, with the task's pull request as the default of {task_page}.
         focused = next((p for p in whole.projects if p.slug == whole.focused_project), None)
@@ -385,6 +399,21 @@ def create_app(
     @api.post("/projects/{project}/tasks/{task}/start")
     def start_task(project: str, task: str) -> AppState:
         store.start_task(project, task)
+        return state()
+
+    @api.post("/projects/{project}/tasks/{task}/sync")
+    def sync_task(project: str, task: str) -> AppState:
+        """Have the master bring the clone up to date with origin; start one if there is none."""
+        if store.task(project, task).workspace.master is None:
+            workspaces.start_master(project, task, SYNC_PROMPT)
+            return state()
+        try:
+            workspaces.send_to_master(project, task, SYNC_PROMPT)
+        except NoMaster:
+            raise HTTPException(
+                status_code=409,
+                detail="The master agent of the task has ended; start it again to sync.",
+            ) from None
         return state()
 
     @api.post("/projects/{project}/tasks/{task}/clone")
@@ -771,7 +800,9 @@ def create_app(
         workspaces.start_all()
         orchestrator.start()
         inbox.start()
+        git_statuses.start()
         yield
+        git_statuses.shutdown()
         inbox.shutdown()
         orchestrator.shutdown()
         cloner.shutdown()
