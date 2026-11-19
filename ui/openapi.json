@@ -3750,6 +3750,11 @@
             "title": "Address",
             "default": ""
           },
+          "login": {
+            "type": "boolean",
+            "title": "Login",
+            "default": false
+          },
           "session": {
             "type": "string",
             "title": "Session",
@@ -3839,6 +3844,11 @@
             "type": "boolean",
             "title": "Hidden",
             "default": false
+          },
+          "login": {
+            "type": "boolean",
+            "title": "Login",
+            "default": false
           }
         },
         "type": "object",
@@ -3889,6 +3899,11 @@
           "hidden": {
             "type": "boolean",
             "title": "Hidden",
+            "default": false
+          },
+          "login": {
+            "type": "boolean",
+            "title": "Login",
             "default": false
           }
         },
@@ -4884,6 +4899,11 @@
             "type": "boolean",
             "title": "Notify",
             "default": false
+          },
+          "interpreter": {
+            "type": "string",
+            "title": "Interpreter",
+            "default": ""
           },
           "parameters": {
             "items": {

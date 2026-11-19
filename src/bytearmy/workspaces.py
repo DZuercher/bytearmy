@@ -14,6 +14,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from urllib.parse import urlparse
 
 from bytearmy import answers, themes
 from bytearmy.agents import (
@@ -103,6 +104,7 @@ CONTROL = re.compile(
     r"\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b.|[\x00-\x08\x0b-\x1f\x7f]"
 )
 COULD_NOT_START = 127  # the exit code a shell gives for a command it cannot find
+BROWSER_COMMAND = "bytearmy-browser"  # the browser of the panes, in their bin directory
 SPAWNING_TOOL = "claude"  # starts agents for a pane that is not an agent itself
 
 Key = tuple[str, str, str]  # project, task, pane
@@ -181,6 +183,27 @@ def pane_command(bin_dir: Path) -> Path:
     return command
 
 
+def browser_command(bin_dir: Path) -> Path:
+    """Write the browser of the panes, which BROWSER names: it opens a page a program asks
+    for, e.g. `aws sso login`, in a webpage pane beside the program's pane. Where bytearmy
+    cannot open one, the system's browser opens it."""
+    bin_dir.mkdir(parents=True, exist_ok=True)
+    command = bin_dir / BROWSER_COMMAND
+    system = "open" if sys.platform == "darwin" else "xdg-open"
+    bytearmy = shlex.quote(str(bin_dir / "bytearmy"))
+    command.write_text(
+        "#!/bin/sh\n"
+        f'{bytearmy} pane open webpage --login "url=$1" >/dev/null 2>&1 || exec {system} "$1"\n'
+    )
+    command.chmod(0o755)
+    return command
+
+
+def loopback(url: str) -> bool:
+    """Whether a page is served on this machine, as the end of a login is."""
+    return urlparse(url).hostname in {"127.0.0.1", "localhost", "::1"}
+
+
 class Workspaces:
     def __init__(
         self,
@@ -214,6 +237,7 @@ class Workspaces:
         self._services = Services(self._logs)
         self._diffle = Reviews(self._logs)
         self._bin = pane_command(store.root / METADATA_DIR / "bin").parent
+        browser_command(self._bin)
         ensure_premade(store.root)
         remove_legacy(store.root)
         write_premade(store.root / MASTER_FILE, MASTER_INSTRUCTIONS, EARLIER_MASTER_INSTRUCTIONS)
@@ -347,6 +371,7 @@ class Workspaces:
                 prompt=prompt,
                 spawned_by=spawned_by,
                 hidden=request.hidden,
+                login=request.login,
             )
             if tool.agent:
                 _make_agent(workspace, pane, (project, task), tool, role)
@@ -423,7 +448,8 @@ class Workspaces:
         self._store.change_workspace(project, task, change)
 
     def set_address(self, project: str, task: str, pane: str, url: str) -> None:
-        """Remember the page a web pane went to."""
+        """Remember the page a web pane went to. A login pane closes once its page comes
+        back to this machine: the program that opened it has then got what it waited for."""
 
         def change(workspace: Workspace) -> None:
             if pane not in workspace.panes:
@@ -431,6 +457,8 @@ class Workspaces:
             workspace.panes[pane].address = url
 
         self._store.change_workspace(project, task, change)
+        if self._store.task(project, task).workspace.panes[pane].login and loopback(url):
+            self.close_pane(project, task, pane)
 
     def list_hidden(self, project: str, task: str, open: bool) -> None:
         """Unfold or fold the list of the task's hidden panes in the tasks bar."""
@@ -516,6 +544,7 @@ class Workspaces:
             values=values_from_args(tool, call.args),
             beside=call.beside or pane,
             hidden=call.hidden,
+            login=call.login,
         )
         calling = self._store.task(project, task).workspace.panes.get(pane)
         author = calling.agent if calling and calling.agent else "user"
@@ -1068,6 +1097,8 @@ class Workspaces:
             BYTEARMY_TASK=f"{project}/{task}",
             BYTEARMY_PANE=pane,
         )
+        if self.config(project, task).browser_in_pane:
+            env["BROWSER"] = str(self._bin / BROWSER_COMMAND)
         env.update(self.github_env(project, task))
         return env
 
