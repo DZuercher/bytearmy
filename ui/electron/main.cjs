@@ -1,11 +1,13 @@
 // The window of bytearmy. State and logic live in the Python core that starts this process.
-const { app, BrowserWindow } = require('electron')
+const { app, BrowserWindow, session } = require('electron')
 const fs = require('node:fs')
 const path = require('node:path')
 
 const coreUrl = process.env.BYTEARMY_URL
 const token = process.env.BYTEARMY_TOKEN
 const DOUBLE_TAP_MS = 400
+// The session of the messengers' browser view; its pages may open windows of their own.
+const MESSENGERS_PARTITION = 'persist:messengers'
 
 // What the window stores by itself, such as the logins made in web panes, lives where
 // the core says: inside the root, so every root has its own.
@@ -56,9 +58,19 @@ app.on('web-contents-created', (_event, contents) => {
     webPreferences.nodeIntegration = false
     webPreferences.contextIsolation = true
   })
+  // A messenger opens real windows, such as the page of a single sign-on, which needs the
+  // page that opened it. They get the messenger's session and no access to this process.
+  if (contents.getType() === 'webview' && contents.session === session.fromPartition(MESSENGERS_PARTITION)) {
+    contents.setWindowOpenHandler(() => ({
+      action: 'allow',
+      overrideBrowserWindowOptions: {
+        webPreferences: { partition: MESSENGERS_PARTITION, nodeIntegration: false, contextIsolation: true },
+      },
+    }))
+  }
   // A web pane opens no windows: the page is told what the window would have shown, and
   // opens it as a new pane.
-  if (contents.getType() === 'webview') {
+  else if (contents.getType() === 'webview') {
     contents.setWindowOpenHandler(({ url }) => {
       if (win && !win.isDestroyed()) win.webContents.send('webview:open', { from: contents.id, url })
       return { action: 'deny' }
