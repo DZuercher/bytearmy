@@ -7,6 +7,9 @@ and its project names it. PyCharm takes the entry up whether it runs or not.
 
 An env that is not there yet is installed in the background first; PyCharm, already open,
 gets the interpreter once that is done.
+
+The bytearmy root is one of PyCharm's trusted locations, in trusted-paths.xml, so PyCharm
+opens the clones below it without asking whether to trust them.
 """
 
 from __future__ import annotations
@@ -28,6 +31,7 @@ log = logging.getLogger(__name__)
 APP = Path("/Applications/PyCharm.app")
 SDK_TYPE = "Python SDK"
 TABLE = "jdk.table.xml"
+TRUSTED = "trusted-paths.xml"
 PIXI_ENV = re.compile(r"\.pixi/envs/([^/]+)/?")
 _lock = threading.Lock()  # one writer of jdk.table.xml at a time
 
@@ -73,6 +77,19 @@ def remove_interpreter(name: str, home: Path | None = None) -> None:
             _save(tree, settings / TABLE, declaration=False)
     except (OSError, ET.ParseError) as error:
         log.warning("Could not remove the interpreter %s: %s", name, error)
+
+
+def trust(root: Path, home: Path | None = None) -> None:
+    """Make `root`, and so every directory below it, a trusted location of PyCharm."""
+    home = home or Path.home()
+    settings = _settings_dir(home)
+    if settings is None:
+        log.warning("No settings directory of PyCharm found; %s stays untrusted.", root)
+        return
+    try:
+        _add_trusted(settings / TRUSTED, root, home)
+    except (OSError, ET.ParseError) as error:
+        log.warning("Could not make %s a trusted location of PyCharm: %s", root, error)
 
 
 def _has_pixi_manifest(repo: Path) -> bool:
@@ -190,6 +207,37 @@ def _add_entry(table_file: Path, name: str, repo: Path, target: Path) -> None:
     )
     ET.SubElement(additional, "setting", name="FLAVOR_DATA", value=flavor)
     _save(tree, table_file, declaration=False)
+
+
+def _add_trusted(trusted_file: Path, root: Path, home: Path) -> None:
+    """Put `root` into the trusted locations, unless it is there already."""
+    if trusted_file.exists():
+        tree = ET.parse(trusted_file)
+    else:
+        tree = ET.ElementTree(ET.Element("application"))
+    component = tree.getroot().find("component[@name='Trusted.Paths.Settings']")
+    if component is None:
+        component = ET.SubElement(tree.getroot(), "component", name="Trusted.Paths.Settings")
+    option = component.find("option[@name='TRUSTED_PATHS']")
+    if option is None:
+        option = ET.SubElement(component, "option", name="TRUSTED_PATHS")
+    paths = option.find("list")
+    if paths is None:
+        paths = ET.SubElement(option, "list")
+    # PyCharm writes paths below the home directory with the macro $USER_HOME$.
+    known = {
+        Path(entry.get("value", "").replace("$USER_HOME$", str(home)))
+        for entry in paths.findall("option")
+    }
+    if root in known:
+        return
+    if trusted_file.exists():
+        # PyCharm's own file: the version before bytearmy first changed it is kept.
+        backup = trusted_file.with_name(f"{TRUSTED}.bytearmy-backup")
+        if not backup.exists():
+            backup.write_bytes(trusted_file.read_bytes())
+    ET.SubElement(paths, "option", value=str(root))
+    _save(tree, trusted_file, declaration=False)
 
 
 def _name_in_project(misc_file: Path, name: str) -> None:
